@@ -9,7 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigInteger;
 import java.util.Date;
 
 @Entity
@@ -17,68 +16,80 @@ import java.util.Date;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "user")
+@Table(name = "users")
 public class User {
 
     @Id
     @Column(name = "user_id")
-    private BigInteger id;
+    private Long id;
 
-    @Column(name = "idnty_typ_id")
-    private BigInteger idnty_typ_id;
+    @Column(name = "identity_type_id")
+    private Integer identityTypeId;
 
-    @Column(name = "frst_Nm")
+    @Column(name = "first_name")
     private String firstName;
 
-    @Column(name = "mdl_nm")
+    @Column(name = "middle_name")
     private String middleName;
 
-    @Column(name = "lst_Nm")
+    @Column(name = "last_name")
     private String lastName;
 
-    @Column(name = "Eml_id")
-    private String emailId;
+    @Column(name = "email")
+    private String email;
 
-    @Column(name = "phn_nbr")
-    private BigInteger phoneNumber;
+    @Column(name = "phone_number")
+    private String phoneNumber;
 
-    @Column(name = "Addr_ln1")
+    @Column(name = "contact_number")
+    private String contactNumber;
+
+    @Column(name = "address_line1")
     private String addressLine1;
 
-    @Column(name = "Addr_ln2")
+    @Column(name = "address_line2")
     private String addressLine2;
 
-    @Column(name = "addr_ln3")
+    @Column(name = "address_line3")
     private String addressLine3;
 
-    @Column(name = "cty")
-    private String city;
-
-    @Column(name = "cntry_id")
-    private String countryId;
+    @Column(name = "country_id")
+    private Integer countryId;
 
     @Column(name = "state_id")
-    private BigInteger stateId;
+    private Integer stateId;
 
-    @Column(name = "zip_cd")
-    private BigInteger zipCode;
+    @Column(name = "city")
+    private String city;
 
-    @Column(name = "geo_code")
-    private String geoCode;
+    @Column(name = "postal_code")
+    private String postalCode;
 
-    @Column(name = "Regd_dt")
-    private Date registeredDate;
+    @Column(name = "geo_location_code")
+    private String geoLocationCode;
 
-    @Column(name = "usr_sts_id")
-    private BigInteger userSTSId;
+    @Column(name = "region_updated_on")
+    private Date regionUpdatedOn;
 
-    @Column(name = "usr_sts_dt")
-    private Date userSTSDate;
+    @Column(name = "user_status_id")
+    private Integer userStatusId;
 
-    @Column(name = "emergency_avbity_ind")
-    private String emergencyInd;
+    @Column(name = "status_updated_on")
+    private Date statusUpdatedOn;
 
-    @Column(name = "cntc_mbr")
-    private String cntcMbr;
+    @Column(name = "is_emergency_available")
+    private String isEmergencyAvailable;
+
+    @Column(name = "created_by")
+    private String createdBy;
+
+    @Column(name = "created_on")
+    private Date createdOn;
+
+    @Column(name = "updated_by")
+    private String updatedBy;
+
+    @Column(name = "updated_on")
+    private Date updatedOn;
 
 }
