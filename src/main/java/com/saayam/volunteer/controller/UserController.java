@@ -1,43 +1,54 @@
 package com.saayam.volunteer.controller;
-import com.saayam.volunteer.entities.User;
-import com.saayam.volunteer.service.impl.UserServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 
-import java.math.BigInteger;
-import java.util.List;
-import java.util.Optional;
+import com.saayam.volunteer.domain.CreateUserRequest;
+import com.saayam.volunteer.domain.CreateUserResponse;
+import com.saayam.volunteer.domain.PaginationResponse;
+import com.saayam.volunteer.domain.UpdateUserProfileRequest;
+import com.saayam.volunteer.domain.UserProfileResponse;
+import com.saayam.volunteer.service.UserService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/volunteer")
+@RequestMapping("/user")
 public class UserController {
+    private final UserService userService;
 
     @Autowired
-    private UserServiceImpl userService;
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @PostMapping
-    public User saveUser(@RequestBody User user){
-        return userService.saveUser(user);
+    public CreateUserResponse createUser(@Valid @RequestBody CreateUserRequest request) {
+        return userService.createUser(request);
     }
 
     @GetMapping
-    public List<User> getAllUsers(){
-        return userService.findAllUsers();
+    public PaginationResponse<UserProfileResponse> getUsersWithPagination(
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        return userService.findAllUsersWithPagination(page, size);
     }
 
-    @GetMapping("/{id}")
-    public Optional<User> getUser(@PathVariable("id") BigInteger id){
-        return userService.findById(id);
+    @GetMapping("/profile/{userId}")
+    public UserProfileResponse getUserProfile(@PathVariable String userId) {
+        return userService.getUserProfileById(userId);
     }
 
-    @PutMapping
-    public User updateUser(@RequestBody User user){
-        return userService.updateUser(user);
-    }
-
-    @DeleteMapping
-    public void deleteUser(@RequestParam BigInteger id){
-        userService.deleteUser(id);
+    @PutMapping("/profile/{userId}")
+    public UserProfileResponse updateUserProfile(
+            @PathVariable String userId,
+            @RequestBody UpdateUserProfileRequest request) {
+        return userService.updateUserProfile(userId, request);
     }
 
 }
