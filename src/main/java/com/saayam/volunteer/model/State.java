@@ -17,7 +17,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
-import java.util.UUID;
 
 @Entity
 @Data

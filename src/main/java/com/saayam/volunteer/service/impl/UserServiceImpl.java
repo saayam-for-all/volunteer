@@ -1,10 +1,10 @@
 package com.saayam.volunteer.service.impl;
 
-import com.saayam.volunteer.domain.CreateUserRequest;
-import com.saayam.volunteer.domain.CreateUserResponse;
-import com.saayam.volunteer.domain.PaginationResponse;
-import com.saayam.volunteer.domain.UpdateUserProfileRequest;
-import com.saayam.volunteer.domain.UserProfileResponse;
+import com.saayam.volunteer.dto.CreateUserRequest;
+import com.saayam.volunteer.dto.CreateUserResponse;
+import com.saayam.volunteer.dto.PaginationResponse;
+import com.saayam.volunteer.dto.UpdateUserProfileRequest;
+import com.saayam.volunteer.dto.UserProfileResponse;
 import com.saayam.volunteer.model.User;
 import com.saayam.volunteer.model.UserCategory;
 import com.saayam.volunteer.model.UserStatus;

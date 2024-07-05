@@ -1,4 +1,4 @@
-package com.saayam.volunteer.domain;
+package com.saayam.volunteer.dto;
 
 import lombok.Builder;
 
