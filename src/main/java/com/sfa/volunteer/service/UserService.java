@@ -8,17 +8,16 @@ import com.sfa.volunteer.dto.UserProfileResponse;
 import com.sfa.volunteer.model.User;
 
 import java.util.List;
+import java.util.Locale;
 
 
 public interface UserService {
-
-    List<User> findAllUsers();  // will be deprecated
 
     PaginationResponse<UserProfileResponse> findAllUsersWithPagination(Integer pageNumber, Integer pageSize);
 
     UserProfileResponse getUserProfileById(String userId);
 
-    CreateUserResponse createUser(CreateUserRequest createUserRequest);
+    CreateUserResponse createUser(CreateUserRequest createUserRequest, Locale locale);
 
     UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest updateUserProfileRequest);
 }

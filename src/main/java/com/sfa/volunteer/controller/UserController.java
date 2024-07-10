@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Locale;
+
 @RestController
 @RequestMapping("/user")
 public class UserController {
@@ -28,8 +30,8 @@ public class UserController {
     }
 
     @PostMapping
-    public CreateUserResponse createUser(@Valid @RequestBody CreateUserRequest request) {
-        return userService.createUser(request);
+    public CreateUserResponse createUser(@Valid @RequestBody CreateUserRequest request,  Locale locale) {
+        return userService.createUser(request, locale);
     }
 
     @GetMapping

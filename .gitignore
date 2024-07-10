@@ -61,7 +61,8 @@ Thumbs.db
 .vscode/
 
 # Exclude resources folder
-src/main/resources/
+src/main/resources/application.properties
+src/main/resources/*.sql
 
 # Node
 node_modules/

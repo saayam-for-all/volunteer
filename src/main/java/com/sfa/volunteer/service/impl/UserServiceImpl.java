@@ -16,6 +16,7 @@ import com.sfa.volunteer.repository.UserStatusRepository;
 import com.sfa.volunteer.service.UserService;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,7 @@ import org.springframework.stereotype.Service;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,39 +37,38 @@ public class UserServiceImpl implements UserService {
     private final UserCategoryRepository userCategoryRepository;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
+    private final MessageSource messageSource;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
 
     // Default IDs for user status and category
     private static final Integer DEFAULT_USER_STATUS_ID = 1; // Active user
-    private static final Integer DEFAULT_USER_CATEGORY_ID = 1; // User Category: common user
+    private static final Integer DEFAULT_USER_CATEGORY_ID = 12; // User Category: common user
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
 
     @Autowired
     public UserServiceImpl(UserRepository userRepository, UserStatusRepository userStatusRepository, UserCategoryRepository userCategoryRepository,
-                           CountryRepository countryRepository, StateRepository stateRepository) {
+                           CountryRepository countryRepository, StateRepository stateRepository, MessageSource messageSource) {
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
         this.userCategoryRepository = userCategoryRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
+        this.messageSource = messageSource;
     }
 
     @Override
-    public List<User> findAllUsers() {
-        return userRepository.findAll();
-    }
-
-    @Override
-    public CreateUserResponse createUser(CreateUserRequest request) {
+    public CreateUserResponse createUser(CreateUserRequest request, Locale locale) {
         // Retrieve UserStatus from the database
         UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
-                .orElseThrow(() -> new IllegalArgumentException("UserStatus not found"));
+                .orElseThrow(() -> new IllegalArgumentException(messageSource.getMessage("error.userStatusNotFound", null, locale)));
+//                .orElseThrow(() -> new IllegalArgumentException("UserStatus not found"));
 
         // Retrieve UserCategory from the database
         UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
-                .orElseThrow(() -> new IllegalArgumentException("UserCategory not found"));
+                .orElseThrow(() -> new IllegalArgumentException(messageSource.getMessage("error.userCategoryNotFound", null, locale)));
+//                .orElseThrow(() -> new IllegalArgumentException("UserCategory not found"));
 
         // Create a new User entity from the request data
         User user = User.builder()
