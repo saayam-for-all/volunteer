@@ -1,5 +1,5 @@
-package com.saayam.volunteer.service;
-import com.saayam.volunteer.entities.User;
+package org.sfa.volunteer.service;
+import org.sfa.volunteer.entities.User;
 
 import java.math.BigInteger;
 import java.util.List;

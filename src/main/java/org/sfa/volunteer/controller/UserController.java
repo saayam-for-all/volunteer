@@ -1,6 +1,6 @@
-package com.saayam.volunteer.controller;
-import com.saayam.volunteer.entities.User;
-import com.saayam.volunteer.service.impl.UserServiceImpl;
+package org.sfa.volunteer.controller;
+import org.sfa.volunteer.entities.User;
+import org.sfa.volunteer.service.impl.UserServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 

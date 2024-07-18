@@ -1,8 +1,8 @@
-package com.saayam.volunteer.service.impl;
+package org.sfa.volunteer.service.impl;
 
-import com.saayam.volunteer.entities.User;
-import com.saayam.volunteer.repository.UserRepository;
-import com.saayam.volunteer.service.UserService;
+import org.sfa.volunteer.entities.User;
+import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

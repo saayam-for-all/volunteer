@@ -1,4 +1,4 @@
-package com.saayam.volunteer.entities;
+package org.sfa.volunteer.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
