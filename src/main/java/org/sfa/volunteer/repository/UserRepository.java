@@ -1,6 +1,6 @@
-package com.saayam.volunteer.repository;
+package org.sfa.volunteer.repository;
 
-import com.saayam.volunteer.entities.User;
+import org.sfa.volunteer.entities.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
