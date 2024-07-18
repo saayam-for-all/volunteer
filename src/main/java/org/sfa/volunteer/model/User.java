@@ -47,13 +47,27 @@ public class User {
     private String fullName;
 
     @Email
-    @NotBlank(message = "Email address cannot be null.")
-    @Column(name = "email_address")
-    private String emailAddress;
+//    @NotBlank(message = "Email address cannot be null.")
+    @Column(name = "primary_email_address")
+    private String primaryEmailAddress;
 
-    @NotBlank(message = "Phone number cannot be blank")
-    @Column(name = "phone_number")
-    private String phoneNumber;
+//    @NotBlank(message = "Phone number cannot be blank")
+    @Column(name = "primary_phone_number")
+    private String primaryPhoneNumber;
+
+    @Column(name = "secondary_phone_1")
+    private String secondaryPhone;
+
+    @Column(name = "secondary_phone_2")
+    private String secondaryPhone2;
+
+    @Email
+    @Column(name = "secondary_email_1")
+    private String secondaryEmail1;
+
+    @Email
+    @Column(name = "secondary_email_2")
+    private String secondaryEmail2;
 
     @NotBlank(message = "Time zone cannot be blank.")
     @Column(name = "time_zone", nullable = false)
@@ -114,8 +128,8 @@ public class User {
                 ", middleName='" + middleName + '\'' +
                 ", lastName='" + lastName + '\'' +
                 ", fullName='" + fullName + '\'' +
-                ", emailAddress='" + emailAddress + '\'' +
-                ", phoneNumber='" + phoneNumber + '\'' +
+                ", emailAddress='" + primaryEmailAddress + '\'' +
+                ", phoneNumber='" + primaryPhoneNumber + '\'' +
                 ", timeZone='" + timeZone + '\'' +
                 ", profilePicturePath='" + profilePicturePath + '\'' +
                 ", addressLine1='" + addressLine1 + '\'' +
@@ -141,12 +155,12 @@ public class User {
                 Objects.equals(middleName, user.middleName) &&
                 Objects.equals(lastName, user.lastName) &&
                 Objects.equals(fullName, user.fullName) &&
-                Objects.equals(emailAddress, user.emailAddress) &&
-                Objects.equals(phoneNumber, user.phoneNumber);
+                Objects.equals(primaryEmailAddress, user.primaryEmailAddress) &&
+                Objects.equals(primaryPhoneNumber, user.primaryPhoneNumber);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, emailAddress, phoneNumber);
+        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, primaryPhoneNumber);
     }
 }
