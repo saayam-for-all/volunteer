@@ -2,7 +2,6 @@ package org.sfa.volunteer.dto.common;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.sfa.volunteer.util.MessageSourceUtil;
 
 @Getter
 @RequiredArgsConstructor
@@ -39,7 +38,4 @@ public enum SaayamStatusCode {
 
     private final String code;
 
-    public String getLocalizedMessage() {
-        return MessageSourceUtil.getMessage(this.code, null);
-    }
 }

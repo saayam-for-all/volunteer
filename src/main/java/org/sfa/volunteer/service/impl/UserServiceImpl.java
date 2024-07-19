@@ -18,7 +18,6 @@ import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
 import org.sfa.volunteer.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
