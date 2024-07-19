@@ -6,6 +6,7 @@ import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -27,7 +28,7 @@ public class GlobalExceptionHandler {
     public <T> SaayamResponse<T> handleUserStatusNotFoundException(UserStatusNotFoundException exception, WebRequest request) {
         String errorMessage = messageSource.getMessage(SaayamStatusCode.INVALID_USER_STATUS.getCode(), new Object[]{exception.getUserStatusId()}, request.getLocale());
         log.error("UserStatusNotFoundException: {}", errorMessage);
-        return ResponseBuilder.buildErrorResponse(404, SaayamStatusCode.INVALID_USER_STATUS, errorMessage);
+        return ResponseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(), SaayamStatusCode.INVALID_USER_STATUS, errorMessage);
     }
 
     @ExceptionHandler(UserCategoryNotFoundException.class)
@@ -35,7 +36,7 @@ public class GlobalExceptionHandler {
     public <T> SaayamResponse<T> handleUserCategoryNotFoundException(UserCategoryNotFoundException exception, WebRequest request) {
         String errorMessage = messageSource.getMessage(SaayamStatusCode.INVALID_USER_CATEGORY.getCode(), new Object[]{exception.getUserCategoryId()}, request.getLocale());
         log.error("UserCategoryNotFoundException: {}", errorMessage);
-        return ResponseBuilder.buildErrorResponse(404, SaayamStatusCode.INVALID_USER_CATEGORY, errorMessage);
+        return ResponseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(), SaayamStatusCode.INVALID_USER_CATEGORY, errorMessage);
     }
 
     @ExceptionHandler(UserNotFoundException.class)
@@ -43,7 +44,7 @@ public class GlobalExceptionHandler {
     public <T> SaayamResponse<T> handleUserNotFoundException(UserNotFoundException exception, WebRequest request) {
         String errorMessage = messageSource.getMessage(SaayamStatusCode.USER_NOT_FOUND.getCode(), new Object[]{exception.getUserId()}, request.getLocale());
         log.error("UserNotFoundException: {}", errorMessage);
-        return ResponseBuilder.buildErrorResponse(404, SaayamStatusCode.USER_NOT_FOUND, errorMessage);
+        return ResponseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(), SaayamStatusCode.USER_NOT_FOUND, errorMessage);
     }
 
 //    @ExceptionHandler(Exception.class)
