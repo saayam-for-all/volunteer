@@ -11,29 +11,24 @@ import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/user")
 public class UserController {
     private final UserService userService;
+    private final ResponseBuilder responseBuilder;
 
     @Autowired
-    public UserController(UserService userService) {
+    public UserController(UserService userService, ResponseBuilder responseBuilder) {
         this.userService = userService;
+        this.responseBuilder = responseBuilder;
     }
 
     @PostMapping
     public SaayamResponse<CreateUserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
         CreateUserResponse response = userService.createUser(request);
-        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.USER_CREATED, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_CREATED, response);
     }
 
     @GetMapping
@@ -41,13 +36,13 @@ public class UserController {
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size) {
         PaginationResponse<UserProfileResponse> response = userService.findAllUsersWithPagination(page, size);
-        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 
     @GetMapping("/profile/{userId}")
     public SaayamResponse<UserProfileResponse> getUserProfile(@PathVariable String userId) {
         UserProfileResponse response = userService.getUserProfileById(userId);
-        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
     @PutMapping("/profile/{userId}")
@@ -55,6 +50,6 @@ public class UserController {
             @PathVariable String userId,
             @RequestBody UpdateUserProfileRequest request) {
         UserProfileResponse response = userService.updateUserProfile(userId, request);
-        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
 }

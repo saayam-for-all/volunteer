@@ -26,11 +26,13 @@ public class GetAllUserHandler implements RequestHandler<APIGatewayProxyRequestE
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .enable(SerializationFeature.INDENT_OUTPUT); // Enable pretty printing for better readability
+    private static final ResponseBuilder responseBuilder;
     private static final ResourceBundleMessageSource messageSource;
 
     static {
         ApplicationContext context = new AnnotationConfigApplicationContext(VolunteerApplication.class);
         userService = context.getBean(UserService.class);
+        responseBuilder = context.getBean(ResponseBuilder.class);
         messageSource = context.getBean(ResourceBundleMessageSource.class);
     }
 
@@ -57,8 +59,9 @@ public class GetAllUserHandler implements RequestHandler<APIGatewayProxyRequestE
 
             PaginationResponse<UserProfileResponse> paginationResponse = userService.findAllUsersWithPagination(page, size);
 
-            SaayamResponse<PaginationResponse<UserProfileResponse>> successResponse = ResponseBuilder.buildSuccessResponse(
+            SaayamResponse<PaginationResponse<UserProfileResponse>> successResponse = responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.SUCCESS,
+                    new Object[]{},
                     paginationResponse
             );
 
@@ -70,7 +73,7 @@ public class GetAllUserHandler implements RequestHandler<APIGatewayProxyRequestE
             Locale locale = Locale.forLanguageTag(lang);
             String errorMessage = messageSource.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null, locale);
 
-            SaayamResponse<Void> errorResponse = ResponseBuilder.buildErrorResponse(
+            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
                     500,
                     SaayamStatusCode.INTERNAL_SERVER_ERROR,
                     errorMessage

@@ -13,10 +13,10 @@ import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.context.support.ResourceBundleMessageSource;
 
 import java.util.Locale;
 import java.util.Map;
@@ -27,12 +27,14 @@ public class UpdateUserProfileHandler implements RequestHandler<APIGatewayProxyR
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .enable(SerializationFeature.INDENT_OUTPUT); // Enable pretty printing for better readability
-    private static final ResourceBundleMessageSource messageSource;
+    private static final ResponseBuilder responseBuilder;
+    private static final MessageSourceUtil messageSourceUtil;
 
     static {
         ApplicationContext context = new AnnotationConfigApplicationContext(VolunteerApplication.class);
         userService = context.getBean(UserService.class);
-        messageSource = context.getBean(ResourceBundleMessageSource.class);
+        responseBuilder = context.getBean(ResponseBuilder.class);
+        messageSourceUtil = context.getBean(MessageSourceUtil.class);
     }
 
     @Override
@@ -49,8 +51,9 @@ public class UpdateUserProfileHandler implements RequestHandler<APIGatewayProxyR
 
             UserProfileResponse updatedProfile = userService.updateUserProfile(userId, updateRequest);
 
-            SaayamResponse<UserProfileResponse> successResponse = ResponseBuilder.buildSuccessResponse(
+            SaayamResponse<UserProfileResponse> successResponse = responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.USER_ACCOUNT_UPDATED,
+                    new Object[]{userId},
                     updatedProfile
             );
 
@@ -60,9 +63,9 @@ public class UpdateUserProfileHandler implements RequestHandler<APIGatewayProxyR
         } catch (Exception e) {
             String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
             Locale locale = Locale.forLanguageTag(lang);
-            String errorMessage = messageSource.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null, locale);
+            String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
 
-            SaayamResponse<Void> errorResponse = ResponseBuilder.buildErrorResponse(
+            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
                     500,
                     SaayamStatusCode.INTERNAL_SERVER_ERROR,
                     errorMessage
