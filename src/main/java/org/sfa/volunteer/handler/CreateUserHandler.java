@@ -50,7 +50,6 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
 
             SaayamResponse<CreateUserResponse> successResponse = ResponseBuilder.buildSuccessResponse(
                     SaayamStatusCode.USER_CREATED,
-                    messageSource.getMessage(SaayamStatusCode.USER_CREATED.getCode(), null, locale),
                     created
             );
 

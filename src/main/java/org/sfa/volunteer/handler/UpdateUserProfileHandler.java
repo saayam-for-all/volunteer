@@ -51,7 +51,6 @@ public class UpdateUserProfileHandler implements RequestHandler<APIGatewayProxyR
 
             SaayamResponse<UserProfileResponse> successResponse = ResponseBuilder.buildSuccessResponse(
                     SaayamStatusCode.USER_ACCOUNT_UPDATED,
-                    messageSource.getMessage(SaayamStatusCode.USER_ACCOUNT_UPDATED.getCode(), null, locale),
                     updatedProfile
             );
 

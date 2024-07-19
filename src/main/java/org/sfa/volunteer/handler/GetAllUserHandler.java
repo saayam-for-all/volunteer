@@ -59,7 +59,6 @@ public class GetAllUserHandler implements RequestHandler<APIGatewayProxyRequestE
 
             SaayamResponse<PaginationResponse<UserProfileResponse>> successResponse = ResponseBuilder.buildSuccessResponse(
                     SaayamStatusCode.SUCCESS,
-                    messageSource.getMessage(SaayamStatusCode.SUCCESS.getCode(), null, locale),
                     paginationResponse
             );
 

@@ -33,7 +33,7 @@ public class UserController {
     @PostMapping
     public SaayamResponse<CreateUserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
         CreateUserResponse response = userService.createUser(request);
-        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.USER_CREATED, SaayamStatusCode.USER_CREATED.getCode(), response);
+        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.USER_CREATED, response);
     }
 
     @GetMapping
@@ -41,13 +41,13 @@ public class UserController {
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size) {
         PaginationResponse<UserProfileResponse> response = userService.findAllUsersWithPagination(page, size);
-        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, SaayamStatusCode.USER_PROFILES_LIST_FETCHED_SUCCESS.getCode(), response);
+        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 
     @GetMapping("/profile/{userId}")
     public SaayamResponse<UserProfileResponse> getUserProfile(@PathVariable String userId) {
         UserProfileResponse response = userService.getUserProfileById(userId);
-        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, SaayamStatusCode.USER_PROFILE_FETCHED_SUCCESS.getCode(), response);
+        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 
     @PutMapping("/profile/{userId}")
@@ -55,6 +55,6 @@ public class UserController {
             @PathVariable String userId,
             @RequestBody UpdateUserProfileRequest request) {
         UserProfileResponse response = userService.updateUserProfile(userId, request);
-        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, "User profile updated successfully", response);
+        return ResponseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
 }
