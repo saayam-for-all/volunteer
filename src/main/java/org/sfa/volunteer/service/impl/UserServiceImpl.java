@@ -1,10 +1,13 @@
 package org.sfa.volunteer.service.impl;
 
-import org.sfa.volunteer.dto.CreateUserRequest;
-import org.sfa.volunteer.dto.CreateUserResponse;
-import org.sfa.volunteer.dto.PaginationResponse;
-import org.sfa.volunteer.dto.UpdateUserProfileRequest;
-import org.sfa.volunteer.dto.UserProfileResponse;
+import jakarta.transaction.Transactional;
+import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.sfa.volunteer.exception.UserCategoryNotFoundException;
+import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserStatus;
@@ -14,7 +17,6 @@ import org.sfa.volunteer.repository.UserCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
 import org.sfa.volunteer.service.UserService;
-import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.MessageSource;
 import org.springframework.data.domain.Page;
@@ -25,7 +27,6 @@ import org.springframework.stereotype.Service;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,44 +38,39 @@ public class UserServiceImpl implements UserService {
     private final UserCategoryRepository userCategoryRepository;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
-    private final MessageSource messageSource;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
 
     // Default IDs for user status and category
     private static final Integer DEFAULT_USER_STATUS_ID = 1; // Active user
-    private static final Integer DEFAULT_USER_CATEGORY_ID = 12; // User Category: common user
+    private static final Integer DEFAULT_USER_CATEGORY_ID = 1; // User Category: common user
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
 
     @Autowired
     public UserServiceImpl(UserRepository userRepository, UserStatusRepository userStatusRepository, UserCategoryRepository userCategoryRepository,
-                           CountryRepository countryRepository, StateRepository stateRepository, MessageSource messageSource) {
+                           CountryRepository countryRepository, StateRepository stateRepository) {
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
         this.userCategoryRepository = userCategoryRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
-        this.messageSource = messageSource;
     }
 
     @Override
-    public CreateUserResponse createUser(CreateUserRequest request, Locale locale) {
-        // Retrieve UserStatus from the database
-        UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
-                .orElseThrow(() -> new IllegalArgumentException(messageSource.getMessage("error.userStatusNotFound", null, locale)));
-//                .orElseThrow(() -> new IllegalArgumentException("UserStatus not found"));
+    public CreateUserResponse createUser(CreateUserRequest request) {
 
-        // Retrieve UserCategory from the database
+        UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
+                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_STATUS_ID));
+
         UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
-                .orElseThrow(() -> new IllegalArgumentException(messageSource.getMessage("error.userCategoryNotFound", null, locale)));
-//                .orElseThrow(() -> new IllegalArgumentException("UserCategory not found"));
+                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
         // Create a new User entity from the request data
         User user = User.builder()
                 .fullName(request.name())
-                .emailAddress(request.email())
-                .phoneNumber(request.phoneNumber())
+                .primaryEmailAddress(request.email())
+                .primaryPhoneNumber(request.phoneNumber())
                 .timeZone(request.timeZone())
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
                 .userCategory(userCategory)
@@ -87,8 +83,8 @@ public class UserServiceImpl implements UserService {
         // Create a response object from the saved User entity
         return CreateUserResponse.builder()
                 .name(user.getFullName())
-                .email(user.getEmailAddress())
-                .phoneNumber(user.getPhoneNumber())
+                .email(user.getPrimaryEmailAddress())
+                .phoneNumber(user.getPrimaryEmailAddress())
                 .timeZone(user.getTimeZone())
                 .userId(user.getId())
                 .build();
@@ -97,7 +93,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest request) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+                .orElseThrow(() -> new UserNotFoundException(userId));
 
         // Update all fields from the request without null checks
         user.setFirstName(request.firstName());
@@ -141,7 +137,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserProfileResponse getUserProfileById(String userId) {
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with id: " + userId));
+                .orElseThrow(() -> new UserNotFoundException(userId));
         return mapToUserProfileResponse(user);
     }
 
@@ -152,8 +148,8 @@ public class UserServiceImpl implements UserService {
                 .middleName(user.getMiddleName())
                 .lastName(user.getLastName())
                 .fullName(user.getFullName())
-                .emailAddress(user.getEmailAddress())
-                .phoneNumber(user.getPhoneNumber())
+                .emailAddress(user.getPrimaryEmailAddress())
+                .phoneNumber(user.getPrimaryPhoneNumber())
                 .timeZone(user.getTimeZone())
                 .profilePicturePath(user.getProfilePicturePath())
                 .addressLine1(user.getAddressLine1())

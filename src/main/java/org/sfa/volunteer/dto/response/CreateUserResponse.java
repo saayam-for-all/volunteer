@@ -1,4 +1,4 @@
-package org.sfa.volunteer.dto;
+package org.sfa.volunteer.dto.response;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

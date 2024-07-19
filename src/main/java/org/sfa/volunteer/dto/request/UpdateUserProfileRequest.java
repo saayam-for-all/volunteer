@@ -1,4 +1,4 @@
-package org.sfa.volunteer.dto;
+package org.sfa.volunteer.dto.request;
 
 import lombok.Builder;
 

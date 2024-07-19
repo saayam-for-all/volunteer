@@ -25,6 +25,5 @@ public class MessageSourceConfig {
         localeResolver.setDefaultLocale(Locale.ENGLISH);
         return localeResolver;
     }
-
 }
 

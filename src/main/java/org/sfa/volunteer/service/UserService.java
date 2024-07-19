@@ -1,12 +1,10 @@
 package org.sfa.volunteer.service;
 
-import org.sfa.volunteer.dto.CreateUserRequest;
-import org.sfa.volunteer.dto.CreateUserResponse;
-import org.sfa.volunteer.dto.PaginationResponse;
-import org.sfa.volunteer.dto.UpdateUserProfileRequest;
-import org.sfa.volunteer.dto.UserProfileResponse;
-
-import java.util.Locale;
+import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.UserProfileResponse;
 
 
 public interface UserService {
@@ -15,7 +13,7 @@ public interface UserService {
 
     UserProfileResponse getUserProfileById(String userId);
 
-    CreateUserResponse createUser(CreateUserRequest createUserRequest, Locale locale);
+    CreateUserResponse createUser(CreateUserRequest createUserRequest);
 
     UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest updateUserProfileRequest);
 }

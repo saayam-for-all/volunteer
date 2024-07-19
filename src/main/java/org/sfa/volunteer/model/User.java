@@ -51,7 +51,7 @@ public class User {
     @Column(name = "primary_email_address")
     private String primaryEmailAddress;
 
-//    @NotBlank(message = "Phone number cannot be blank")
+    //    @NotBlank(message = "Phone number cannot be blank")
     @Column(name = "primary_phone_number")
     private String primaryPhoneNumber;
 

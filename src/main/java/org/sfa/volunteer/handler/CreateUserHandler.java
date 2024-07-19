@@ -8,9 +8,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.sfa.volunteer.VolunteerApplication;
-import org.sfa.volunteer.dto.CreateUserRequest;
-import org.sfa.volunteer.dto.CreateUserResponse;
+import org.sfa.volunteer.dto.common.SaayamResponse;
+import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.support.ResourceBundleMessageSource;
@@ -43,17 +46,35 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
             Map<String, Object> body = parseBody(requestEvent.getBody());
             CreateUserRequest createRequest = parseRequest(body);
 
-            CreateUserResponse created = userService.createUser(createRequest, locale);
+            CreateUserResponse created = userService.createUser(createRequest);
 
-            String responseBody = objectMapper.writeValueAsString(created);
+            SaayamResponse<CreateUserResponse> successResponse = ResponseBuilder.buildSuccessResponse(
+                    SaayamStatusCode.USER_CREATED,
+                    messageSource.getMessage(SaayamStatusCode.USER_CREATED.getCode(), null, locale),
+                    created
+            );
+
+            String responseBody = objectMapper.writeValueAsString(successResponse);
             response.setBody(responseBody);
             response.setStatusCode(201); // Created
         } catch (Exception e) {
             String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
             Locale locale = Locale.forLanguageTag(lang);
-            String errorMessage = messageSource.getMessage("error.internalServerError", null, locale);
+            String errorMessage = messageSource.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null, locale);
 
-            response.setBody("Error: " + errorMessage);
+            SaayamResponse<Void> errorResponse = ResponseBuilder.buildErrorResponse(
+                    500,
+                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
+                    errorMessage
+            );
+
+            try {
+                String responseBody = objectMapper.writeValueAsString(errorResponse);
+                response.setBody(responseBody);
+            } catch (Exception jsonException) {
+                response.setBody("{\"message\":\"Failed to serialize error response\"}");
+            }
+
             response.setStatusCode(500); // Internal Server Error
         }
 
@@ -68,6 +89,7 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
         try {
             return objectMapper.readValue(body, Map.class);
         } catch (Exception e) {
+            // todo: define a customized error
             throw new RuntimeException("Failed to parse request body", e);
         }
     }
