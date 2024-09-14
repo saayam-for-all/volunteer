@@ -35,7 +35,7 @@ jobs:
           --db-instance-identifier mydbinstance \
           --db-instance-class db.t3.micro \
           --engine postgres \
-          --master-username admin \
+          --master-username saayam_ci \
           --master-user-password ${{ secrets.DB_PASSWORD }} \
           --allocated-storage 20 \
           --vpc-security-group-ids sg-0f8043500f5fecf35  # Use your security group
