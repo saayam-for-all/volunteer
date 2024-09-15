@@ -38,6 +38,7 @@ jobs:
           --master-username saayam_ci \
           --master-user-password ${{ secrets.DB_PASSWORD }} \
           --allocated-storage 20 \
+          --db-name saayam_db \
           --vpc-security-group-ids sg-0837f94e8dda4c6cb  # Use your security group
         aws rds wait db-instance-available --db-instance-identifier mydbinstance
 
@@ -49,7 +50,7 @@ jobs:
 
     - name: Update application properties
       run: |
-        echo "spring.datasource.url=jdbc:postgresql://${DB_ENDPOINT}:5432/mydatabase" > src/main/resources/application.properties
+        echo "spring.datasource.url=jdbc:postgresql://${DB_ENDPOINT}:5432/saayam_db" > src/main/resources/application.properties
         echo "spring.datasource.username=saayam_ci" >> src/main/resources/application.properties
         echo "spring.datasource.password=${{ secrets.DB_PASSWORD }}" >> src/main/resources/application.properties
     
