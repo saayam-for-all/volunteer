@@ -12,6 +12,7 @@ public record PaginationResponse<T>(
         long totalItems,
         List<T> items,
         boolean hasNextPage,
-        boolean hasPreviousPage) {
+        boolean hasPreviousPage,
+        String message) {
 }
 

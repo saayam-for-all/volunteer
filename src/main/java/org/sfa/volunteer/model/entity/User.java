@@ -1,15 +1,7 @@
-package org.sfa.volunteer.model;
+package org.sfa.volunteer.model.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -47,11 +39,9 @@ public class User {
     private String fullName;
 
     @Email
-//    @NotBlank(message = "Email address cannot be null.")
     @Column(name = "primary_email_address")
     private String primaryEmailAddress;
 
-    //    @NotBlank(message = "Phone number cannot be blank")
     @Column(name = "primary_phone_number")
     private String primaryPhoneNumber;
 
@@ -99,6 +89,18 @@ public class User {
 
     @Column(name = "last_update_date")
     private ZonedDateTime lastUpdateDate;
+
+    @Column(name = "gender")
+    private String gender;
+
+    @Column(name = "language_1")
+    private String language1;
+
+    @Column(name = "language_2")
+    private String language2;
+
+    @Column(name = "language_3")
+    private String language3;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "state_id")

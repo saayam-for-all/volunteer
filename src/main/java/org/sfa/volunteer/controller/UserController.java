@@ -8,17 +8,13 @@ import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.sfa.volunteer.dto.response.VolunteerProfileResponse;
+import org.sfa.volunteer.model.entity.Request;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/user")
@@ -58,5 +54,15 @@ public class UserController {
             @RequestBody UpdateUserProfileRequest request) {
         UserProfileResponse response = userService.updateUserProfile(userId, request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
+    }
+
+    @GetMapping("/request/topVolunteers")
+    public ResponseEntity<PaginationResponse<VolunteerProfileResponse>> getTopVolunteers(
+            @RequestBody Request request,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+
+        PaginationResponse<VolunteerProfileResponse> topVolunteers = userService.getTopVolunteersForRequestCategory(page, size, request);
+        return ResponseEntity.ok(topVolunteers);
     }
 }
