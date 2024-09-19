@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: org.sfa.volunteer.service.impl.UserServiceImplDiffblueTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.409 s - in org.sfa.volunteer.service.impl.UserServiceImplDiffblueTest

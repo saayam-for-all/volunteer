@@ -1,0 +1,6 @@
+org/sfa/volunteer/controller/UserController.class
+org/sfa/volunteer/VolunteerApplication.class
+org/sfa/volunteer/service/UserService.class
+org/sfa/volunteer/repository/UserRepository.class
+org/sfa/volunteer/entities/User.class
+org/sfa/volunteer/service/impl/UserServiceImpl.class

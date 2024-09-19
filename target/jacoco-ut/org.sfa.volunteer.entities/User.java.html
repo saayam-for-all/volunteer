@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>User.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">volunteer</a> &gt; <a href="index.source.html" class="el_package">org.sfa.volunteer.entities</a> &gt; <span class="el_source">User.java</span></div><h1>User.java</h1><pre class="source lang-java linenums">package org.sfa.volunteer.entities;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.math.BigInteger;
+import java.util.Date;
+
+@Entity
+@Getter
+<span class="fc" id="L17">@Setter</span>
+<span class="fc" id="L18">@AllArgsConstructor</span>
+<span class="fc" id="L19">@NoArgsConstructor</span>
+@Table(name = &quot;user&quot;)
+public class User {
+
+    @Id
+    @Column(name = &quot;user_id&quot;)
+<span class="fc" id="L25">    private BigInteger id;</span>
+
+    @Column(name = &quot;idnty_typ_id&quot;)
+<span class="fc" id="L28">    private BigInteger idnty_typ_id;</span>
+
+    @Column(name = &quot;frst_Nm&quot;)
+<span class="fc" id="L31">    private String firstName;</span>
+
+    @Column(name = &quot;mdl_nm&quot;)
+<span class="fc" id="L34">    private String middleName;</span>
+
+    @Column(name = &quot;lst_Nm&quot;)
+<span class="fc" id="L37">    private String lastName;</span>
+
+    @Column(name = &quot;Eml_id&quot;)
+<span class="fc" id="L40">    private String emailId;</span>
+
+    @Column(name = &quot;phn_nbr&quot;)
+<span class="fc" id="L43">    private BigInteger phoneNumber;</span>
+
+    @Column(name = &quot;Addr_ln1&quot;)
+<span class="fc" id="L46">    private String addressLine1;</span>
+
+    @Column(name = &quot;Addr_ln2&quot;)
+<span class="fc" id="L49">    private String addressLine2;</span>
+
+    @Column(name = &quot;addr_ln3&quot;)
+<span class="fc" id="L52">    private String addressLine3;</span>
+
+    @Column(name = &quot;cty&quot;)
+<span class="fc" id="L55">    private String city;</span>
+
+    @Column(name = &quot;cntry_id&quot;)
+<span class="fc" id="L58">    private String countryId;</span>
+
+    @Column(name = &quot;state_id&quot;)
+<span class="fc" id="L61">    private BigInteger stateId;</span>
+
+    @Column(name = &quot;zip_cd&quot;)
+<span class="fc" id="L64">    private BigInteger zipCode;</span>
+
+    @Column(name = &quot;geo_code&quot;)
+<span class="fc" id="L67">    private String geoCode;</span>
+
+    @Column(name = &quot;Regd_dt&quot;)
+<span class="fc" id="L70">    private Date registeredDate;</span>
+
+    @Column(name = &quot;usr_sts_id&quot;)
+<span class="fc" id="L73">    private BigInteger userSTSId;</span>
+
+    @Column(name = &quot;usr_sts_dt&quot;)
+<span class="fc" id="L76">    private Date userSTSDate;</span>
+
+    @Column(name = &quot;emergency_avbity_ind&quot;)
+<span class="fc" id="L79">    private String emergencyInd;</span>
+
+    @Column(name = &quot;cntc_mbr&quot;)
+<span class="fc" id="L82">    private String cntcMbr;</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>
