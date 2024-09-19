@@ -63,6 +63,19 @@ jobs:
     - name: Build with Maven
       run: mvn -B package --file pom.xml
 
+    - uses: actions/upload-artifact@v3.2.1-node20
+      with:
+        name: code-coverage
+        path: target/jacoco-ut
+
+    - name: Upload code coverage to Codecov
+      uses: codecov/codecov-action@v4.5.0
+      with:
+        fail_ci_if_error: true
+        files: ./target/jacoco-ut/jacoco.xml 
+        token: ${{ secrets.CODECOV_TOKEN }}
+        verbose: true
+        
     - name: Delete RDS instance
       if: always()  # Ensure RDS instance is deleted even if the build fails
       run: |
