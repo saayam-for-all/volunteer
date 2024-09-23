@@ -140,6 +140,17 @@ public class UserServiceImpl implements UserService {
         return mapToUserProfileResponse(user);
     }
 
+    @Override
+    public UserProfileResponse getUserProfileByEmail(String email) {
+        List<User> user = userRepository.findByPrimaryEmailAddress(email);
+
+        if (user.isEmpty()) {
+            throw new UserNotFoundException(email);
+        }
+
+        return mapToUserProfileResponse(user.get(0));
+    }
+
     private UserProfileResponse mapToUserProfileResponse(User user) {
         return UserProfileResponse.builder()
                 .id(user.getId())

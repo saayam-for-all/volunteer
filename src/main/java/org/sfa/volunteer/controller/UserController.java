@@ -52,6 +52,12 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
+    @GetMapping("/login/{email}")
+    public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
+        UserProfileResponse response = userService.getUserProfileByEmail(email);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
+    }
+
     @PutMapping("/profile/{userId}")
     public SaayamResponse<UserProfileResponse> updateUserProfile(
             @PathVariable String userId,
