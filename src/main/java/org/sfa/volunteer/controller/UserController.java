@@ -56,7 +56,7 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
 
-    @GetMapping("/request/topVolunteers")
+    @GetMapping("/topVolunteers")
     public ResponseEntity<PaginationResponse<VolunteerProfileResponse>> getTopVolunteers(
             @RequestBody Request request,
             @RequestParam(required = false) Integer page,
