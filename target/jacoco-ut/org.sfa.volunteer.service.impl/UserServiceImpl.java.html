@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">volunteer</a> &gt; <a href="index.source.html" class="el_package">org.sfa.volunteer.service.impl</a> &gt; <span class="el_source">UserServiceImpl.java</span></div><h1>UserServiceImpl.java</h1><pre class="source lang-java linenums">package org.sfa.volunteer.service.impl;
+
+import org.sfa.volunteer.entities.User;
+import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.math.BigInteger;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+<span class="fc" id="L14">public class UserServiceImpl implements UserService {</span>
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Override
+    public List&lt;User&gt; findAllUsers() {
+<span class="fc" id="L21">        return userRepository.findAll();</span>
+    }
+
+    @Override
+    public Optional&lt;User&gt; findById(BigInteger id) {
+<span class="fc" id="L26">        return userRepository.findById(id);</span>
+    }
+
+    @Override
+    public User saveUser(User newUser) {
+<span class="fc" id="L31">        return userRepository.save(newUser);</span>
+    }
+
+    @Override
+    public User updateUser(User user) {
+<span class="fc" id="L36">        return userRepository.save(user);</span>
+    }
+
+    @Override
+    public void deleteUser(BigInteger id) {
+<span class="fc" id="L41">        userRepository.deleteById(id);</span>
+<span class="fc" id="L42">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

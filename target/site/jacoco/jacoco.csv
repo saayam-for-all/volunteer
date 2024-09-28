@@ -1,0 +1,5 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+volunteer,org.sfa.volunteer.entities,User,0,206,0,0,0,23,0,42,0,42
+volunteer,org.sfa.volunteer,VolunteerApplication,0,8,0,0,0,3,0,2,0,2
+volunteer,org.sfa.volunteer.service.impl,UserServiceImpl,0,29,0,0,0,7,0,6,0,6
+volunteer,org.sfa.volunteer.controller,UserController,0,27,0,0,0,7,0,6,0,6
