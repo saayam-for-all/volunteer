@@ -76,13 +76,12 @@
 			<artifactId>junit-jupiter</artifactId>
 			<version>5.8.2</version>
 		</dependency>
-    </dependencies>
 		<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-lambda-java-events</artifactId>
 			<version>3.11.6</version>
 		</dependency>
-	</dependencies>
+    </dependencies>
 
 	<build>
 		<plugins>
