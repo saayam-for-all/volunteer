@@ -1,43 +1,67 @@
 package org.sfa.volunteer.controller;
-import org.sfa.volunteer.entities.User;
-import org.sfa.volunteer.service.impl.UserServiceImpl;
+import jakarta.validation.Valid;
+import org.sfa.volunteer.dto.common.SaayamResponse;
+import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-
-import java.math.BigInteger;
-import java.util.List;
-import java.util.Optional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/volunteer")
+@RequestMapping("/user")
 public class UserController {
+    private final UserService userService;
+    private final ResponseBuilder responseBuilder;
 
     @Autowired
-    private UserServiceImpl userService;
+    public UserController(UserService userService, ResponseBuilder responseBuilder) {
+        this.userService = userService;
+        this.responseBuilder = responseBuilder;
+    }
 
     @PostMapping
-    public User saveUser(@RequestBody User user){
-        return userService.saveUser(user);
+    public SaayamResponse<CreateUserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
+        CreateUserResponse response = userService.createUser(request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_CREATED, response);
     }
 
     @GetMapping
-    public List<User> getAllUsers(){
-        return userService.findAllUsers();
+    public SaayamResponse<PaginationResponse<UserProfileResponse>> getUsersWithPagination(
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size) {
+        PaginationResponse<UserProfileResponse> response = userService.findAllUsersWithPagination(page, size);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 
-    @GetMapping("/{id}")
-    public Optional<User> getUser(@PathVariable("id") BigInteger id){
-        return userService.findById(id);
+    @GetMapping("/profile/{userId}")
+    public SaayamResponse<UserProfileResponse> getUserProfile(@PathVariable String userId) {
+        UserProfileResponse response = userService.getUserProfileById(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
-    @PutMapping
-    public User updateUser(@RequestBody User user){
-        return userService.updateUser(user);
+    @GetMapping("/login/{email}")
+    public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
+        UserProfileResponse response = userService.getUserProfileByEmail(email);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
     }
 
-    @DeleteMapping
-    public void deleteUser(@RequestParam BigInteger id){
-        userService.deleteUser(id);
+    @PutMapping("/profile/{userId}")
+    public SaayamResponse<UserProfileResponse> updateUserProfile(
+            @PathVariable String userId,
+            @RequestBody UpdateUserProfileRequest request) {
+        UserProfileResponse response = userService.updateUserProfile(userId, request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
-
 }

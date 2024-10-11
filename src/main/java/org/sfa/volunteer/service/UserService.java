@@ -1,17 +1,21 @@
 package org.sfa.volunteer.service;
-import org.sfa.volunteer.entities.User;
 
-import java.math.BigInteger;
-import java.util.List;
-import java.util.Optional;
+import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.UserProfileResponse;
 
 
 public interface UserService {
 
-    List<User> findAllUsers();
-    Optional<User> findById(BigInteger id);
-    User saveUser(User newUser);
-    User updateUser(User user);
-    void deleteUser(BigInteger id);
+    PaginationResponse<UserProfileResponse> findAllUsersWithPagination(Integer pageNumber, Integer pageSize);
 
+    UserProfileResponse getUserProfileById(String userId);
+
+    UserProfileResponse getUserProfileByEmail(String email);
+
+    CreateUserResponse createUser(CreateUserRequest createUserRequest);
+
+    UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest updateUserProfileRequest);
 }
