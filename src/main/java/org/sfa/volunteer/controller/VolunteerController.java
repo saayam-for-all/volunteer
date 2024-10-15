@@ -2,12 +2,10 @@ package org.sfa.volunteer.controller;
 import jakarta.validation.Valid;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
-import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
-import org.sfa.volunteer.dto.response.UserProfileResponse;
-import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,48 +18,40 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/user")
-public class UserController {
-    private final UserService userService;
+@RequestMapping("/volunteer")
+public class VolunteerController {
+    private final VolunteerService volunteerService;
     private final ResponseBuilder responseBuilder;
 
     @Autowired
-    public UserController(UserService userService, ResponseBuilder responseBuilder) {
-        this.userService = userService;
+    public VolunteerController(VolunteerService volunteerService, ResponseBuilder responseBuilder) {
+        this.volunteerService = volunteerService;
         this.responseBuilder = responseBuilder;
     }
 
-    @PostMapping
-    public SaayamResponse<CreateUserResponse> createUser(@Valid @RequestBody CreateUserRequest request) {
-        CreateUserResponse response = userService.createUser(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_CREATED, response);
+    @PostMapping("/createvolunteer")
+    public SaayamResponse<VolunteerResponse> createVolunteer(@Valid @RequestBody VolunteerRequest request) throws Exception {
+        VolunteerResponse response = volunteerService.createVolunteer(request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_CREATED, response);
     }
 
-    @GetMapping
-    public SaayamResponse<PaginationResponse<UserProfileResponse>> getUsersWithPagination(
+    @PutMapping("/updatevolunteer")
+    public SaayamResponse<VolunteerResponse> updateVolunteer(@Valid @RequestBody VolunteerRequest request) throws Exception {
+        VolunteerResponse response = volunteerService.updateVolunteer(request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+    }
+
+    @GetMapping("/all")
+    public SaayamResponse<PaginationResponse<VolunteerResponse>> getVolunteersWithPagination(
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "size", required = false) Integer size) {
-        PaginationResponse<UserProfileResponse> response = userService.findAllUsersWithPagination(page, size);
+        PaginationResponse<VolunteerResponse> response = volunteerService.findAllVolunteersWithPagination(page, size);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 
-    @GetMapping("/profile/{userId}")
-    public SaayamResponse<UserProfileResponse> getUserProfile(@PathVariable String userId) {
-        UserProfileResponse response = userService.getUserProfileById(userId);
+    @GetMapping("/{userId}")
+    public SaayamResponse<VolunteerResponse> getVolunteerDetails(@PathVariable String userId) throws Exception {
+        VolunteerResponse response = volunteerService.getVolunteerByUserId(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
-    }
-
-    @GetMapping("/login/{email}")
-    public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
-        UserProfileResponse response = userService.getUserProfileByEmail(email);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
-    }
-
-    @PutMapping("/profile/{userId}")
-    public SaayamResponse<UserProfileResponse> updateUserProfile(
-            @PathVariable String userId,
-            @RequestBody UpdateUserProfileRequest request) {
-        UserProfileResponse response = userService.updateUserProfile(userId, request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
 }

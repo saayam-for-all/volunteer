@@ -10,9 +10,9 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.response.CreateUserResponse;
-import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
+import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.context.ApplicationContext;
@@ -21,9 +21,9 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.util.Locale;
 import java.util.Map;
 
-public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
-    private static final UserService userService;
+    private static final VolunteerService volunteerService;
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .enable(SerializationFeature.INDENT_OUTPUT); // Enable pretty printing for better readability
@@ -32,7 +32,7 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
 
     static {
         ApplicationContext context = new AnnotationConfigApplicationContext(VolunteerApplication.class);
-        userService = context.getBean(UserService.class);
+        volunteerService = context.getBean(VolunteerService.class);
         responseBuilder = context.getBean(ResponseBuilder.class);
         messageSourceUtil = context.getBean(MessageSourceUtil.class);
     }
@@ -45,15 +45,16 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
             String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
             Locale locale = Locale.forLanguageTag(lang);
 
+            String userId = requestEvent.getPathParameters().get("userId");
             Map<String, Object> body = parseBody(requestEvent.getBody());
-            CreateUserRequest createRequest = parseRequest(body);
+            VolunteerRequest updateRequest = parseRequest(body);
 
-            CreateUserResponse created = userService.createUser(createRequest);
+            VolunteerResponse updatedVolunteer = volunteerService.updateVolunteer(updateRequest);
 
-            SaayamResponse<CreateUserResponse> successResponse = responseBuilder.buildSuccessResponse(
-                    SaayamStatusCode.USER_CREATED,
-                    new Object[]{created.userId()},
-                    created
+            SaayamResponse<VolunteerResponse> successResponse = responseBuilder.buildSuccessResponse(
+                    SaayamStatusCode.VOLUNTEER_UPDATED,
+                    new Object[]{userId},
+                    updatedVolunteer
             );
 
             String responseBody = objectMapper.writeValueAsString(successResponse);
@@ -76,15 +77,13 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
             } catch (Exception jsonException) {
                 response.setBody("{\"message\":\"Failed to serialize error response\"}");
             }
-
             response.setStatusCode(500); // Internal Server Error
         }
-
         return response;
     }
 
-    private CreateUserRequest parseRequest(Map<String, Object> body) {
-        return objectMapper.convertValue(body, CreateUserRequest.class);
+    private VolunteerRequest parseRequest(Map<String, Object> body) {
+        return objectMapper.convertValue(body, VolunteerRequest.class);
     }
 
     private Map<String, Object> parseBody(String body) {

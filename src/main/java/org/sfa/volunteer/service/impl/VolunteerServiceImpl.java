@@ -1,22 +1,16 @@
 package org.sfa.volunteer.service.impl;
 import jakarta.transaction.Transactional;
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
-import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
-import org.sfa.volunteer.dto.response.UserProfileResponse;
-import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
+import org.sfa.volunteer.exception.VolunteerException;
+import org.sfa.volunteer.model.Volunteer;
 import org.sfa.volunteer.model.User;
-import org.sfa.volunteer.model.UserCategory;
-import org.sfa.volunteer.model.UserStatus;
-import org.sfa.volunteer.repository.CountryRepository;
-import org.sfa.volunteer.repository.StateRepository;
-import org.sfa.volunteer.repository.UserCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
-import org.sfa.volunteer.repository.UserStatusRepository;
-import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.repository.VolunteerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.sfa.volunteer.service.VolunteerService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -25,152 +19,131 @@ import org.springframework.stereotype.Service;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.sfa.volunteer.exception.VolunteerException.volunteerNotFound;
 
 @Service
 @Transactional
-public class UserServiceImpl implements UserService {
+public class VolunteerServiceImpl implements VolunteerService {
+    private final VolunteerRepository volunteerRepository;
     private final UserRepository userRepository;
-    private final UserStatusRepository userStatusRepository;
-
-    private final UserCategoryRepository userCategoryRepository;
-    private final CountryRepository countryRepository;
-    private final StateRepository stateRepository;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
 
-    // Default IDs for user status and category
-    private static final Integer DEFAULT_USER_STATUS_ID = 1; // Active user
-    private static final Integer DEFAULT_USER_CATEGORY_ID = 1; // User Category: common user
-    private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
-
     @Autowired
-    public UserServiceImpl(UserRepository userRepository, UserStatusRepository userStatusRepository, UserCategoryRepository userCategoryRepository,
-                           CountryRepository countryRepository, StateRepository stateRepository) {
+    public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.userStatusRepository = userStatusRepository;
-        this.userCategoryRepository = userCategoryRepository;
-        this.countryRepository = countryRepository;
-        this.stateRepository = stateRepository;
+        this.volunteerRepository = volunteerRepository;
     }
 
-    @Override
-    public CreateUserResponse createUser(CreateUserRequest request) {
-
-        UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
-                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_STATUS_ID));
-
-        UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
-                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
-
-        // Create a new User entity from the request data
-        User user = User.builder()
-                .fullName(request.name())
-                .primaryEmailAddress(request.email())
-                .primaryPhoneNumber(request.phoneNumber())
-                .timeZone(request.timeZone())
-                .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
-                .userCategory(userCategory)
-                .userStatus(userStatus)
-                .build();
-
-        // Save the User entity to the database
+    private void updateUser(User user, Integer step) {
+        user.setVolunteerStage(step);
+        user.setVolunteerUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
         user = userRepository.save(user);
-
-        // Create a response object from the saved User entity
-        return CreateUserResponse.builder()
-                .name(user.getFullName())
-                .email(user.getPrimaryEmailAddress())
-                .phoneNumber(user.getPrimaryEmailAddress())
-                .timeZone(user.getTimeZone())
-                .userId(user.getId())
-                .build();
     }
 
     @Override
-    public UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+    public VolunteerResponse createVolunteer(VolunteerRequest request) throws Exception {
+        User user = userRepository.findById(request.userId())
+                .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
-        // Update all fields from the request without null checks
-        user.setFirstName(request.firstName());
-        user.setMiddleName(request.middleName());
-        user.setLastName(request.lastName());
-        user.setAddressLine1(request.addressLine1());
-        user.setAddressLine2(request.addressLine2());
-        user.setAddressLine3(request.addressLine3());
-        user.setCity(request.cityName());
-        user.setZipCode(request.zipCode());
-
-        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-
-        User updatedUser = userRepository.save(user);
-
-        return mapToUserProfileResponse(updatedUser);
+        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
+        if (Objects.nonNull(volunteer)) {
+            throw VolunteerException.volunteerExists(request.userId());
+        }
+        if (request.step() != 1)
+            throw VolunteerException.volunteerInvalidStep(request.userId());
+        else {
+            volunteer = Volunteer.builder()
+                    .user(user)
+                    .termsAndConditions(request.termsAndConditions())
+                    .tcUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
+                    .build();
+            volunteer = volunteerRepository.save(volunteer);
+            updateUser(user, request.step());
+            return mapToVolunteerResponse(volunteer);
+        }
     }
 
     @Override
-    public PaginationResponse<UserProfileResponse> findAllUsersWithPagination(Integer pageNumber, Integer pageSize) {
+    public VolunteerResponse updateVolunteer(VolunteerRequest request) throws Exception {
+        User user = userRepository.findById(request.userId())
+                .orElseThrow(() -> new UserNotFoundException(request.userId()));
+
+        VolunteerResponse response = null;
+        if (request.step() ==1)
+            response = updateVolunteerStep1(request);
+
+        return response;
+    }
+
+    @Override
+    public VolunteerResponse updateVolunteerStep1(VolunteerRequest request) throws Exception {
+        User user = userRepository.findById(request.userId())
+                .orElseThrow(() -> new UserNotFoundException(request.userId()));
+
+        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
+        if (Objects.isNull(volunteer)) {
+            throw VolunteerException.volunteerNotFound(request.userId());
+        }
+        if (request.step() != 1)
+            throw VolunteerException.volunteerInvalidStep(request.userId());
+
+        volunteer.setTermsAndConditions(request.termsAndConditions());
+        volunteer.setTcUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
+        volunteer = volunteerRepository.save(volunteer);
+
+        updateUser(user, request.step());
+
+        return mapToVolunteerResponse(volunteer);
+    }
+
+    @Override
+    public PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize) {
         int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;
         int pageSizeNum = (pageSize == null) ? DEFAULT_SIZE : pageSize;
         Pageable pageable = PageRequest.of(pageNum, pageSizeNum);
-        Page<User> userPage = userRepository.findAll(pageable);
+        Page<Volunteer> volunteerPage = volunteerRepository.findAll(pageable);
 
-        List<UserProfileResponse> userProfiles = userPage.stream()
-                .map(this::mapToUserProfileResponse)
+        List<VolunteerResponse> volunteers = volunteerPage.stream()
+                .map(this::mapToVolunteerResponse)
                 .collect(Collectors.toList());
 
-        return PaginationResponse.<UserProfileResponse>builder()
-                .currentPage(userPage.getNumber())
-                .pageSize(userPage.getSize())
-                .totalPages(userPage.getTotalPages())
-                .totalItems(userPage.getTotalElements())
-                .items(userProfiles)
-                .hasNextPage(userPage.hasNext())
-                .hasPreviousPage(userPage.hasPrevious())
+        return PaginationResponse.<VolunteerResponse>builder()
+                .currentPage(volunteerPage.getNumber())
+                .pageSize(volunteerPage.getSize())
+                .totalPages(volunteerPage.getTotalPages())
+                .totalItems(volunteerPage.getTotalElements())
+                .items(volunteers)
+                .hasNextPage(volunteerPage.hasNext())
+                .hasPreviousPage(volunteerPage.hasPrevious())
                 .build();
     }
 
     @Override
-    public UserProfileResponse getUserProfileById(String userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
-        return mapToUserProfileResponse(user);
-    }
-
-    @Override
-    public UserProfileResponse getUserProfileByEmail(String email) {
-        List<User> user = userRepository.findByPrimaryEmailAddress(email);
-
-        if (user.isEmpty()) {
-            throw new UserNotFoundException(email);
+    public VolunteerResponse getVolunteerByUserId(String userId) throws Exception {
+        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(userId);
+        if (volunteer == null || volunteer.getId() == 0) {
+            throw VolunteerException.volunteerNotFound(userId);
         }
-
-        return mapToUserProfileResponse(user.get(0));
+        return mapToVolunteerResponse(volunteer);
     }
 
-    private UserProfileResponse mapToUserProfileResponse(User user) {
-        return UserProfileResponse.builder()
-                .id(user.getId())
-                .firstName(user.getFirstName())
-                .middleName(user.getMiddleName())
-                .lastName(user.getLastName())
-                .fullName(user.getFullName())
-                .emailAddress(user.getPrimaryEmailAddress())
-                .phoneNumber(user.getPrimaryPhoneNumber())
-                .timeZone(user.getTimeZone())
-                .profilePicturePath(user.getProfilePicturePath())
-                .addressLine1(user.getAddressLine1())
-                .addressLine2(user.getAddressLine2())
-                .addressLine3(user.getAddressLine3())
-                .city(user.getCity())
-                .zipCode(user.getZipCode())
-                .lastUpdateDate(user.getLastUpdateDate())
-                .stateName(user.getState() != null ? user.getState().getStateName() : null)
-                .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
-                .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus() : null)
-                .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
+    private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer) {
+        return VolunteerResponse.builder()
+                .id(volunteer.getId())
+                .userId(volunteer.getUser().getId())
+                .termsAndConditions(volunteer.getTermsAndConditions())
+                .tcUpdateDate(volunteer.getTcUpdateDate())
+                .govtIdFilename(volunteer.getGovtIdFilename())
+                .govtUpdateDate(volunteer.getGovtUpdateDate())
+                .pii(volunteer.getPii())
+                .notification(volunteer.getNotification())
+                .isCompleted(volunteer.getIsCompleted())
+                .completedDate(volunteer.getCompletedDate())
                 .build();
     }
 }

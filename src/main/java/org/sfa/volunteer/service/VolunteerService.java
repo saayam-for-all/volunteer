@@ -1,21 +1,20 @@
 package org.sfa.volunteer.service;
 
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
-import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
-import org.sfa.volunteer.dto.response.UserProfileResponse;
 
 
-public interface UserService {
 
-    PaginationResponse<UserProfileResponse> findAllUsersWithPagination(Integer pageNumber, Integer pageSize);
+public interface VolunteerService {
 
-    UserProfileResponse getUserProfileById(String userId);
+    PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize);
 
-    UserProfileResponse getUserProfileByEmail(String email);
+    VolunteerResponse createVolunteer(VolunteerRequest volunteerRequest) throws Exception;
 
-    CreateUserResponse createUser(CreateUserRequest createUserRequest);
+    VolunteerResponse updateVolunteer(VolunteerRequest volunteerRequest) throws Exception;
 
-    UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest updateUserProfileRequest);
+    VolunteerResponse updateVolunteerStep1(VolunteerRequest volunteerRequest) throws Exception;
+
+    VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
 }

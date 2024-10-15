@@ -8,10 +8,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,131 +23,56 @@ import java.util.Objects;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "users")
-public class User {
+@Table(name = "volunteer_details")
 
+public class Volunteer {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id", nullable = false)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
+    @Column(name = "volunteer_detail_id", nullable = false)
+    private Integer id;
 
-    @Column(name = "first_name")
-    private String firstName;
-
-    @Column(name = "middle_name")
-    private String middleName;
-
-    @Column(name = "last_name")
-    private String lastName;
-
-    @NotBlank(message = "Full name cannot be blank.")
-    @Column(name = "full_name")
-    private String fullName;
-
-    @Email
-//    @NotBlank(message = "Email address cannot be null.")
-    @Column(name = "primary_email_address")
-    private String primaryEmailAddress;
-
-    //    @NotBlank(message = "Phone number cannot be blank")
-    @Column(name = "primary_phone_number")
-    private String primaryPhoneNumber;
-
-//    @Column(name = "secondary_phone_1")
-//    private String secondaryPhone;
-//
-//    @Column(name = "secondary_phone_2")
-//    private String secondaryPhone2;
-//
-//    @Email
-//    @Column(name = "secondary_email_1")
-//    private String secondaryEmail1;
-//
-//    @Email
-//    @Column(name = "secondary_email_2")
-//    private String secondaryEmail2;
-
-    @NotBlank(message = "Time zone cannot be blank.")
-    @Column(name = "time_zone", nullable = false)
-    private String timeZone;
-
-    @Column(name = "profile_picture_path")
-    private String profilePicturePath;
-
-    @Column(name = "addr_ln1")
-    private String addressLine1;
-
-    @Column(name = "addr_ln2")
-    private String addressLine2;
-
-    @Column(name = "addr_ln3")
-    private String addressLine3;
-
-    @Column(name = "city_name")
-    private String city;
-
-    @Column(name = "zip_code")
-    private String zipCode;
-
-    @Column(name = "passport_doc")
-    private String passportDoc;
-
-    @Column(name = "drivers_license")
-    private String driversLicense;
-
-    @Column(name = "last_update_date")
-    private ZonedDateTime lastUpdateDate;
-
-    @Column(name = "promotion_wizard_stage")
-    private Integer volunteerStage;
-
-    @Column(name = "promotion_wizard_last_update_date ")
-    private ZonedDateTime volunteerUpdateDate ;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "state_id")
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
     @JsonBackReference
-    private State state;
+    private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "country_id")
-    @JsonBackReference
-    private Country country;
+    @Column(name = "terms_and_conditions")
+    private Boolean termsAndConditions;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_status_id", nullable = false)
-    @JsonBackReference
-    private UserStatus userStatus;
+    @Column(name = "terms_and_conditions_update_date")
+    private ZonedDateTime tcUpdateDate;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_category_id", nullable = false)
-    @JsonBackReference
-    private UserCategory userCategory;
+    @Column(name = "govt_id")
+    private String govtIdFilename;
+
+    @Column(name = "govt_id_update_date")
+    private ZonedDateTime govtUpdateDate;
+
+    @Column(name = "pii")
+    private String pii;
+
+    @Column(name = "notification")
+    private Boolean notification;
+
+    @Column(name = "iscomplete")
+    private Boolean isCompleted;
+
+    @Column(name = "completed_date")
+    private ZonedDateTime completedDate;
 
     @Override
     public String toString() {
-        return "User{" +
+        return "Volunteer {" +
                 "id=" + id +
-                ", firstName='" + firstName + '\'' +
-                ", middleName='" + middleName + '\'' +
-                ", lastName='" + lastName + '\'' +
-                ", fullName='" + fullName + '\'' +
-                ", emailAddress='" + primaryEmailAddress + '\'' +
-                ", phoneNumber='" + primaryPhoneNumber + '\'' +
-                ", timeZone='" + timeZone + '\'' +
-                ", profilePicturePath='" + profilePicturePath + '\'' +
-                ", addressLine1='" + addressLine1 + '\'' +
-                ", addressLine2='" + addressLine2 + '\'' +
-                ", addressLine3='" + addressLine3 + '\'' +
-                ", city='" + city + '\'' +
-                ", zipCode='" + zipCode + '\'' +
-                ", lastUpdateDate=" + lastUpdateDate +
-                ", state=" + state +
-                ", country=" + country +
-                ", userStatus=" + userStatus +
-                ", userCategory=" + userCategory +
-                ", volunteerStage=" + volunteerStage +
-                ", volunteerUpdateDate=" + volunteerUpdateDate +
+                ", user='" + user + '\'' +
+                ", termsAndConditions=" + termsAndConditions +
+                ", tcUpdateDate=" + tcUpdateDate +
+                ", govtIdFilename='" + govtIdFilename + '\'' +
+                ", govtUpdateDate=" + govtUpdateDate +
+                ", pii='" + pii + '\'' +
+                ", notification=" + notification +
+                ", isCompleted=" + isCompleted +
+                ", completedDate=" + completedDate +
                 '}';
     }
 
@@ -157,20 +80,21 @@ public class User {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        User user = (User) o;
-        return Objects.equals(id, user.id) &&
-                Objects.equals(firstName, user.firstName) &&
-                Objects.equals(middleName, user.middleName) &&
-                Objects.equals(lastName, user.lastName) &&
-                Objects.equals(fullName, user.fullName) &&
-                Objects.equals(volunteerUpdateDate, user.volunteerUpdateDate) &&
-                Objects.equals(volunteerStage, user.volunteerStage) &&
-                Objects.equals(primaryEmailAddress, user.primaryEmailAddress) &&
-                Objects.equals(primaryPhoneNumber, user.primaryPhoneNumber);
+        Volunteer volunteer = (Volunteer) o;
+        return Objects.equals(id, volunteer.id) &&
+                Objects.equals(user, volunteer.user) &&
+                Objects.equals(termsAndConditions, volunteer.termsAndConditions) &&
+                Objects.equals(tcUpdateDate, volunteer.tcUpdateDate) &&
+                Objects.equals(govtIdFilename, volunteer.govtIdFilename) &&
+                Objects.equals(govtUpdateDate, volunteer.govtUpdateDate) &&
+                Objects.equals(pii, volunteer.pii) &&
+                Objects.equals(notification, volunteer.notification) &&
+                Objects.equals(isCompleted, volunteer.isCompleted) &&
+                Objects.equals(completedDate, volunteer.completedDate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
+        return Objects.hash(id, user, termsAndConditions, tcUpdateDate, govtIdFilename, govtUpdateDate, pii, notification, isCompleted, completedDate );
     }
 }
