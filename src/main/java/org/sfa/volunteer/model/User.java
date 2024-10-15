@@ -55,19 +55,19 @@ public class User {
     @Column(name = "primary_phone_number")
     private String primaryPhoneNumber;
 
-    @Column(name = "secondary_phone_1")
-    private String secondaryPhone;
-
-    @Column(name = "secondary_phone_2")
-    private String secondaryPhone2;
-
-    @Email
-    @Column(name = "secondary_email_1")
-    private String secondaryEmail1;
-
-    @Email
-    @Column(name = "secondary_email_2")
-    private String secondaryEmail2;
+//    @Column(name = "secondary_phone_1")
+//    private String secondaryPhone;
+//
+//    @Column(name = "secondary_phone_2")
+//    private String secondaryPhone2;
+//
+//    @Email
+//    @Column(name = "secondary_email_1")
+//    private String secondaryEmail1;
+//
+//    @Email
+//    @Column(name = "secondary_email_2")
+//    private String secondaryEmail2;
 
     @NotBlank(message = "Time zone cannot be blank.")
     @Column(name = "time_zone", nullable = false)
@@ -99,6 +99,12 @@ public class User {
 
     @Column(name = "last_update_date")
     private ZonedDateTime lastUpdateDate;
+
+    @Column(name = "promotion_wizard_stage")
+    private Integer volunteerStage;
+
+    @Column(name = "promotion_wizard_last_update_date ")
+    private ZonedDateTime volunteerUpdateDate ;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "state_id")
@@ -142,6 +148,8 @@ public class User {
                 ", country=" + country +
                 ", userStatus=" + userStatus +
                 ", userCategory=" + userCategory +
+                ", volunteerStage=" + volunteerStage +
+                ", volunteerUpdateDate=" + volunteerUpdateDate +
                 '}';
     }
 
@@ -155,12 +163,14 @@ public class User {
                 Objects.equals(middleName, user.middleName) &&
                 Objects.equals(lastName, user.lastName) &&
                 Objects.equals(fullName, user.fullName) &&
+                Objects.equals(volunteerUpdateDate, user.volunteerUpdateDate) &&
+                Objects.equals(volunteerStage, user.volunteerStage) &&
                 Objects.equals(primaryEmailAddress, user.primaryEmailAddress) &&
                 Objects.equals(primaryPhoneNumber, user.primaryPhoneNumber);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, primaryPhoneNumber);
+        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
     }
 }
