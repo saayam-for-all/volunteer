@@ -20,7 +20,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/user")
+@RequestMapping("/users" +
+        "")
 public class UserController {
     private final UserService userService;
     private final ResponseBuilder responseBuilder;
