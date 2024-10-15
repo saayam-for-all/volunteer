@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/volunteer")
+@RequestMapping("/volunteers")
 public class VolunteerController {
     private final VolunteerService volunteerService;
     private final ResponseBuilder responseBuilder;
