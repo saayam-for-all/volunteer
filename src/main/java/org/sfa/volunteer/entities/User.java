@@ -12,7 +12,7 @@ import lombok.Setter;
 import java.math.BigInteger;
 import java.util.Date;
 
-@Entity
+//@Entity
 @Getter
 @Setter
 @AllArgsConstructor

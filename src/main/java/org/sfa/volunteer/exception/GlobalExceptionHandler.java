@@ -49,6 +49,34 @@ public class GlobalExceptionHandler {
         return responseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(), SaayamStatusCode.USER_NOT_FOUND, errorMessage);
     }
 
+    @ExceptionHandler(VolunteerException.class)
+    @ResponseBody
+    public <T> SaayamResponse<T> handleVolunteerException(VolunteerException exception, WebRequest request) {
+        String errorMessage = null;
+        SaayamStatusCode status = null;
+        if (exception.getMessage().contains(SaayamStatusCode.VOLUNTEER_NOT_FOUND.toString())) {
+            errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.VOLUNTEER_NOT_FOUND.getCode(), new Object[]{exception.getUserId()});
+            log.error("VolunteerNotFoundException: {}", errorMessage);
+            status = SaayamStatusCode.VOLUNTEER_NOT_FOUND;
+        }
+        else if (exception.getMessage().contains(SaayamStatusCode.VOLUNTEER_EXISTS.toString())) {
+            errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.VOLUNTEER_EXISTS.getCode(), new Object[]{exception.getUserId()});
+            log.error("VolunteerExistsException: {}", errorMessage);
+            status = SaayamStatusCode.VOLUNTEER_EXISTS;
+        }
+        else if (exception.getMessage().contains(SaayamStatusCode.INVALID_VOLUNTEER_STEP.toString())) {
+            errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INVALID_VOLUNTEER_STEP.getCode(), new Object[]{exception.getUserId()});
+            log.error("VolunteerInvalidStepException: {}", errorMessage);
+            status = SaayamStatusCode.INVALID_VOLUNTEER_STEP;
+        }
+        else {
+            errorMessage = "Unknown error";
+            status = SaayamStatusCode.UNKNOWN_ERROR; // Adjust as needed
+        }
+        return responseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(), status , errorMessage);
+    }
+
+
 //    @ExceptionHandler(Exception.class)
 //    @ResponseBody
 //    public <T> SaayamResponse<T> handleGeneralException(Exception exception, WebRequest request) {
