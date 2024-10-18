@@ -1,9 +1,12 @@
 package org.sfa.volunteer.service;
 
 import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
 
+import java.util.List;
 
 
 public interface VolunteerService {
@@ -16,5 +19,17 @@ public interface VolunteerService {
 
     VolunteerResponse updateVolunteerStep1(VolunteerRequest volunteerRequest) throws Exception;
 
+    VolunteerResponse updateVolunteerStep2(VolunteerRequest volunteerRequest) throws Exception;
+
+    VolunteerResponse updateVolunteerStep3(VolunteerRequest volunteerRequest) throws Exception;
+
+//    VolunteerResponse updateVolunteerStep4(VolunteerRequest volunteerRequest) throws Exception;
+//
+//    VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
+
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
+
+    VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(VolunteerUserAvailabilityRequest request) throws Exception;
+
+    List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
 }
