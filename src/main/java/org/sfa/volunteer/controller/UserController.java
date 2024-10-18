@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/0.0.1/users")
+
 public class UserController {
     private final UserService userService;
     private final ResponseBuilder responseBuilder;
