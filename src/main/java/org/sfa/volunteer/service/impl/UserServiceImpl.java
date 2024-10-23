@@ -1,5 +1,4 @@
 package org.sfa.volunteer.service.impl;
-
 import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;

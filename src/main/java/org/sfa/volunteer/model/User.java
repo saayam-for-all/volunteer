@@ -85,10 +85,10 @@ public class User {
     private String language3;
 
     @Column(name = "promotion_wizard_stage")
-    private Integer promotionWizardStage;
+    private Integer volunteerStage;;
 
     @Column(name = "promotion_wizard_last_update_date")
-    private ZonedDateTime promotionWizardLastUpdateDate;
+    private ZonedDateTime volunteerUpdateDate;
 
     @Column(name = "last_update_date")
     private ZonedDateTime lastUpdateDate;
@@ -117,7 +117,7 @@ public class User {
     private UserAdditionalDetail additionalDetail;
 
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
-    private VolunteerDetails volunteerDetails;
+    private Volunteer volunteer;
 
     @Override
     public String toString() {
