@@ -172,6 +172,13 @@ public class UserServiceImpl implements UserService {
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus() : null)
                 .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
+                .gender(user.getGender())
+                .lastLocation(user.getLastLocation())
+                .language1(user.getLanguage1())
+                .language2(user.getLanguage2())
+                .language3(user.getLanguage3())
+                .promotionWizardStage(user.getPromotionWizardStage())
+                .promotionWizardLastUpdateDate(user.getPromotionWizardLastUpdateDate())
                 .build();
     }
 }
