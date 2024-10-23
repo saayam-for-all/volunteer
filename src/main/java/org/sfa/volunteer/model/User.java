@@ -85,7 +85,7 @@ public class User {
     private String language3;
 
     @Column(name = "promotion_wizard_stage")
-    private Integer volunteerStage;;
+    private Integer volunteerStage;
 
     @Column(name = "promotion_wizard_last_update_date")
     private ZonedDateTime volunteerUpdateDate;
@@ -141,6 +141,8 @@ public class User {
                 ", country=" + country +
                 ", userStatus=" + userStatus +
                 ", userCategory=" + userCategory +
+                ", volunteerStage=" + volunteerStage +
+                ", volunteerUpdateDate=" + volunteerUpdateDate +
                 '}';
     }
 
@@ -154,12 +156,14 @@ public class User {
                 Objects.equals(middleName, user.middleName) &&
                 Objects.equals(lastName, user.lastName) &&
                 Objects.equals(fullName, user.fullName) &&
+                Objects.equals(volunteerUpdateDate, user.volunteerUpdateDate) &&
+                Objects.equals(volunteerStage, user.volunteerStage) &&
                 Objects.equals(primaryEmailAddress, user.primaryEmailAddress) &&
                 Objects.equals(primaryPhoneNumber, user.primaryPhoneNumber);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, primaryPhoneNumber);
+        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
     }
 }
