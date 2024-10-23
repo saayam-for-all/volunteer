@@ -176,8 +176,8 @@ public class UserServiceImpl implements UserService {
                 .language1(user.getLanguage1())
                 .language2(user.getLanguage2())
                 .language3(user.getLanguage3())
-                .promotionWizardStage(user.getPromotionWizardStage())
-                .promotionWizardLastUpdateDate(user.getPromotionWizardLastUpdateDate())
+                .promotionWizardStage(user.getVolunteerStage())
+                .promotionWizardLastUpdateDate(user.getVolunteerUpdateDate())
                 .build();
     }
 }
