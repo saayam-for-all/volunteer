@@ -1,5 +1,4 @@
 package org.sfa.volunteer.dto.response;
-
 import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 
