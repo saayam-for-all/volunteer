@@ -173,6 +173,11 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     @Override
+    public VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(VolunteerUserAvailabilityRequest request) throws Exception {
+        return null;
+    }
+
+    @Override
     public VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
@@ -182,7 +187,8 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw VolunteerException.volunteerNotFound(userId);
         }
 
-//        List<Long> ids = request.stream().map(VolunteerUserAvailabilityResponse::mapToVolunteerUserAvailabilityResponse).collect(Collectors.toList());
+//        List<Long> ids = request.stream()
+//          .map(VolunteerUserAvailabilityResponse::mapToVolunteerUserAvailabilityResponse).collect(Collectors.toList());
 //
 //        return mapToVolunteerUserAvailabilityResponse(volunteer);
         return null;
@@ -193,15 +199,12 @@ public class VolunteerServiceImpl implements VolunteerService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
-//        List<VolunteerUserAvailabilityResponse> availability = volunteerUserAvailability.findByPrimaryEmailAddress(email);
+        List<VolunteerUserAvailability> availabilityList = userAvailabilityRepository.findUserAvailability(userId);
+        List<VolunteerUserAvailabilityResponse> availability = availabilityList.stream()
+                .map(this::mapToVolunteerUserAvailabilityResponse)
+                .collect(Collectors.toList());
 
-//        List<VolunteerUserAvailabilityResponse> availability = VolunteerUserAvailabilityResponse.stream()
-//                .map(this::mapToVolunteerUserAvailabilityResponse)
-//                .collect(Collectors.toList());
-
-
-//        return mapToVolunteerUserAvailabilityResponse(user.get(0));
-        return null;
+        return availability;
     }
 
     @Override
@@ -225,11 +228,6 @@ public class VolunteerServiceImpl implements VolunteerService {
         updateUser(user, step);
 
         return mapToVolunteerResponse(volunteer);
-    }
-
-    @Override
-    public VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(VolunteerUserAvailabilityRequest request) throws Exception {
-        return null;
     }
 
     @Override
