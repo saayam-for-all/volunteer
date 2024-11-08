@@ -11,9 +11,6 @@ import java.util.List;
 
 @Repository
 public interface VolunteerUserAvailabilityRepository extends JpaRepository<VolunteerUserAvailability, Long> {
-
-//    Volunteer findVolunteerByUserId(String userId);
     @Query("SELECT u FROM VolunteerUserAvailability u WHERE u.user > :userId")
     List<VolunteerUserAvailability> findUserAvailability(@Param("userId") String userId);
-//    List<VolunteerUserAvailability> findUserAvailability(String userId);
 }
