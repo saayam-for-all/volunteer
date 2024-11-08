@@ -150,80 +150,27 @@ public class VolunteerServiceImpl implements VolunteerService {
         return mapToVolunteerResponse(volunteer);
     }
 
-//    @Override
-//    public VolunteerResponse updateVolunteerStep4(VolunteerRequest request) throws Exception {
-//        User user = userRepository.findById(request.userId())
-//                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-//
-//        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
-//        if (Objects.isNull(volunteer)) {
-//            throw VolunteerException.volunteerNotFound(request.userId());
-//        }
-//        if (request.step() != 4)
-//            throw VolunteerException.volunteerInvalidStep(request.userId());
-//
-//        volunteer.setNotification(request.notification());
-//        volunteer.setIsCompleted(request.isCompleted());
-//        volunteer.setCompletedDate(ZonedDateTime.now(ZoneId.of("UTC")));
-//        volunteer = volunteerRepository.save(volunteer);
-//
-//        updateUser(user, request.step());
-//
-//        return mapToVolunteerResponse(volunteer);
-//    }
-//
-//    @Override
-//    public VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception {
-//        User user = userRepository.findById(userId)
-//                .orElseThrow(() -> new UserNotFoundException(userId));
-//
-//        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(userId);
-//        if (Objects.isNull(volunteer)) {
-//            throw VolunteerException.volunteerNotFound(userId);
-//        }
-//
-//        List<Long> ids = request.stream().map(VolunteerUserAvailabilityResponse::mapToVolunteerUserAvailabilityResponse).collect(Collectors.toList());
-//
-//        return mapToVolunteerUserAvailabilityResponse(volunteer);
-//    }
-//
-//    @Override
-//    public List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) {
-//        User user = userRepository.findById(userId)
-//                .orElseThrow(() -> new UserNotFoundException(userId));
-//
-////        List<VolunteerUserAvailabilityResponse> availability = volunteerUserAvailability.findByPrimaryEmailAddress(email);
-//
-//        List<VolunteerUserAvailabilityResponse> availability = VolunteerUserAvailabilityResponse.stream()
-//                .map(this::mapToVolunteerUserAvailabilityResponse)
-//                .collect(Collectors.toList());
-//
-//
-//        return mapToVolunteerUserAvailabilityResponse(user.get(0));
-//    }
-//
-//    @Override
-//    public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) throws Exception {
-//        User user = userRepository.findById(request.userId())
-//                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-//
-//        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
-//        if (Objects.isNull(volunteer)) {
-//            throw VolunteerException.volunteerNotFound(request.userId());
-//        }
-//
-//        volunteer.setIsCompleted(request.isCompleted());
-//        volunteer.setCompletedDate(ZonedDateTime.now(ZoneId.of("UTC")));
-//        volunteer = volunteerRepository.save(volunteer);
-//
-//        Integer step = 4;
-//        if (Objects.nonNull(request.step()))
-//            step = request.step();
-//
-//        updateUser(user, step);
-//
-//        return mapToVolunteerResponse(volunteer);
-//    }
+    @Override
+    public VolunteerResponse updateVolunteerStep4(VolunteerRequest request) throws Exception {
+        User user = userRepository.findById(request.userId())
+                .orElseThrow(() -> new UserNotFoundException(request.userId()));
+
+        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
+        if (Objects.isNull(volunteer)) {
+            throw VolunteerException.volunteerNotFound(request.userId());
+        }
+        if (request.step() != 4)
+            throw VolunteerException.volunteerInvalidStep(request.userId());
+
+        volunteer.setNotification(request.notification());
+        volunteer.setIsCompleted(request.isCompleted());
+        volunteer.setCompletedDate(ZonedDateTime.now(ZoneId.of("UTC")));
+        volunteer = volunteerRepository.save(volunteer);
+
+        updateUser(user, request.step());
+
+        return mapToVolunteerResponse(volunteer);
+    }
 
     @Override
     public VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(VolunteerUserAvailabilityRequest request) throws Exception {
@@ -231,8 +178,56 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     @Override
-    public List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception {
-        return List.of();
+    public VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(userId);
+        if (Objects.isNull(volunteer)) {
+            throw VolunteerException.volunteerNotFound(userId);
+        }
+
+//        List<Long> ids = request.stream()
+//          .map(VolunteerUserAvailabilityResponse::mapToVolunteerUserAvailabilityResponse).collect(Collectors.toList());
+//
+//        return mapToVolunteerUserAvailabilityResponse(volunteer);
+        return null;
+    }
+
+    @Override
+    public List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        List<VolunteerUserAvailability> availabilityList = userAvailabilityRepository.findUserAvailability(userId);
+        List<VolunteerUserAvailabilityResponse> availability = availabilityList.stream()
+                .map(this::mapToVolunteerUserAvailabilityResponse)
+                .collect(Collectors.toList());
+
+        return availability;
+    }
+
+    @Override
+    public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) throws Exception {
+        User user = userRepository.findById(request.userId())
+                .orElseThrow(() -> new UserNotFoundException(request.userId()));
+
+        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
+        if (Objects.isNull(volunteer)) {
+            throw VolunteerException.volunteerNotFound(request.userId());
+        }
+
+        volunteer.setIsCompleted(request.isCompleted());
+        volunteer.setCompletedDate(ZonedDateTime.now(ZoneId.of("UTC")));
+        volunteer = volunteerRepository.save(volunteer);
+
+        Integer step = 4;
+        if (Objects.nonNull(request.step()))
+            step = request.step();
+
+        updateUser(user, step);
+
+        return mapToVolunteerResponse(volunteer);
     }
 
     @Override
@@ -281,14 +276,14 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .build();
     }
 
-//    private VolunteerUserAvailabilityResponse mapToVolunteerUserAvailabilityResponse(VolunteerUserAvailability availability) {
-//        return VolunteerUserAvailabilityResponse.builder()
-//                .id(availability.getId())
-//                .userId(availability.getUser().getId())
-//                .dayOfWeek(availability.getDayOfWeek())
-//                .startTime(availability.getStartTime())
-//                .endTime(availability.getEndTime())
-//                .lastUpdateDate(availability.getLastUpdateDate())
-//                .build();
-//    }
+    private VolunteerUserAvailabilityResponse mapToVolunteerUserAvailabilityResponse(VolunteerUserAvailability availability) {
+        return VolunteerUserAvailabilityResponse.builder()
+                .id(availability.getId())
+                .userId(availability.getUser().getId())
+                .dayOfWeek(availability.getDayOfWeek())
+                .startTime(availability.getStartTime())
+                .endTime(availability.getEndTime())
+                .lastUpdateDate(availability.getLastUpdateDate())
+                .build();
+    }
 }
