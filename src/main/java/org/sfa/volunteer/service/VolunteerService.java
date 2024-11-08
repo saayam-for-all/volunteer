@@ -23,13 +23,15 @@ public interface VolunteerService {
 
     VolunteerResponse updateVolunteerStep3(VolunteerRequest volunteerRequest) throws Exception;
 
-//    VolunteerResponse updateVolunteerStep4(VolunteerRequest volunteerRequest) throws Exception;
-//
-//    VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
+    VolunteerResponse updateVolunteerStep4(VolunteerRequest volunteerRequest) throws Exception;
+
+    VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
 
     VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(VolunteerUserAvailabilityRequest request) throws Exception;
+
+    VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
 
     List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
 }

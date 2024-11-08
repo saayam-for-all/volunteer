@@ -59,17 +59,17 @@ public class VolunteerController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
     }
 
-//    @PutMapping("/updatestep4")
-//    public SaayamResponse<VolunteerResponse> updateVolunteerStep4(@Valid @RequestBody VolunteerRequest request) throws Exception {
-//        VolunteerResponse response = volunteerService.updateVolunteerStep4(request);
-//        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
-//    }
-//
-//    @PutMapping("/updatecompletion")
-//    public SaayamResponse<VolunteerResponse> updateVolunteerCompletion(@Valid @RequestBody VolunteerRequest request) throws Exception {
-//        VolunteerResponse response = volunteerService.updateVolunteerCompletion(request);
-//        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
-//    }
+    @PutMapping("/updatestep4")
+    public SaayamResponse<VolunteerResponse> updateVolunteerStep4(@Valid @RequestBody VolunteerRequest request) throws Exception {
+        VolunteerResponse response = volunteerService.updateVolunteerStep4(request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+    }
+
+    @PutMapping("/updatecompletion")
+    public SaayamResponse<VolunteerResponse> updateVolunteerCompletion(@Valid @RequestBody VolunteerRequest request) throws Exception {
+        VolunteerResponse response = volunteerService.updateVolunteerCompletion(request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+    }
 
     @GetMapping("/all")
     public SaayamResponse<PaginationResponse<VolunteerResponse>> getVolunteersWithPagination(
