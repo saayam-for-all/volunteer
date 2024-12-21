@@ -1,15 +1,7 @@
 package org.sfa.volunteer.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -55,20 +47,6 @@ public class User {
     @Column(name = "primary_phone_number")
     private String primaryPhoneNumber;
 
-//    @Column(name = "secondary_phone_1")
-//    private String secondaryPhone;
-//
-//    @Column(name = "secondary_phone_2")
-//    private String secondaryPhone2;
-//
-//    @Email
-//    @Column(name = "secondary_email_1")
-//    private String secondaryEmail1;
-//
-//    @Email
-//    @Column(name = "secondary_email_2")
-//    private String secondaryEmail2;
-
     @NotBlank(message = "Time zone cannot be blank.")
     @Column(name = "time_zone", nullable = false)
     private String timeZone;
@@ -91,20 +69,29 @@ public class User {
     @Column(name = "zip_code")
     private String zipCode;
 
-    @Column(name = "passport_doc")
-    private String passportDoc;
+    @Column(name = "gender")
+    private String gender;
 
-    @Column(name = "drivers_license")
-    private String driversLicense;
+    @Column(name = "last_location")
+    private String lastLocation;
 
-    @Column(name = "last_update_date")
-    private ZonedDateTime lastUpdateDate;
+    @Column(name = "language_1")
+    private String language1;
+
+    @Column(name = "language_2")
+    private String language2;
+
+    @Column(name = "language_3")
+    private String language3;
 
     @Column(name = "promotion_wizard_stage")
     private Integer volunteerStage;
 
-    @Column(name = "promotion_wizard_last_update_date ")
-    private ZonedDateTime volunteerUpdateDate ;
+    @Column(name = "promotion_wizard_last_update_date")
+    private ZonedDateTime volunteerUpdateDate;
+
+    @Column(name = "last_update_date")
+    private ZonedDateTime lastUpdateDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "state_id")
@@ -125,6 +112,12 @@ public class User {
     @JoinColumn(name = "user_category_id", nullable = false)
     @JsonBackReference
     private UserCategory userCategory;
+
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private UserAdditionalDetail additionalDetail;
+
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private Volunteer volunteer;
 
     @Override
     public String toString() {
