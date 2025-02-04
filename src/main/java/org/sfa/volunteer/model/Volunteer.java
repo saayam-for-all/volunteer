@@ -47,8 +47,8 @@ public class Volunteer {
     @Column(name = "govt_id_update_date")
     private ZonedDateTime govtUpdateDate;
 
-    @Column(name = "pii")
-    private String pii;
+    @Column(name = "skills")
+    private String skills;
 
     @Column(name = "notification")
     private Boolean notification;
@@ -68,7 +68,7 @@ public class Volunteer {
                 ", tcUpdateDate=" + tcUpdateDate +
                 ", govtIdFilename='" + govtIdFilename + '\'' +
                 ", govtUpdateDate=" + govtUpdateDate +
-                ", pii='" + pii + '\'' +
+                ", skills='" + skills + '\'' +
                 ", notification=" + notification +
                 ", isCompleted=" + isCompleted +
                 ", completedDate=" + completedDate +
@@ -86,7 +86,7 @@ public class Volunteer {
                 Objects.equals(tcUpdateDate, volunteer.tcUpdateDate) &&
                 Objects.equals(govtIdFilename, volunteer.govtIdFilename) &&
                 Objects.equals(govtUpdateDate, volunteer.govtUpdateDate) &&
-                Objects.equals(pii, volunteer.pii) &&
+                Objects.equals(skills, volunteer.skills) &&
                 Objects.equals(notification, volunteer.notification) &&
                 Objects.equals(isCompleted, volunteer.isCompleted) &&
                 Objects.equals(completedDate, volunteer.completedDate);
@@ -94,6 +94,6 @@ public class Volunteer {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, user, termsAndConditions, tcUpdateDate, govtIdFilename, govtUpdateDate, pii, notification, isCompleted, completedDate );
+        return Objects.hash(id, user, termsAndConditions, tcUpdateDate, govtIdFilename, govtUpdateDate, skills, notification, isCompleted, completedDate );
     }
 }

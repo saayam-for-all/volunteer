@@ -11,7 +11,7 @@ public record VolunteerRequest(
         ZonedDateTime tcUpdateDate,
         String govtIdFilename,
         ZonedDateTime govtUpdateDate,
-        String pii,
+        String skills,
         Boolean notification,
         Boolean isCompleted,
         ZonedDateTime completedDate) {
