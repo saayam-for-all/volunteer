@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.sfa.volunteer.model.Volunteer.*;
+
 @Service
 @Transactional
 public class VolunteerServiceImpl implements VolunteerService {
@@ -142,7 +144,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (request.step() != 3)
             throw VolunteerException.volunteerInvalidStep(request.userId());
 
-        volunteer.setPii(request.pii());
+        volunteer.setSkills(request.skills());
         volunteer = volunteerRepository.save(volunteer);
 
         updateUser(user, request.step());
@@ -269,7 +271,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .tcUpdateDate(volunteer.getTcUpdateDate())
                 .govtIdFilename(volunteer.getGovtIdFilename())
                 .govtUpdateDate(volunteer.getGovtUpdateDate())
-                .pii(volunteer.getPii())
+                .skills(volunteer.getSkills())
                 .notification(volunteer.getNotification())
                 .isCompleted(volunteer.getIsCompleted())
                 .completedDate(volunteer.getCompletedDate())

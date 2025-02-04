@@ -15,6 +15,7 @@ import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
+import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
@@ -31,7 +32,7 @@ public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEv
     private static final MessageSourceUtil messageSourceUtil;
 
     static {
-        ApplicationContext context = new AnnotationConfigApplicationContext(VolunteerApplication.class);
+        ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
         volunteerService = context.getBean(VolunteerService.class);
         responseBuilder = context.getBean(ResponseBuilder.class);
         messageSourceUtil = context.getBean(MessageSourceUtil.class);
@@ -45,7 +46,7 @@ public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEv
             String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
             Locale locale = Locale.forLanguageTag(lang);
 
-            String userId = requestEvent.getPathParameters().get("userId");
+//            String userId = requestEvent.getPathParameters().get("userId");
             Map<String, Object> body = parseBody(requestEvent.getBody());
             VolunteerRequest updateRequest = parseRequest(body);
 
@@ -53,7 +54,8 @@ public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEv
 
             SaayamResponse<VolunteerResponse> successResponse = responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.VOLUNTEER_UPDATED,
-                    new Object[]{userId},
+//                    new Object[]{userId},
+                    new Object[]{updatedVolunteer.userId()},
                     updatedVolunteer
             );
 

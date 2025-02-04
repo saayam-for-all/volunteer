@@ -15,6 +15,7 @@ import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
+import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
@@ -31,7 +32,7 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
     private static final MessageSourceUtil messageSourceUtil;
 
     static {
-        ApplicationContext context = new AnnotationConfigApplicationContext(VolunteerApplication.class);
+        ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
         userService = context.getBean(UserService.class);
         responseBuilder = context.getBean(ResponseBuilder.class);
         messageSourceUtil = context.getBean(MessageSourceUtil.class);
