@@ -99,6 +99,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (Objects.isNull(volunteer)) {
             throw VolunteerException.volunteerNotFound(request.userId());
         }
+        volunteer.setUser(user);
         if (request.step() != 1)
             throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -120,6 +121,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (Objects.isNull(volunteer)) {
             throw VolunteerException.volunteerNotFound(request.userId());
         }
+        volunteer.setUser(user);
         if (request.step() != 2)
             throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -141,6 +143,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (Objects.isNull(volunteer)) {
             throw VolunteerException.volunteerNotFound(request.userId());
         }
+        volunteer.setUser(user);
         if (request.step() != 3)
             throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -161,6 +164,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (Objects.isNull(volunteer)) {
             throw VolunteerException.volunteerNotFound(request.userId());
         }
+        volunteer.setUser(user);
         if (request.step() != 4)
             throw VolunteerException.volunteerInvalidStep(request.userId());
 
