@@ -3,6 +3,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 
 @Builder
 public record VolunteerResponse(
@@ -15,5 +16,6 @@ public record VolunteerResponse(
         String skills,
         Boolean notification,
         Boolean isCompleted,
-        ZonedDateTime completedDate) {
+        ZonedDateTime completedDate,
+        List<VolunteerUserAvailabilityResponse> availability) {
 }

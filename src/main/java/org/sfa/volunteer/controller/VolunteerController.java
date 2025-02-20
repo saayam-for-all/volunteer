@@ -62,7 +62,7 @@ public class VolunteerController {
     @PutMapping("/updatestep4")
     public SaayamResponse<VolunteerResponse> updateVolunteerStep4(@Valid @RequestBody VolunteerRequest request) throws Exception {
         VolunteerResponse response = volunteerService.updateVolunteerStep4(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[] { request.userId() }, response);
     }
 
     @PutMapping("/updatecompletion")
