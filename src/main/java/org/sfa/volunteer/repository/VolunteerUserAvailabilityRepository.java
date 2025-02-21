@@ -1,4 +1,5 @@
 package org.sfa.volunteer.repository;
+
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.Volunteer;
 import org.sfa.volunteer.model.VolunteerUserAvailability;
@@ -11,6 +12,7 @@ import java.util.List;
 
 @Repository
 public interface VolunteerUserAvailabilityRepository extends JpaRepository<VolunteerUserAvailability, Long> {
-    @Query("SELECT u FROM VolunteerUserAvailability u WHERE u.user > :userId")
+    @Query("SELECT u FROM VolunteerUserAvailability u WHERE u.user =:userId")
     List<VolunteerUserAvailability> findUserAvailability(@Param("userId") String userId);
+
 }

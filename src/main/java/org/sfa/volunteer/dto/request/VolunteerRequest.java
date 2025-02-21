@@ -2,6 +2,7 @@ package org.sfa.volunteer.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 @Builder
 public record VolunteerRequest(
@@ -14,5 +15,6 @@ public record VolunteerRequest(
         String skills,
         Boolean notification,
         Boolean isCompleted,
-        ZonedDateTime completedDate) {
+        ZonedDateTime completedDate,
+        List<VolunteerUserAvailabilityRequest> availability) {
 }
