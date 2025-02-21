@@ -88,7 +88,8 @@ public class VolunteerServiceImpl implements VolunteerService {
             response = updateVolunteerStep2(request);
         else if (request.step() == 3)
             response = updateVolunteerStep3(request);
-
+        else if (request.step() == 4)
+            response = updateVolunteerStep4(request);
         return response;
     }
 
