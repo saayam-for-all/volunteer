@@ -12,7 +12,6 @@ import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
 
 import java.util.List;
 
-
 public interface VolunteerService {
 
     PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize);
@@ -33,9 +32,7 @@ public interface VolunteerService {
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
 
-    VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(VolunteerUserAvailabilityRequest request) throws Exception;
-
-    VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
+    List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
 
     List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
 

@@ -43,8 +43,9 @@ public class VolunteerServiceImpl implements VolunteerService {
     private static final int DEFAULT_SIZE = 10;
 
     @Autowired
-//    public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository, VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository, VolunteerUserAvailabilityRepository userAvailabilityRepository, UserVolunteerSkillsRepository userVolunteerSkillsRepository) {
-    public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository, VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository, VolunteerUserAvailabilityRepository userAvailabilityRepository) {
+    public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository,
+            VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository,
+            VolunteerUserAvailabilityRepository userAvailabilityRepository) {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
         this.userAvailabilityRepository = userAvailabilityRepository;
@@ -86,13 +87,14 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         VolunteerResponse response = null;
-        if (request.step() ==1)
+        if (request.step() == 1)
             response = updateVolunteerStep1(request);
-        else if (request.step() ==2)
+        else if (request.step() == 2)
             response = updateVolunteerStep2(request);
-        else if (request.step() ==3)
+        else if (request.step() == 3)
             response = updateVolunteerStep3(request);
-
+        else if (request.step() == 4)
+            response = updateVolunteerStep4(request);
         return response;
     }
 
@@ -172,25 +174,25 @@ public class VolunteerServiceImpl implements VolunteerService {
         }
         volunteer.setUser(user);
         if (request.step() != 4)
-            throw VolunteerException.volunteerInvalidStep(request.userId());
+        throw VolunteerException.volunteerInvalidStep(request.userId());
 
         volunteer.setNotification(request.notification());
         volunteer.setIsCompleted(request.isCompleted());
         volunteer.setCompletedDate(ZonedDateTime.now(ZoneId.of("UTC")));
         volunteer = volunteerRepository.save(volunteer);
 
-        updateUser(user, request.step());
+        List<VolunteerUserAvailability> userAvailabilityList = request.availability().stream()
+                .map(req -> mapToVolunteerUserAvailability(req, user)).collect(Collectors.toList());
 
-        return mapToVolunteerResponse(volunteer);
+        List<VolunteerUserAvailability> savedAvailabilityList = userAvailabilityRepository
+                .saveAll(userAvailabilityList);
+
+        return mapToVolunteerResponse(volunteer, savedAvailabilityList);
     }
 
     @Override
-    public VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(VolunteerUserAvailabilityRequest request) throws Exception {
-        return null;
-    }
-
-    @Override
-    public VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception {
+    public List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId,
+            List<VolunteerUserAvailabilityRequest> request) throws Exception {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -199,11 +201,13 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw VolunteerException.volunteerNotFound(userId);
         }
 
-//        List<Long> ids = request.stream()
-//          .map(VolunteerUserAvailabilityResponse::mapToVolunteerUserAvailabilityResponse).collect(Collectors.toList());
-//
-//        return mapToVolunteerUserAvailabilityResponse(volunteer);
-        return null;
+        List<VolunteerUserAvailability> userAvailabilityList = request.stream()
+                .map(req -> mapToVolunteerUserAvailability(req, user)).collect(Collectors.toList());
+
+        List<VolunteerUserAvailability> savedAvailabilityList = userAvailabilityRepository
+                .saveAll(userAvailabilityList);
+        return savedAvailabilityList.stream().map(this::mapToVolunteerUserAvailabilityResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -293,7 +297,25 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .build();
     }
 
-    private VolunteerUserAvailabilityResponse mapToVolunteerUserAvailabilityResponse(VolunteerUserAvailability availability) {
+    private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,
+            List<VolunteerUserAvailability> availabilityList) {
+        return VolunteerResponse.builder()
+                .id(volunteer.getId())
+                .userId(volunteer.getUser().getId())
+                .termsAndConditions(volunteer.getTermsAndConditions())
+                .tcUpdateDate(volunteer.getTcUpdateDate())
+                .govtIdFilename(volunteer.getGovtIdFilename())
+                .govtUpdateDate(volunteer.getGovtUpdateDate())
+                .skills(volunteer.getSkills())
+                .notification(volunteer.getNotification())
+                .isCompleted(volunteer.getIsCompleted())
+                .completedDate(volunteer.getCompletedDate())
+                .availability(availabilityList.stream().map(this::mapToVolunteerUserAvailabilityResponse).toList())
+                .build();
+    }
+
+    private VolunteerUserAvailabilityResponse mapToVolunteerUserAvailabilityResponse(
+            VolunteerUserAvailability availability) {
         return VolunteerUserAvailabilityResponse.builder()
                 .id(availability.getId())
                 .userId(availability.getUser().getId())
@@ -304,24 +326,14 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .build();
     }
 
-//    @Override
-//    public UserVolunteerSkillsResponse updateSkills(UserVolunteerSkillsRequest request) throws Exception {
-//        UserVolunteerSkills uvskills = UserVolunteerSkills.builder()
-//                .skills(request.skills())
-//                .build();
-//        uvskills = userVolunteerSkillsRepository.save(uvskills);
-//        return mapToSkillsResponse(uvskills);
-//    }
-//
-//    @Override
-//    public UserVolunteerSkillsResponse findSkillsList() throws Exception {
-//        UserVolunteerSkills _uvskills = userVolunteerSkillsRepository.findSkills();
-//        return mapToSkillsResponse(_uvskills);
-//    }
-//
-//    private UserVolunteerSkillsResponse mapToSkillsResponse(UserVolunteerSkills uvskills) {
-//        return UserVolunteerSkillsResponse.builder()
-//                .skills(uvskills.getSkills())
-//                .build();
-//    }
+    private VolunteerUserAvailability mapToVolunteerUserAvailability(VolunteerUserAvailabilityRequest request,
+            User user) {
+        return VolunteerUserAvailability.builder()
+                .user(user)
+                .dayOfWeek(request.dayOfWeek())
+                .startTime(request.startTime())
+                .endTime(request.endTime())
+                .lastUpdateDate(request.lastUpdateDate()) 
+                .build();
+    }
 }
