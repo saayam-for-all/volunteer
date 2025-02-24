@@ -102,7 +102,9 @@ public class UserServiceImpl implements UserService {
         user.setAddressLine3(request.addressLine3());
         user.setCity(request.cityName());
         user.setZipCode(request.zipCode());
-
+        user.setProfilePicturePath(request.profilePicturePath());
+        user.setVolunteerStage(request.volunteerStage());
+        user.setVolunteerUpdateDate(request.volunteerUpdateDate());
         user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
 
         User updatedUser = userRepository.save(user);
