@@ -6,6 +6,10 @@ import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
 
+//import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
+//import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
+//import org.sfa.volunteer.model.UserVolunteerSkills;
+
 import java.util.List;
 
 
@@ -34,4 +38,8 @@ public interface VolunteerService {
     VolunteerUserAvailabilityResponse updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
 
     List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
+
+//    UserVolunteerSkillsResponse updateSkills(UserVolunteerSkillsRequest request) throws Exception;
+
+//    UserVolunteerSkillsResponse findSkillsList() throws Exception;
 }
