@@ -1,4 +1,5 @@
 package org.sfa.volunteer.controller;
+import com.amazonaws.services.lambda.runtime.events.S3ObjectLambdaEvent;
 import jakarta.validation.Valid;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
@@ -44,6 +45,13 @@ public class UserController {
             @RequestParam(value = "size", required = false) Integer size) {
         PaginationResponse<UserProfileResponse> response = userService.findAllUsersWithPagination(page, size);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
+    }
+
+    @GetMapping("/profile")
+    public SaayamResponse<UserProfileResponse> getUserProfileByEmail(@Valid @RequestBody CreateUserRequest request) {
+        String email = request.email().toString();
+        UserProfileResponse response = userService.getUserProfileByEmail(email);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
     }
 
     @GetMapping("/profile/{userId}")
