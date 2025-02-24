@@ -135,9 +135,9 @@ kubectl apply -f ingress.yaml
 This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
 ## Contact
-For any queries or contributions, reach out to:
+For any queries or contributions, reach out to: 
+- Saayam for all volunteers
 - 📌 **GitHub Repository**: [Saayam For All - Volunteer](https://github.com/saayam-for-all/volunteer)
-- 🌐 **Project Website**: [Gitingest URL](https://gitingest.com/saayam-for-all/volunteer)
 
 ---
 
