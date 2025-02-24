@@ -1,6 +1,5 @@
 # Saayam For All - Volunteer Service
 
-![Spring Boot](https://spring.io/projects/spring-boot)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/saayam-for-all/volunteer/ci.yml)
 ![Contributors](https://img.shields.io/github/contributors/saayam-for-all/volunteer)
 
@@ -138,7 +137,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 For any queries or contributions, reach out to: 
 - Saayam for all volunteers
 - 📌 **GitHub Repository**: [Saayam For All - Volunteer](https://github.com/saayam-for-all/volunteer)
-
+- 📌 **Spring Boot**: [Spring Boot](https://spring.io/projects/spring-boot)
 ---
 
 ✨ Happy coding! 🚀
