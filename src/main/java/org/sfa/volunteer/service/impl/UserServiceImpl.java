@@ -1,5 +1,10 @@
 package org.sfa.volunteer.service.impl;
-import jakarta.transaction.Transactional;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
@@ -7,6 +12,7 @@ import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
+import org.sfa.volunteer.model.Country;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserStatus;
@@ -22,10 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.stream.Collectors;
+import jakarta.transaction.Transactional;
 
 @Service
 @Transactional
@@ -64,6 +67,12 @@ public class UserServiceImpl implements UserService {
         UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
+        Optional<Country> countryOpt = countryRepository.findByCountryName(request.countryName());
+        if (countryOpt.isEmpty()) {
+            throw new IllegalArgumentException("Country not found");
+        }
+
+       
         // Create a new User entity from the request data
         User user = User.builder()
                 .fullName(request.name())
@@ -73,6 +82,7 @@ public class UserServiceImpl implements UserService {
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
                 .userCategory(userCategory)
                 .userStatus(userStatus)
+                .country(countryOpt.get())
                 .build();
 
         // Save the User entity to the database
@@ -84,6 +94,7 @@ public class UserServiceImpl implements UserService {
                 .email(user.getPrimaryEmailAddress())
                 .phoneNumber(user.getPrimaryEmailAddress())
                 .timeZone(user.getTimeZone())
+                .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .userId(user.getId())
                 .build();
     }
