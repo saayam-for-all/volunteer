@@ -1,6 +1,6 @@
 # Saayam For All - Volunteer Service
 
-![License](https://img.shields.io/github/license/saayam-for-all/volunteer)
+![Spring Boot](https://spring.io/projects/spring-boot)
 ![Build Status](https://img.shields.io/github/actions/workflow/status/saayam-for-all/volunteer/ci.yml)
 ![Contributors](https://img.shields.io/github/contributors/saayam-for-all/volunteer)
 
