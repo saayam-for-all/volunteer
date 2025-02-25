@@ -159,11 +159,12 @@ public class User {
                 Objects.equals(volunteerUpdateDate, user.volunteerUpdateDate) &&
                 Objects.equals(volunteerStage, user.volunteerStage) &&
                 Objects.equals(primaryEmailAddress, user.primaryEmailAddress) &&
+                Objects.equals(profilePicturePath, user.profilePicturePath) &&
                 Objects.equals(primaryPhoneNumber, user.primaryPhoneNumber);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
+        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, profilePicturePath, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
     }
 }
