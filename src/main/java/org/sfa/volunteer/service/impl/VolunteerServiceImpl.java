@@ -187,6 +187,8 @@ public class VolunteerServiceImpl implements VolunteerService {
         List<VolunteerUserAvailability> savedAvailabilityList = userAvailabilityRepository
                 .saveAll(userAvailabilityList);
 
+        updateUser(user, request.step());
+
         return mapToVolunteerResponse(volunteer, savedAvailabilityList);
     }
 
