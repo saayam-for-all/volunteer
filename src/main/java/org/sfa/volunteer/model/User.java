@@ -72,6 +72,7 @@ public class User {
     @Column(name = "gender")
     private String gender;
 
+    @Transient
     @Column(name = "last_location")
     private String lastLocation;
 

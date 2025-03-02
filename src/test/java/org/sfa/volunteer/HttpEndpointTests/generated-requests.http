@@ -1,0 +1,110 @@
+### Get User from NonEU DB
+GET http://localhost:8080/0.0.1/users/login/testuser46@example.com
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b206Q291bnRyeSI6IlVuaXRlZCBTdGF0ZXMiLCJlbWFpbCI6InRlc3R1c2VyNDZAZXhhbXBsZS5jb20iLCJlbWFpbF92ZXJpZmllZCI6InRydWUiLCJmYW1pbHlfbmFtZSI6InVzZXIiLCJnaXZlbl9uYW1lIjoidGVzdCIsInBob25lX251bWJlciI6IisxMzIzNDU2Nzg4NyIsInBob25lX251bWJlcl92ZXJpZmllZCI6ImZhbHNlIiwic3ViIjoiMzQ5ODE0ODgtYzAxMS03MGVhLTYwMDEtODkzMzAxZGU4OWQifQ.D7Gx85bo8v9oUUKiZ0ZHseXFyVQv81ZDLi2LyYH-9HQ
+
+
+> {%
+    client.test("Check response status", function() {
+        client.assert(response.status === 200, "Expected HTTP 200 OK");
+    });
+
+    client.test("Verify email in JSON response", function() {
+        console.log("Response Body:", response.body); // Log the response to check its structure
+
+        var responseBody;
+        try {
+            responseBody = typeof response.body === "string" ? JSON.parse(response.body) : response.body;
+        } catch (error) {
+            client.assert(false, "Response is not a valid JSON: " + error.message);
+            return;
+        }
+
+        client.assert(responseBody.data.emailAddress === "testuser46@example.com", "User email should match");
+    });
+%}
+
+
+
+
+### Get User from EU DB
+### Get User from NonEU DB
+GET http://localhost:8080/0.0.1/users/login/newuser@gmail.com
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b206Q291bnRyeSI6IkRlbm1hcmsiLCJlbWFpbCI6Im5ld3VzZXJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOiJ0cnVlIiwiZmFtaWx5X25hbWUiOiJkYXZpZCIsImdpdmVuX25hbWUiOiJkYXZpZCIsInBob25lX251bWJlciI6IisxMzIzNDU2Nzg4NyIsInBob25lX251bWJlcl92ZXJpZmllZCI6ImZhbHNlIiwic3ViIjoiMzQ5ODE0ODgtYzAxMS03MGVhLTYwMDEtODkzMzAxZGU4OWQifQ.BnC1TqA5y26mp58wQMzU5Sxpxfqa9lxXDGEbI6DJ59s
+
+
+> {%
+    client.test("Check response status", function() {
+        client.assert(response.status === 200, "Expected HTTP 200 OK");
+    });
+
+    client.test("Verify email in JSON response", function() {
+        console.log("Response Body:", response.body); // Log the response to check its structure
+
+        var responseBody;
+        try {
+            responseBody = typeof response.body === "string" ? JSON.parse(response.body) : response.body;
+        } catch (error) {
+            client.assert(false, "Response is not a valid JSON: " + error.message);
+            return;
+        }
+
+        client.assert(responseBody.data.emailAddress === "newuser@gmail.com", "User email should match");
+    });
+%}
+
+### Update User in NonEU DB
+PUT http://localhost:8080/0.0.1/users/profile/SID-00-000-000-003
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b206Q291bnRyeSI6IlVuaXRlZCBTdGF0ZXMiLCJlbWFpbCI6InRlc3R1c2VyNDZAZXhhbXBsZS5jb20iLCJlbWFpbF92ZXJpZmllZCI6InRydWUiLCJmYW1pbHlfbmFtZSI6InVzZXIiLCJnaXZlbl9uYW1lIjoidGVzdCIsInBob25lX251bWJlciI6IisxMzIzNDU2Nzg4NyIsInBob25lX251bWJlcl92ZXJpZmllZCI6ImZhbHNlIiwic3ViIjoiMzQ5ODE0ODgtYzAxMS03MGVhLTYwMDEtODkzMzAxZGU4OWQifQ.D7Gx85bo8v9oUUKiZ0ZHseXFyVQv81ZDLi2LyYH-9HQ
+
+{
+  "firstName": "new"
+}
+
+> {%
+    client.test("PUT - User should be updated in NonEU DB", function() {
+        client.assert(response.status === 200, "Expected HTTP 200 OK");
+
+        console.log("Response Body:", response.body); // Log response to check structure
+
+        var responseBody;
+        try {
+            responseBody = typeof response.body === "string" ? JSON.parse(response.body) : response.body;
+        } catch (error) {
+            client.assert(false, "Response is not a valid JSON: " + error.message);
+            return;
+        }
+
+        client.assert(responseBody.data.firstName === "new", "User name should be updated");
+    });
+%}
+
+
+### Update User in EU DB
+PUT http://localhost:8080/0.0.1/users/profile/SID-00-000-000-002
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjdXN0b206Q291bnRyeSI6IkRlbm1hcmsiLCJlbWFpbCI6Im5ld3VzZXJAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOiJ0cnVlIiwiZmFtaWx5X25hbWUiOiJkYXZpZCIsImdpdmVuX25hbWUiOiJkYXZpZCIsInBob25lX251bWJlciI6IisxMzIzNDU2Nzg4NyIsInBob25lX251bWJlcl92ZXJpZmllZCI6ImZhbHNlIiwic3ViIjoiMzQ5ODE0ODgtYzAxMS03MGVhLTYwMDEtODkzMzAxZGU4OWQifQ.BnC1TqA5y26mp58wQMzU5Sxpxfqa9lxXDGEbI6DJ59s
+
+{
+  "firstName": "newEU"
+}
+
+> {%
+    client.test("PUT - User should be updated in EU DB", function() {
+        client.assert(response.status === 200, "Expected HTTP 200 OK");
+
+        console.log("🚀 Response Body:", response.body); // Log response to check structure
+
+        var responseBody;
+        try {
+            responseBody = typeof response.body === "string" ? JSON.parse(response.body) : response.body;
+        } catch (error) {
+            client.assert(false, "Response is not valid JSON: " + error.message);
+            return;
+        }
+
+        client.assert(responseBody.hasOwnProperty("data"), "Response should contain 'data'");
+        client.assert(responseBody.data.hasOwnProperty("firstName"), "Response 'data' should have 'firstName'");
+        client.assert(responseBody.data.firstName === "newEU", "✅ User name should be updated to 'newEU'");
+    });
+%}
