@@ -15,13 +15,14 @@ import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
+import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
-public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+public class UpdateVolunteerHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
     private static final VolunteerService volunteerService;
     private static final ObjectMapper objectMapper = new ObjectMapper()
@@ -31,7 +32,7 @@ public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEv
     private static final MessageSourceUtil messageSourceUtil;
 
     static {
-        ApplicationContext context = new AnnotationConfigApplicationContext(VolunteerApplication.class);
+        ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
         volunteerService = context.getBean(VolunteerService.class);
         responseBuilder = context.getBean(ResponseBuilder.class);
         messageSourceUtil = context.getBean(MessageSourceUtil.class);
@@ -42,10 +43,13 @@ public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEv
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
 
         try {
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+//            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+            String lang = Optional.ofNullable(requestEvent.getHeaders())
+                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
+                    .orElse("en");
             Locale locale = Locale.forLanguageTag(lang);
 
-            String userId = requestEvent.getPathParameters().get("userId");
+//            String userId = requestEvent.getPathParameters().get("userId");
             Map<String, Object> body = parseBody(requestEvent.getBody());
             VolunteerRequest updateRequest = parseRequest(body);
 
@@ -53,7 +57,8 @@ public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEv
 
             SaayamResponse<VolunteerResponse> successResponse = responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.VOLUNTEER_UPDATED,
-                    new Object[]{userId},
+//                    new Object[]{userId},
+                    new Object[]{updatedVolunteer.userId()},
                     updatedVolunteer
             );
 
@@ -61,15 +66,32 @@ public class VolunteerHandler implements RequestHandler<APIGatewayProxyRequestEv
             response.setBody(responseBody);
             response.setStatusCode(201); // Created
         } catch (Exception e) {
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+//            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+            String lang = Optional.ofNullable(requestEvent.getHeaders())
+                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
+                    .orElse("en");
             Locale locale = Locale.forLanguageTag(lang);
+
             String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
+            int errorCode= 500;
+            SaayamStatusCode saayamErrorMsg = SaayamStatusCode.INTERNAL_SERVER_ERROR;
+
+            if (e.getMessage() != null) {
+                saayamErrorMsg = SaayamStatusCode.valueOf(e.getMessage());
+                errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.valueOf(e.getMessage()).getCode(), null);
+            }
 
             SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
-                    500,
-                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
+                    errorCode,
+                    saayamErrorMsg,
                     errorMessage
             );
+
+//            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
+//                    500,
+//                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
+//                    errorMessage
+//            );
 
             try {
                 String responseBody = objectMapper.writeValueAsString(errorResponse);

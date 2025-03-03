@@ -7,9 +7,9 @@ import java.time.ZonedDateTime;
 
 @Builder
 public record VolunteerUserAvailabilityRequest(
-        @NotBlank String userId,
-        String dayOfWeek,
-        ZonedDateTime startTime,
-        ZonedDateTime endTime,
+        Integer id,
+        @NotBlank String dayOfWeek,
+        @NotBlank ZonedDateTime startTime,
+        @NotBlank ZonedDateTime endTime,
         ZonedDateTime lastUpdateDate) {
 }

@@ -10,19 +10,19 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
+import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
-public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+public class GetUserByEmailHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
     private static final UserService userService;
     private static final ObjectMapper objectMapper = new ObjectMapper()
@@ -43,18 +43,23 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
 
         try {
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+//            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+//            Locale locale = Locale.forLanguageTag(lang);
+            String lang = Optional.ofNullable(requestEvent.getHeaders())
+                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
+                    .orElse("en");
             Locale locale = Locale.forLanguageTag(lang);
 
             Map<String, Object> body = parseBody(requestEvent.getBody());
-            CreateUserRequest createRequest = parseRequest(body);
+            FindUserProfileUsingEmail request = parseRequest(body);
+            String email = request.email();
 
-            CreateUserResponse created = userService.createUser(createRequest);
+            UserProfileResponse profileByEmail = userService.getUserProfileByEmail(email);
 
-            SaayamResponse<CreateUserResponse> successResponse = responseBuilder.buildSuccessResponse(
-                    SaayamStatusCode.USER_CREATED,
-                    new Object[]{created.userId()},
-                    created
+            SaayamResponse<UserProfileResponse> successResponse = responseBuilder.buildSuccessResponse(
+                    SaayamStatusCode.SUCCESS,
+                    new Object[]{profileByEmail.countryName()},
+                    profileByEmail
             );
 
             String responseBody = objectMapper.writeValueAsString(successResponse);
@@ -84,8 +89,8 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
         return response;
     }
 
-    private CreateUserRequest parseRequest(Map<String, Object> body) {
-        return objectMapper.convertValue(body, CreateUserRequest.class);
+    private FindUserProfileUsingEmail parseRequest(Map<String, Object> body) {
+        return objectMapper.convertValue(body, FindUserProfileUsingEmail.class);
     }
 
     private Map<String, Object> parseBody(String body) {
