@@ -7,6 +7,7 @@ import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
+import org.sfa.volunteer.model.Country;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserStatus;
@@ -64,6 +65,9 @@ public class UserServiceImpl implements UserService {
         UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
+        Country country = countryRepository.findByCountryName(request.country())
+                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
+
         // Create a new User entity from the request data
         User user = User.builder()
                 .fullName(request.name())
@@ -73,6 +77,7 @@ public class UserServiceImpl implements UserService {
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
                 .userCategory(userCategory)
                 .userStatus(userStatus)
+                .country(country)
                 .build();
 
         // Save the User entity to the database
@@ -85,6 +90,7 @@ public class UserServiceImpl implements UserService {
                 .phoneNumber(user.getPrimaryEmailAddress())
                 .timeZone(user.getTimeZone())
                 .userId(user.getId())
+                .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .build();
     }
 
