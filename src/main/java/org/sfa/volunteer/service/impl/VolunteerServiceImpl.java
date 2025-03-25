@@ -299,7 +299,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .build();
     }
 
-    private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,
+   private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,
             List<VolunteerUserAvailability> availabilityList) {
         return VolunteerResponse.builder()
                 .id(volunteer.getId())

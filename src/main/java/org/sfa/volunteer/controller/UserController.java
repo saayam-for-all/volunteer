@@ -8,21 +8,16 @@ import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/0.0.1/users")
-
+@CrossOrigin(origins="http://localhost:5173")
+//@CrossOrigin(origins = "*")
 public class UserController {
     private final UserService userService;
     private final ResponseBuilder responseBuilder;
@@ -62,6 +57,7 @@ public class UserController {
 
     @GetMapping("/login/{email}")
     public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
+        System.out.println("Received email: " + email);
         UserProfileResponse response = userService.getUserProfileByEmail(email);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
     }
