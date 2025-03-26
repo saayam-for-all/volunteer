@@ -1,42 +1,38 @@
 package org.sfa.volunteer.controller;
 import jakarta.validation.Valid;
+import org.sfa.volunteer.config.S3Config;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
-import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
-import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
-import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/0.0.1/volunteers")
-//@CrossOrigin(origins={"http://localhost:5173","http://localhost:5174"})
-//@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "http://localhost:5174/")
 public class VolunteerController {
     private final VolunteerService volunteerService;
     private final ResponseBuilder responseBuilder;
-
+    private final S3Config s3Config;
 
     @Autowired
-    public VolunteerController(VolunteerService volunteerService, ResponseBuilder responseBuilder) {
+    public VolunteerController(VolunteerService volunteerService, ResponseBuilder responseBuilder, S3Config s3Config) {
         this.volunteerService = volunteerService;
         this.responseBuilder = responseBuilder;
-
+       this.s3Config = s3Config;
     }
 
     @PostMapping("/createvolunteer")
     public SaayamResponse<VolunteerResponse> createVolunteer(@Valid @RequestBody VolunteerRequest request) throws Exception {
         VolunteerResponse response = volunteerService.createVolunteer(request);
-
-        SaayamResponse<VolunteerResponse> volunteerResponseSaayamResponse = responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_CREATED, response);
-        return volunteerResponseSaayamResponse;
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_CREATED, response);
     }
-
 
     @PutMapping("/updatevolunteer")
     public SaayamResponse<VolunteerResponse> updateVolunteer(@Valid @RequestBody VolunteerRequest request) throws Exception {
@@ -87,4 +83,11 @@ public class VolunteerController {
         VolunteerResponse response = volunteerService.getVolunteerByUserId(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
+
+    @GetMapping("/s3/buckets")
+    public List<String> listBuckets() {
+        return s3Config.listBuckets();
+    }
+
+
 }
