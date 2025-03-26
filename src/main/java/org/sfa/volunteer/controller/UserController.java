@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/0.0.1/users")
-@CrossOrigin(origins="http://localhost:5173")
+//@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:5174"}, allowedHeaders = "*", methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS})
 //@CrossOrigin(origins = "*")
 public class UserController {
     private final UserService userService;
@@ -57,7 +57,7 @@ public class UserController {
 
     @GetMapping("/login/{email}")
     public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
-        System.out.println("Received email: " + email);
+
         UserProfileResponse response = userService.getUserProfileByEmail(email);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
     }

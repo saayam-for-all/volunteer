@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/0.0.1/volunteers")
-@CrossOrigin(origins="http://localhost:5173")
+//@CrossOrigin(origins={"http://localhost:5173","http://localhost:5174"})
 //@CrossOrigin(origins = "*")
 public class VolunteerController {
     private final VolunteerService volunteerService;
@@ -33,7 +33,8 @@ public class VolunteerController {
     public SaayamResponse<VolunteerResponse> createVolunteer(@Valid @RequestBody VolunteerRequest request) throws Exception {
         VolunteerResponse response = volunteerService.createVolunteer(request);
 
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_CREATED, response);
+        SaayamResponse<VolunteerResponse> volunteerResponseSaayamResponse = responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_CREATED, response);
+        return volunteerResponseSaayamResponse;
     }
 
 
