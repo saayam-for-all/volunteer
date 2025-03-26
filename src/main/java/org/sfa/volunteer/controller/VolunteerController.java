@@ -1,5 +1,6 @@
 package org.sfa.volunteer.controller;
 import jakarta.validation.Valid;
+import org.sfa.volunteer.config.S3Config;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
@@ -8,25 +9,23 @@ import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/0.0.1/volunteers")
+@CrossOrigin(origins = "http://localhost:5174/")
 public class VolunteerController {
     private final VolunteerService volunteerService;
     private final ResponseBuilder responseBuilder;
+    private final S3Config s3Config;
 
     @Autowired
-    public VolunteerController(VolunteerService volunteerService, ResponseBuilder responseBuilder) {
+    public VolunteerController(VolunteerService volunteerService, ResponseBuilder responseBuilder, S3Config s3Config) {
         this.volunteerService = volunteerService;
         this.responseBuilder = responseBuilder;
+       this.s3Config = s3Config;
     }
 
     @PostMapping("/createvolunteer")
@@ -84,4 +83,11 @@ public class VolunteerController {
         VolunteerResponse response = volunteerService.getVolunteerByUserId(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
+
+    @GetMapping("/s3/buckets")
+    public List<String> listBuckets() {
+        return s3Config.listBuckets();
+    }
+
+
 }
