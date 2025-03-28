@@ -8,10 +8,10 @@ import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvide
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.model.Bucket;
-import software.amazon.awssdk.services.s3.model.ListBucketsResponse;
+import software.amazon.awssdk.services.s3.model.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Configuration
 public class S3Config {
@@ -24,6 +24,8 @@ public class S3Config {
 
     @Value("${aws.s3.region}")
     private String region;
+    @Value("${aws.s3.bucket}")
+    private String bucketName;
 
     @Bean
     public S3Client s3Client() {
@@ -45,7 +47,15 @@ public class S3Config {
         ListBucketsResponse response = s3Client().listBuckets();
         return response.buckets().stream().map(Bucket::name).toList();
     }
+    public  List<String> listFoldersInBucket() {
+        ListObjectsV2Request listObjectsV2Request = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .delimiter("/") // This tells S3 to simulate a folder structure
+                .build();
 
+        ListObjectsV2Response response = s3Client().listObjectsV2(listObjectsV2Request);
+        return response.commonPrefixes().stream().map(CommonPrefix::prefix).collect(Collectors.toList());
+    }
 
 
 }

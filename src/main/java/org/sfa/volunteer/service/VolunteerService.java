@@ -5,6 +5,7 @@ import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
 //import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
@@ -31,6 +32,7 @@ public interface VolunteerService {
     VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
+    String  uploadGovtFile(MultipartFile file, String folderName) throws Exception;
 
     List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
 

@@ -1,6 +1,7 @@
 package org.sfa.volunteer.service.impl;
 import jakarta.transaction.Transactional;
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
+import org.sfa.volunteer.config.S3Config;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 //import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
@@ -19,11 +20,21 @@ import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.VolunteerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.sfa.volunteer.service.VolunteerService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 
+import java.io.*;
+import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -41,14 +52,18 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
-
+    private S3Client s3Client;
+    @Value("${aws.s3.bucket}")
+    private String bucketName;
     @Autowired
     public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository,
             VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository,
-            VolunteerUserAvailabilityRepository userAvailabilityRepository) {
+            VolunteerUserAvailabilityRepository userAvailabilityRepository,S3Client s3Client) {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
         this.userAvailabilityRepository = userAvailabilityRepository;
+
+        this .s3Client=s3Client;
 //        this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
     }
 
@@ -261,7 +276,27 @@ public class VolunteerServiceImpl implements VolunteerService {
         }
         return mapToVolunteerResponse(volunteer);
     }
+    // Upload file to the folder (S3 automatically creates the folder if it doesn't exist)
+    public String uploadGovtFile(MultipartFile file, String folderName) throws Exception {
+        // Directly upload the file to the desired folder in S3
+        String key = "users/"+folderName + "/" + file.getOriginalFilename();
+        uploadFileToS3(file, key);
 
+        return "File uploaded successfully to folder: " + folderName;
+    }
+
+    // Upload the file to S3
+    private void uploadFileToS3(MultipartFile file, String key) throws IOException {
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName) // Specify the bucket name
+                .key(key) // The key (name/path) for the file in S3
+                .build();
+
+        // Get the InputStream from the MultipartFile and upload the file
+        try (InputStream inputStream = file.getInputStream()) {
+            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, file.getSize()));
+        }
+    }
     @Override
     public PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize) {
         int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;

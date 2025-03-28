@@ -10,6 +10,7 @@ import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -51,6 +52,11 @@ public class VolunteerController {
         VolunteerResponse response = volunteerService.updateVolunteerStep2(request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
     }
+//@PutMapping("/updatestep2")
+//public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@Valid @RequestBody VolunteerRequest request,@RequestParam("file") MultipartFile file) throws Exception {
+//    VolunteerResponse response = volunteerService.updateVolunteerStep2(request);
+//    return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+//}
 
     @PutMapping("/updatestep3")
     public SaayamResponse<VolunteerResponse> updateVolunteerStep3(@Valid @RequestBody VolunteerRequest request) throws Exception {
@@ -88,6 +94,14 @@ public class VolunteerController {
     public List<String> listBuckets() {
         return s3Config.listBuckets();
     }
+    @GetMapping("/s3/FoldersInbucket")
+    public List<String> listFoldersInbucket() {
+        return s3Config.listFoldersInBucket();
+    }
+    @PostMapping("/uploadGovtFile")
+    public String uploadFile(@RequestParam("file") MultipartFile file, @RequestParam("folderName") String folderName) throws Exception {
+        String response = String.valueOf(volunteerService.uploadGovtFile(file, folderName));
+        return  response;
 
-
+    }
 }
