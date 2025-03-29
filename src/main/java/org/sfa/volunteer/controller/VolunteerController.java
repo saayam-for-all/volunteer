@@ -1,4 +1,5 @@
 package org.sfa.volunteer.controller;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.sfa.volunteer.config.S3Config;
 import org.sfa.volunteer.dto.common.SaayamResponse;
@@ -16,7 +17,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/0.0.1/volunteers")
-@CrossOrigin(origins = "http://localhost:5174/")
 public class VolunteerController {
     private final VolunteerService volunteerService;
     private final ResponseBuilder responseBuilder;
@@ -47,16 +47,21 @@ public class VolunteerController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
     }
 
-    @PutMapping("/updatestep2")
-    public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@Valid @RequestBody VolunteerRequest request) throws Exception {
-        VolunteerResponse response = volunteerService.updateVolunteerStep2(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
-    }
-//@PutMapping("/updatestep2")
-//public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@Valid @RequestBody VolunteerRequest request,@RequestParam("file") MultipartFile file) throws Exception {
-//    VolunteerResponse response = volunteerService.updateVolunteerStep2(request);
-//    return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
-//}
+//    @PutMapping("/updatestep2")
+//    public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@Valid @RequestBody VolunteerRequest request) throws Exception {
+//        VolunteerResponse response = volunteerService.updateVolunteerStep2(request);
+//        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+//    }
+@PutMapping("/updatestep2")
+public SaayamResponse<VolunteerResponse> updateVolunteerStep2( @RequestParam("file") MultipartFile file,  // For the file upload
+                                                               @RequestParam("userId") String userId,@RequestParam("volunteerData") String volunteerDataJson) throws Exception {
+    ObjectMapper objectMapper = new ObjectMapper();
+    VolunteerRequest request = objectMapper.readValue(volunteerDataJson, VolunteerRequest.class);
+    String s3URI = String.valueOf(volunteerService.uploadGovtFile(file, userId));
+    VolunteerResponse response = volunteerService.updateVolunteerStep2(request,s3URI);
+    return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+
+}
 
     @PutMapping("/updatestep3")
     public SaayamResponse<VolunteerResponse> updateVolunteerStep3(@Valid @RequestBody VolunteerRequest request) throws Exception {
@@ -90,18 +95,18 @@ public class VolunteerController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
-    @GetMapping("/s3/buckets")
-    public List<String> listBuckets() {
-        return s3Config.listBuckets();
-    }
-    @GetMapping("/s3/FoldersInbucket")
-    public List<String> listFoldersInbucket() {
-        return s3Config.listFoldersInBucket();
-    }
-    @PostMapping("/uploadGovtFile")
-    public String uploadFile(@RequestParam("file") MultipartFile file, @RequestParam("folderName") String folderName) throws Exception {
-        String response = String.valueOf(volunteerService.uploadGovtFile(file, folderName));
-        return  response;
-
-    }
+//    @GetMapping("/s3/buckets")
+//    public List<String> listBuckets() {
+//        return s3Config.listBuckets();
+//    }
+//    @GetMapping("/s3/FoldersInbucket")
+//    public List<String> listFoldersInbucket() {
+//        return s3Config.listFoldersInBucket();
+//    }
+//    @PostMapping("/uploadGovtFile")
+//    public String uploadFile(@RequestParam("file") MultipartFile file, @RequestParam("folderName") String folderName) throws Exception {
+//        String response = String.valueOf(volunteerService.uploadGovtFile(file, folderName));
+//        return  response;
+//
+//    }
 }

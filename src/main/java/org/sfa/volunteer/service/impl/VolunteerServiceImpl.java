@@ -105,7 +105,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (request.step() == 1)
             response = updateVolunteerStep1(request);
         else if (request.step() == 2)
-            response = updateVolunteerStep2(request);
+            response = updateVolunteerStep2(request,null);
         else if (request.step() == 3)
             response = updateVolunteerStep3(request);
         else if (request.step() == 4)
@@ -136,7 +136,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     @Override
-    public VolunteerResponse updateVolunteerStep2(VolunteerRequest request) throws Exception {
+    public VolunteerResponse updateVolunteerStep2(VolunteerRequest request,String GovtIdS3URI) throws Exception {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
@@ -148,7 +148,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (request.step() != 2)
             throw VolunteerException.volunteerInvalidStep(request.userId());
 
-        volunteer.setGovtIdFilename(request.govtIdFilename());
+        volunteer.setGovtIdFilename(GovtIdS3URI);
         volunteer.setGovtUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
         volunteer = volunteerRepository.save(volunteer);
 
@@ -240,11 +240,6 @@ public class VolunteerServiceImpl implements VolunteerService {
         return availability;
     }
 
-//    @Override
-//    public UserVolunteerSkillsResponse findSkillsList() throws Exception {
-//        return null;
-//    }
-
     @Override
     public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) throws Exception {
         User user = userRepository.findById(request.userId())
@@ -278,20 +273,17 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
     // Upload file to the folder (S3 automatically creates the folder if it doesn't exist)
     public String uploadGovtFile(MultipartFile file, String folderName) throws Exception {
-        // Directly upload the file to the desired folder in S3
-        String key = "users/"+folderName + "/" + file.getOriginalFilename();
+        String key = "users/" + folderName + "/" + file.getOriginalFilename();
         uploadFileToS3(file, key);
-
-        return "File uploaded successfully to folder: " + folderName;
+        String s3Uri = s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toString();
+        return s3Uri;
     }
-
     // Upload the file to S3
     private void uploadFileToS3(MultipartFile file, String key) throws IOException {
         PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                 .bucket(bucketName) // Specify the bucket name
                 .key(key) // The key (name/path) for the file in S3
                 .build();
-
         // Get the InputStream from the MultipartFile and upload the file
         try (InputStream inputStream = file.getInputStream()) {
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, file.getSize()));

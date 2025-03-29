@@ -9,6 +9,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
+                //.allowedOriginPatterns("http://*.localhost:517*")
                 .allowedOrigins("http://localhost:5173","http://localhost:5174") // allow your frontend domain
                 .allowedMethods("GET", "POST", "PUT", "DELETE") // specify allowed HTTP methods
                 .allowedHeaders("*")

@@ -23,7 +23,7 @@ public interface VolunteerService {
 
     VolunteerResponse updateVolunteerStep1(VolunteerRequest volunteerRequest) throws Exception;
 
-    VolunteerResponse updateVolunteerStep2(VolunteerRequest volunteerRequest) throws Exception;
+    VolunteerResponse updateVolunteerStep2(VolunteerRequest volunteerRequest,String s3URI) throws Exception;
 
     VolunteerResponse updateVolunteerStep3(VolunteerRequest volunteerRequest) throws Exception;
 
