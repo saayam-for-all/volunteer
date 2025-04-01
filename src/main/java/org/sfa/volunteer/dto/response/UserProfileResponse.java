@@ -28,5 +28,12 @@ public record UserProfileResponse(
         String stateName,
         String countryName,
         String userStatus,
-        String userCategory) {
+        String userCategory,
+        String lastLocation,
+        String gender,
+        String language1,
+        String language2,
+        String language3,
+        Integer promotionWizardStage,
+        ZonedDateTime promotionWizardLastUpdateDate) {
 }

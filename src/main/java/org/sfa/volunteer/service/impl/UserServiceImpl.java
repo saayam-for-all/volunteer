@@ -1,5 +1,4 @@
 package org.sfa.volunteer.service.impl;
-
 import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
@@ -9,11 +8,15 @@ import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.dto.response.VolunteerProfileResponse;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
-import org.sfa.volunteer.model.entity.*;
-import org.sfa.volunteer.model.enums.RequestTypeEnum;
-import org.sfa.volunteer.model.enums.SkillLevelEnum;
-import org.sfa.volunteer.model.enums.UserStatusEnum;
-import org.sfa.volunteer.repository.*;
+import org.sfa.volunteer.model.Country;
+import org.sfa.volunteer.model.User;
+import org.sfa.volunteer.model.UserCategory;
+import org.sfa.volunteer.model.UserStatus;
+import org.sfa.volunteer.repository.CountryRepository;
+import org.sfa.volunteer.repository.StateRepository;
+import org.sfa.volunteer.repository.UserCategoryRepository;
+import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.repository.UserStatusRepository;
 import org.sfa.volunteer.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -79,6 +82,9 @@ public class UserServiceImpl implements UserService {
         UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
+        Country country = countryRepository.findByCountryName(request.country())
+                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
+
         // Create a new User entity from the request data
         User user = User.builder()
                 .fullName(request.name())
@@ -88,6 +94,7 @@ public class UserServiceImpl implements UserService {
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
                 .userCategory(userCategory)
                 .userStatus(userStatus)
+                .country(country)
                 .build();
 
         // Save the User entity to the database
@@ -100,6 +107,7 @@ public class UserServiceImpl implements UserService {
                 .phoneNumber(user.getPrimaryEmailAddress())
                 .timeZone(user.getTimeZone())
                 .userId(user.getId())
+                .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .build();
     }
 
@@ -117,7 +125,9 @@ public class UserServiceImpl implements UserService {
         user.setAddressLine3(request.addressLine3());
         user.setCity(request.cityName());
         user.setZipCode(request.zipCode());
-
+        user.setProfilePicturePath(request.profilePicturePath());
+        user.setVolunteerStage(request.volunteerStage());
+        user.setVolunteerUpdateDate(request.volunteerUpdateDate());
         user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
 
         User updatedUser = userRepository.save(user);
@@ -154,6 +164,17 @@ public class UserServiceImpl implements UserService {
         return mapToUserProfileResponse(user);
     }
 
+    @Override
+    public UserProfileResponse getUserProfileByEmail(String email) {
+        List<User> user = userRepository.findByPrimaryEmailAddress(email);
+
+        if (user.isEmpty()) {
+            throw new UserNotFoundException(email);
+        }
+
+        return mapToUserProfileResponse(user.get(0));
+    }
+
     private UserProfileResponse mapToUserProfileResponse(User user) {
         return UserProfileResponse.builder()
                 .id(user.getId())
@@ -177,18 +198,15 @@ public class UserServiceImpl implements UserService {
                 .language3(user.getLanguage3())
                 .stateName(user.getState() != null ? user.getState().getStateName() : null)
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
-                .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus().name() : null)
-                .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory().name() : null)
-                .build();
-    }
-
-    private VolunteerProfileResponse mapToVolunteerProfileResponse(User user, int priorityNum) {
-        return VolunteerProfileResponse.builder()
-                .priorityNum(priorityNum)
-                .id(user.getId())
-                .fullName(user.getFullName())
-                .emailAddress(user.getPrimaryEmailAddress())
-                .phoneNumber(user.getPrimaryPhoneNumber())
+                .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus() : null)
+                .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
+                .gender(user.getGender())
+                .lastLocation(user.getLastLocation())
+                .language1(user.getLanguage1())
+                .language2(user.getLanguage2())
+                .language3(user.getLanguage3())
+                .promotionWizardStage(user.getVolunteerStage())
+                .promotionWizardLastUpdateDate(user.getVolunteerUpdateDate())
                 .build();
     }
 

@@ -10,21 +10,21 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.response.CreateUserResponse;
-import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
+import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
-public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+public class UpdateVolunteerHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
-    private static final UserService userService;
+    private static final VolunteerService volunteerService;
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .enable(SerializationFeature.INDENT_OUTPUT); // Enable pretty printing for better readability
@@ -33,7 +33,7 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
 
     static {
         ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
-        userService = context.getBean(UserService.class);
+        volunteerService = context.getBean(VolunteerService.class);
         responseBuilder = context.getBean(ResponseBuilder.class);
         messageSourceUtil = context.getBean(MessageSourceUtil.class);
     }
@@ -43,33 +43,55 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
 
         try {
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+//            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+            String lang = Optional.ofNullable(requestEvent.getHeaders())
+                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
+                    .orElse("en");
             Locale locale = Locale.forLanguageTag(lang);
 
+//            String userId = requestEvent.getPathParameters().get("userId");
             Map<String, Object> body = parseBody(requestEvent.getBody());
-            CreateUserRequest createRequest = parseRequest(body);
+            VolunteerRequest updateRequest = parseRequest(body);
 
-            CreateUserResponse created = userService.createUser(createRequest);
+            VolunteerResponse updatedVolunteer = volunteerService.updateVolunteer(updateRequest);
 
-            SaayamResponse<CreateUserResponse> successResponse = responseBuilder.buildSuccessResponse(
-                    SaayamStatusCode.USER_CREATED,
-                    new Object[]{created.userId()},
-                    created
+            SaayamResponse<VolunteerResponse> successResponse = responseBuilder.buildSuccessResponse(
+                    SaayamStatusCode.VOLUNTEER_UPDATED,
+//                    new Object[]{userId},
+                    new Object[]{updatedVolunteer.userId()},
+                    updatedVolunteer
             );
 
             String responseBody = objectMapper.writeValueAsString(successResponse);
             response.setBody(responseBody);
             response.setStatusCode(201); // Created
         } catch (Exception e) {
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+//            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+            String lang = Optional.ofNullable(requestEvent.getHeaders())
+                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
+                    .orElse("en");
             Locale locale = Locale.forLanguageTag(lang);
+
             String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
+            int errorCode= 500;
+            SaayamStatusCode saayamErrorMsg = SaayamStatusCode.INTERNAL_SERVER_ERROR;
+
+            if (e.getMessage() != null) {
+                saayamErrorMsg = SaayamStatusCode.valueOf(e.getMessage());
+                errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.valueOf(e.getMessage()).getCode(), null);
+            }
 
             SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
-                    500,
-                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
+                    errorCode,
+                    saayamErrorMsg,
                     errorMessage
             );
+
+//            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
+//                    500,
+//                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
+//                    errorMessage
+//            );
 
             try {
                 String responseBody = objectMapper.writeValueAsString(errorResponse);
@@ -77,15 +99,13 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
             } catch (Exception jsonException) {
                 response.setBody("{\"message\":\"Failed to serialize error response\"}");
             }
-
             response.setStatusCode(500); // Internal Server Error
         }
-
         return response;
     }
 
-    private CreateUserRequest parseRequest(Map<String, Object> body) {
-        return objectMapper.convertValue(body, CreateUserRequest.class);
+    private VolunteerRequest parseRequest(Map<String, Object> body) {
+        return objectMapper.convertValue(body, VolunteerRequest.class);
     }
 
     private Map<String, Object> parseBody(String body) {
