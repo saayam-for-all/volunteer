@@ -55,6 +55,8 @@ public class VolunteerServiceImpl implements VolunteerService {
     private S3Client s3Client;
     @Value("${aws.s3.bucket}")
     private String bucketName;
+    @Value("${aws.s3.users.folder}")
+    private String usersFolder;
     @Autowired
     public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository,
             VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository,
@@ -273,7 +275,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
     // Upload file to the folder (S3 automatically creates the folder if it doesn't exist)
     public String uploadGovtFile(MultipartFile file, String folderName) throws Exception {
-        String key = "users/" + folderName + "/" + file.getOriginalFilename();
+        String key = usersFolder+"/" + folderName.toLowerCase() + "/" + file.getOriginalFilename();
         uploadFileToS3(file, key);
         String s3Uri = s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toString();
         return s3Uri;

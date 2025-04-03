@@ -53,11 +53,11 @@ public class VolunteerController {
 //        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
 //    }
 @PutMapping("/updatestep2")
-public SaayamResponse<VolunteerResponse> updateVolunteerStep2( @RequestParam("file") MultipartFile file,  // For the file upload
-                                                               @RequestParam("userId") String userId,@RequestParam("volunteerData") String volunteerDataJson) throws Exception {
+public SaayamResponse<VolunteerResponse> updateVolunteerStep2( @RequestParam("file") MultipartFile file,
+                                                               @RequestParam("volunteerData") String volunteerDataJson) throws Exception {
     ObjectMapper objectMapper = new ObjectMapper();
     VolunteerRequest request = objectMapper.readValue(volunteerDataJson, VolunteerRequest.class);
-    String s3URI = String.valueOf(volunteerService.uploadGovtFile(file, userId));
+    String s3URI = String.valueOf(volunteerService.uploadGovtFile(file, request.userId()));
     VolunteerResponse response = volunteerService.updateVolunteerStep2(request,s3URI);
     return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
 
