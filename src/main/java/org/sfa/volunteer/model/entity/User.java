@@ -45,20 +45,6 @@ public class User {
     @Column(name = "primary_phone_number")
     private String primaryPhoneNumber;
 
-    @Column(name = "secondary_phone_1")
-    private String secondaryPhone;
-
-    @Column(name = "secondary_phone_2")
-    private String secondaryPhone2;
-
-    @Email
-    @Column(name = "secondary_email_1")
-    private String secondaryEmail1;
-
-    @Email
-    @Column(name = "secondary_email_2")
-    private String secondaryEmail2;
-
     @NotBlank(message = "Time zone cannot be blank.")
     @Column(name = "time_zone", nullable = false)
     private String timeZone;
@@ -81,11 +67,26 @@ public class User {
     @Column(name = "zip_code")
     private String zipCode;
 
-    @Column(name = "passport_doc")
-    private String passportDoc;
+    @Column(name = "gender")
+    private String gender;
 
-    @Column(name = "drivers_license")
-    private String driversLicense;
+    @Column(name = "last_location")
+    private String lastLocation;
+
+    @Column(name = "language_1")
+    private String language1;
+
+    @Column(name = "language_2")
+    private String language2;
+
+    @Column(name = "language_3")
+    private String language3;
+
+    @Column(name = "promotion_wizard_stage")
+    private Integer volunteerStage;
+
+    @Column(name = "promotion_wizard_last_update_date")
+    private ZonedDateTime volunteerUpdateDate;
 
     @Column(name = "last_update_date")
     private ZonedDateTime lastUpdateDate;
@@ -122,6 +123,12 @@ public class User {
     @JsonBackReference
     private UserCategory userCategory;
 
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private UserAdditionalDetail additionalDetail;
+
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private Volunteer volunteer;
+
     @Override
     public String toString() {
         return "User{" +
@@ -144,6 +151,8 @@ public class User {
                 ", country=" + country +
                 ", userStatus=" + userStatus +
                 ", userCategory=" + userCategory +
+                ", volunteerStage=" + volunteerStage +
+                ", volunteerUpdateDate=" + volunteerUpdateDate +
                 '}';
     }
 
@@ -157,12 +166,15 @@ public class User {
                 Objects.equals(middleName, user.middleName) &&
                 Objects.equals(lastName, user.lastName) &&
                 Objects.equals(fullName, user.fullName) &&
+                Objects.equals(volunteerUpdateDate, user.volunteerUpdateDate) &&
+                Objects.equals(volunteerStage, user.volunteerStage) &&
                 Objects.equals(primaryEmailAddress, user.primaryEmailAddress) &&
+                Objects.equals(profilePicturePath, user.profilePicturePath) &&
                 Objects.equals(primaryPhoneNumber, user.primaryPhoneNumber);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, primaryPhoneNumber);
+        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, profilePicturePath, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
     }
 }

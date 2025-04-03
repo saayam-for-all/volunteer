@@ -10,5 +10,6 @@ public record CreateUserRequest(
         @NotBlank @Email String email,
         @NotBlank String phoneNumber,
         @NotBlank String timeZone,
+        @NotBlank String country,
         String locale) {
 }

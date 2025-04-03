@@ -1,5 +1,5 @@
 package org.sfa.volunteer.controller;
-
+import com.amazonaws.services.lambda.runtime.events.S3ObjectLambdaEvent;
 import jakarta.validation.Valid;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
@@ -17,7 +17,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/user")
+@RequestMapping("/0.0.1/users")
+
 public class UserController {
     private final UserService userService;
     private final ResponseBuilder responseBuilder;
@@ -42,10 +43,23 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 
+    @GetMapping("/profile")
+    public SaayamResponse<UserProfileResponse> getUserProfileByEmail(@Valid @RequestBody CreateUserRequest request) {
+        String email = request.email().toString();
+        UserProfileResponse response = userService.getUserProfileByEmail(email);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
+    }
+
     @GetMapping("/profile/{userId}")
     public SaayamResponse<UserProfileResponse> getUserProfile(@PathVariable String userId) {
         UserProfileResponse response = userService.getUserProfileById(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+    @GetMapping("/login/{email}")
+    public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
+        UserProfileResponse response = userService.getUserProfileByEmail(email);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
     }
 
     @PutMapping("/profile/{userId}")
