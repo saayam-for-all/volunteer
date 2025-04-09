@@ -57,15 +57,16 @@ public class VolunteerServiceImpl implements VolunteerService {
     private String bucketName;
     @Value("${aws.s3.users.folder}")
     private String usersFolder;
+
     @Autowired
     public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository,
-            VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository,
-            VolunteerUserAvailabilityRepository userAvailabilityRepository,S3Client s3Client) {
+                                VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository,
+                                VolunteerUserAvailabilityRepository userAvailabilityRepository, S3Client s3Client) {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
         this.userAvailabilityRepository = userAvailabilityRepository;
 
-        this .s3Client=s3Client;
+        this.s3Client = s3Client;
 //        this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
     }
 
@@ -107,7 +108,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (request.step() == 1)
             response = updateVolunteerStep1(request);
         else if (request.step() == 2)
-            response = updateVolunteerStep2(request,null);
+            response = updateVolunteerStep2(request, null);
         else if (request.step() == 3)
             response = updateVolunteerStep3(request);
         else if (request.step() == 4)
@@ -137,25 +138,20 @@ public class VolunteerServiceImpl implements VolunteerService {
         return mapToVolunteerResponse(volunteer);
     }
 
-    @Override
-    public VolunteerResponse updateVolunteerStep2(VolunteerRequest request,String GovtIdS3URI) throws Exception {
+    public VolunteerResponse updateVolunteerStep2(VolunteerRequest request, MultipartFile file) throws Exception {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
+        if (request.step() != 2)
+            throw VolunteerException.volunteerInvalidStep(request.userId());
         Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
         if (Objects.isNull(volunteer)) {
             throw VolunteerException.volunteerNotFound(request.userId());
         }
         volunteer.setUser(user);
-        if (request.step() != 2)
-            throw VolunteerException.volunteerInvalidStep(request.userId());
-
+        String GovtIdS3URI = generateGovtIdS3Url(file, request.userId());
         volunteer.setGovtIdFilename(GovtIdS3URI);
         volunteer.setGovtUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
         volunteer = volunteerRepository.save(volunteer);
-
-        updateUser(user, request.step());
-
         return mapToVolunteerResponse(volunteer);
     }
 
@@ -191,7 +187,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         }
         volunteer.setUser(user);
         if (request.step() != 4)
-        throw VolunteerException.volunteerInvalidStep(request.userId());
+            throw VolunteerException.volunteerInvalidStep(request.userId());
 
         volunteer.setNotification(request.notification());
         volunteer.setIsCompleted(request.isCompleted());
@@ -211,7 +207,7 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId,
-            List<VolunteerUserAvailabilityRequest> request) throws Exception {
+                                                                                   List<VolunteerUserAvailabilityRequest> request) throws Exception {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -273,24 +269,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         }
         return mapToVolunteerResponse(volunteer);
     }
-    // Upload file to the folder (S3 automatically creates the folder if it doesn't exist)
-    public String uploadGovtFile(MultipartFile file, String folderName) throws Exception {
-        String key = usersFolder+"/" + folderName.toLowerCase() + "/" + file.getOriginalFilename();
-        uploadFileToS3(file, key);
-        String s3Uri = s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toString();
-        return s3Uri;
-    }
-    // Upload the file to S3
-    private void uploadFileToS3(MultipartFile file, String key) throws IOException {
-        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .bucket(bucketName) // Specify the bucket name
-                .key(key) // The key (name/path) for the file in S3
-                .build();
-        // Get the InputStream from the MultipartFile and upload the file
-        try (InputStream inputStream = file.getInputStream()) {
-            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, file.getSize()));
-        }
-    }
+
     @Override
     public PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize) {
         int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;
@@ -328,8 +307,8 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .build();
     }
 
-   private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,
-            List<VolunteerUserAvailability> availabilityList) {
+    private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,
+                                                     List<VolunteerUserAvailability> availabilityList) {
         return VolunteerResponse.builder()
                 .id(volunteer.getId())
                 .userId(volunteer.getUser().getId())
@@ -358,13 +337,31 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     private VolunteerUserAvailability mapToVolunteerUserAvailability(VolunteerUserAvailabilityRequest request,
-            User user) {
+                                                                     User user) {
         return VolunteerUserAvailability.builder()
                 .user(user)
                 .dayOfWeek(request.dayOfWeek())
                 .startTime(request.startTime())
                 .endTime(request.endTime())
-                .lastUpdateDate(request.lastUpdateDate()) 
+                .lastUpdateDate(request.lastUpdateDate())
                 .build();
+    }
+
+    private String generateGovtIdS3Url(MultipartFile file, String folderName) throws Exception {
+        String key = usersFolder + "/" + folderName.toLowerCase() + "/" + file.getOriginalFilename();
+        uploadFileToS3(file, key);
+        return s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toString();
+    }
+
+    // Upload the file to S3
+    private void uploadFileToS3(MultipartFile file, String key) throws IOException {
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName) // Specify the bucket name
+                .key(key) // The key (name/path) for the file in S3
+                .build();
+        // Get the InputStream from the MultipartFile and upload the file
+        try (InputStream inputStream = file.getInputStream()) {
+            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, file.getSize()));
+        }
     }
 }

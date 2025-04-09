@@ -10,6 +10,7 @@ import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -53,12 +54,11 @@ public class VolunteerController {
 //        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
 //    }
 @PutMapping("/updatestep2")
-public SaayamResponse<VolunteerResponse> updateVolunteerStep2( @RequestParam("file") MultipartFile file,
-                                                               @RequestParam("volunteerData") String volunteerDataJson) throws Exception {
+public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@RequestParam("file") MultipartFile file,
+                                                              @RequestParam("volunteerData") String volunteerDataJson) throws Exception {
     ObjectMapper objectMapper = new ObjectMapper();
     VolunteerRequest request = objectMapper.readValue(volunteerDataJson, VolunteerRequest.class);
-    String s3URI = String.valueOf(volunteerService.uploadGovtFile(file, request.userId()));
-    VolunteerResponse response = volunteerService.updateVolunteerStep2(request,s3URI);
+    VolunteerResponse response = volunteerService.updateVolunteerStep2(request, file);
     return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
 
 }
@@ -95,18 +95,4 @@ public SaayamResponse<VolunteerResponse> updateVolunteerStep2( @RequestParam("fi
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
-//    @GetMapping("/s3/buckets")
-//    public List<String> listBuckets() {
-//        return s3Config.listBuckets();
-//    }
-//    @GetMapping("/s3/FoldersInbucket")
-//    public List<String> listFoldersInbucket() {
-//        return s3Config.listFoldersInBucket();
-//    }
-//    @PostMapping("/uploadGovtFile")
-//    public String uploadFile(@RequestParam("file") MultipartFile file, @RequestParam("folderName") String folderName) throws Exception {
-//        String response = String.valueOf(volunteerService.uploadGovtFile(file, folderName));
-//        return  response;
-//
-//    }
 }

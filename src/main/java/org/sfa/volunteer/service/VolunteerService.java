@@ -23,7 +23,7 @@ public interface VolunteerService {
 
     VolunteerResponse updateVolunteerStep1(VolunteerRequest volunteerRequest) throws Exception;
 
-    VolunteerResponse updateVolunteerStep2(VolunteerRequest volunteerRequest,String s3URI) throws Exception;
+    VolunteerResponse updateVolunteerStep2(VolunteerRequest volunteerRequest,MultipartFile file) throws Exception;
 
     VolunteerResponse updateVolunteerStep3(VolunteerRequest volunteerRequest) throws Exception;
 
@@ -32,7 +32,6 @@ public interface VolunteerService {
     VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
-    String  uploadGovtFile(MultipartFile file, String folderName) throws Exception;
 
     List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
 
