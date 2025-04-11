@@ -5,6 +5,7 @@ import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.sfa.volunteer.dto.response.WizardStatusResponse;
 
 
 public interface UserService {
@@ -12,6 +13,8 @@ public interface UserService {
     PaginationResponse<UserProfileResponse> findAllUsersWithPagination(Integer pageNumber, Integer pageSize);
 
     UserProfileResponse getUserProfileById(String userId);
+    
+    WizardStatusResponse getWizardStatus(String userId);
 
     UserProfileResponse getUserProfileByEmail(String email);
 
