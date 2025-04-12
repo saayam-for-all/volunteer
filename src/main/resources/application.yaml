@@ -1,0 +1,21 @@
+cors:
+  allowed:
+    origin: <application-url>
+    header: Authorization
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    credentials: true
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/saayam
+    username: <username>
+    password: <password>
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
