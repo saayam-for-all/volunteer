@@ -5,6 +5,7 @@ import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.response.AddressStatusResponse;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
@@ -66,6 +67,12 @@ public class UserController {
         WizardStatusResponse response = userService.getWizardStatus(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
+    
+    @GetMapping("/addressStatus/{userId}")
+    public SaayamResponse<AddressStatusResponse> getAddressStatus(@PathVariable String userId) {
+    	AddressStatusResponse response = userService.getAddressStatus(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    } 
 
     @GetMapping("/login/{email}")
     public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {

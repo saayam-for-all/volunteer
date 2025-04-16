@@ -2,6 +2,7 @@ package org.sfa.volunteer.service.impl;
 import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.response.AddressStatusResponse;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
@@ -161,6 +162,22 @@ public class UserServiceImpl implements UserService {
         addressAvailable
     );
 }
+    
+    @Override
+    public AddressStatusResponse getAddressStatus(String userId) {
+    UserProfileResponse userProfile = getUserProfileById(userId);
+
+    String addressAvailable = (userProfile.addressLine1() != null && !userProfile.addressLine1().trim().isEmpty())
+            ? "Y" : "N";
+
+    return new AddressStatusResponse(
+        userId,
+        addressAvailable
+    );
+}
+
+
+
 
     @Override
     public UserProfileResponse getUserProfileByEmail(String email) {
