@@ -1,7 +1,7 @@
 cors:
   allowed:
     origin: <application-url>
-    header: Authorization
+    headers: Authorization
     methods:
       - GET
       - POST
