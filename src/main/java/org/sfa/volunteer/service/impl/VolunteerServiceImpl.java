@@ -1,6 +1,7 @@
 package org.sfa.volunteer.service.impl;
 import jakarta.transaction.Transactional;
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.sfa.volunteer.config.S3Config;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
+@Slf4j
 public class VolunteerServiceImpl implements VolunteerService {
     private final VolunteerRepository volunteerRepository;
     private final UserRepository userRepository;
@@ -350,6 +352,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     private String generateGovtIdS3Url(MultipartFile file, String folderName) throws Exception {
         String key = usersFolder + "/" + folderName.toLowerCase() + "/" + file.getOriginalFilename();
         uploadFileToS3(file, key);
+        log.info("uploading file to S3");
         return s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toString();
     }
 
@@ -361,7 +364,15 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .build();
         // Get the InputStream from the MultipartFile and upload the file
         try (InputStream inputStream = file.getInputStream()) {
+
             s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, file.getSize()));
+            log.info("Successfully uploaded file '{}' to bucket '{}'", key, bucketName);
+
+        }
+        catch (Exception e)
+        {
+            log.info("Failed to upload file '{}' to S3: {}", key, e.getMessage());
+
         }
     }
 }

@@ -13,6 +13,7 @@ import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/0.0.1/users")
@@ -63,7 +64,7 @@ public class UserController {
     @PutMapping("/profile/{userId}")
     public SaayamResponse<UserProfileResponse> updateUserProfile(
             @PathVariable String userId,
-            @RequestBody UpdateUserProfileRequest request) {
+            @RequestBody UpdateUserProfileRequest request,@RequestParam("profilePic") MultipartFile file) {
         UserProfileResponse response = userService.updateUserProfile(userId, request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
