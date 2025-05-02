@@ -11,6 +11,7 @@ import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -48,11 +49,6 @@ public class VolunteerController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
     }
 
-//    @PutMapping("/updatestep2")
-//    public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@Valid @RequestBody VolunteerRequest request) throws Exception {
-//        VolunteerResponse response = volunteerService.updateVolunteerStep2(request);
-//        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
-//    }
 @PutMapping("/updatestep2")
 public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@RequestParam("file") MultipartFile file,
                                                               @RequestParam("volunteerData") String volunteerDataJson) throws Exception {
@@ -60,6 +56,7 @@ public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@RequestParam("fil
     VolunteerRequest request = objectMapper.readValue(volunteerDataJson, VolunteerRequest.class);
     VolunteerResponse response = volunteerService.updateVolunteerStep2(request, file);
     return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+
 
 }
 
