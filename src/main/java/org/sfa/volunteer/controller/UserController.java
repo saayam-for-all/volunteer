@@ -1,10 +1,12 @@
 package org.sfa.volunteer.controller;
 import com.amazonaws.services.lambda.runtime.events.S3ObjectLambdaEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
@@ -12,6 +14,7 @@ import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -61,11 +64,15 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
     }
 
-    @PutMapping("/profile/{userId}")
+    @PutMapping(value = "/profile/{userId}")
     public SaayamResponse<UserProfileResponse> updateUserProfile(
             @PathVariable String userId,
-            @RequestBody UpdateUserProfileRequest request,@RequestParam("profilePic") MultipartFile file) {
-        UserProfileResponse response = userService.updateUserProfile(userId, request);
+            @RequestParam("ProfileRequest") String ProfileRequestJson,
+            @RequestParam("profileImg") MultipartFile profileImg
+    ) throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        UpdateUserProfileRequest request = objectMapper.readValue(ProfileRequestJson, UpdateUserProfileRequest.class);
+        UserProfileResponse response = userService.updateUserProfile(userId, request, profileImg);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
 }

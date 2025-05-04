@@ -18,6 +18,7 @@ import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 
@@ -48,8 +49,9 @@ public class UpdateUserProfileHandler implements RequestHandler<APIGatewayProxyR
             String userId = requestEvent.getPathParameters().get("userId");
             Map<String, Object> body = parseBody(requestEvent.getBody());
             UpdateUserProfileRequest updateRequest = parseRequest(body);
+            UpdateUserProfileRequest profilePicturePath = parseRequest(body);
 
-            UserProfileResponse updatedProfile = userService.updateUserProfile(userId, updateRequest);
+            UserProfileResponse updatedProfile = userService.updateUserProfile(userId, updateRequest, null);
 
             SaayamResponse<UserProfileResponse> successResponse = responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.USER_ACCOUNT_UPDATED,

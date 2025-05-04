@@ -1,5 +1,6 @@
 package org.sfa.volunteer.service.impl;
 import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
@@ -18,11 +19,18 @@ import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
 import org.sfa.volunteer.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -30,6 +38,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
+@Slf4j
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserStatusRepository userStatusRepository;
@@ -45,15 +54,20 @@ public class UserServiceImpl implements UserService {
     private static final Integer DEFAULT_USER_STATUS_ID = 1; // Active user
     private static final Integer DEFAULT_USER_CATEGORY_ID = 1; // User Category: common user
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
-
+    private S3Client s3Client;
+    @Value("${aws.s3.bucket}")
+    private String bucketName;
+    @Value("${aws.s3.users.folder}")
+    private String usersFolder;
     @Autowired
     public UserServiceImpl(UserRepository userRepository, UserStatusRepository userStatusRepository, UserCategoryRepository userCategoryRepository,
-                           CountryRepository countryRepository, StateRepository stateRepository) {
+                           CountryRepository countryRepository, StateRepository stateRepository, S3Client s3Client) {
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
         this.userCategoryRepository = userCategoryRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
+        this.s3Client = s3Client;
     }
 
     @Override
@@ -95,10 +109,10 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest request) {
+    public UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest request, MultipartFile file) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-
+        String GovtIdS3URI = generateProfilepicS3Url(file, userId);
         // Update all fields from the request without null checks
         user.setFirstName(request.firstName());
         user.setMiddleName(request.middleName());
@@ -108,7 +122,7 @@ public class UserServiceImpl implements UserService {
         user.setAddressLine3(request.addressLine3());
         user.setCity(request.cityName());
         user.setZipCode(request.zipCode());
-        user.setProfilePicturePath(request.profilePicturePath());
+        user.setProfilePicturePath(GovtIdS3URI);
         user.setVolunteerStage(request.volunteerStage());
         user.setVolunteerUpdateDate(request.volunteerUpdateDate());
         user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
@@ -187,5 +201,53 @@ public class UserServiceImpl implements UserService {
                 .promotionWizardStage(user.getVolunteerStage())
                 .promotionWizardLastUpdateDate(user.getVolunteerUpdateDate())
                 .build();
+    }
+
+    private String generateProfilepicS3Url(MultipartFile file, String folderName) {
+        if (validateImage(file)) {
+            String key = usersFolder + "/" + folderName.toLowerCase() + "/" + file.getOriginalFilename();
+            uploadImageToS3(file, key);
+            log.info("uploading image to S3");
+            return s3Client.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toString();
+        } else {
+            return "Invalid image.";
+        }
+    }
+
+    public boolean validateImage(MultipartFile file) {
+        final long MAX_SIZE = 5 * 1024 * 1024; // 5MB
+        List<String> allowedTypes = List.of("image/png", "image/jpeg", "image/jpg", "image/gif");
+        boolean result = false;
+        String contentType = file.getContentType();
+        if (file.getSize() > MAX_SIZE) {
+            log.info("Image is larger than 5MB");
+            throw new IllegalArgumentException("Image size exceeds the maximum allowed size of 5MB.");
+        } else if (contentType == null || !allowedTypes.contains(contentType)) {
+            log.info("image files (PNG, JPEG, JPG, GIF) are not provided");
+            throw new IllegalArgumentException("Only image files (PNG, JPEG, JPG, GIF) are allowed.");
+        } else {
+            result = true;
+        }
+        return result;
+    }
+
+
+    // Upload the file to S3
+    private void uploadImageToS3(MultipartFile file, String key) {
+        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName) // Specify the bucket name
+                .key(key)//The key (name/path) for the file in S3
+                .contentType(file.getContentType())//set content type(for images like PNG,JPG..)
+                .build();
+        // Get the InputStream from the MultipartFile and upload the file
+        try (InputStream inputStream = file.getInputStream()) {
+
+            s3Client.putObject(putObjectRequest, RequestBody.fromInputStream(inputStream, file.getSize()));
+            log.info("Successfully uploaded image '{}' to bucket '{}'", key, bucketName);
+
+        } catch (Exception e) {
+            log.info("Failed to upload image '{}' to S3: {}", key, e.getMessage());
+
+        }
     }
 }

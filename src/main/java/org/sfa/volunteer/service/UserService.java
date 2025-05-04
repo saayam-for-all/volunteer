@@ -5,6 +5,7 @@ import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 
 public interface UserService {
@@ -17,5 +18,5 @@ public interface UserService {
 
     CreateUserResponse createUser(CreateUserRequest createUserRequest);
 
-    UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest updateUserProfileRequest);
+    UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest updateUserProfileRequest, MultipartFile img);
 }
