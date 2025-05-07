@@ -1,14 +1,8 @@
 cors:
-  allowed:
-    origin: <application-url>
-    header: Authorization
-    methods:
-      - GET
-      - POST
-      - PUT
-      - DELETE
-      - OPTIONS
-    credentials: true
+  allowed-origin: <application-url>
+  allowed-headers: Authorization
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  credentials: true
 
 spring:
   datasource:
