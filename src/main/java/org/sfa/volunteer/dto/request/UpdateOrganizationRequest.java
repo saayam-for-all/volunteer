@@ -13,7 +13,7 @@ public record UpdateOrganizationRequest(
         @NotBlank String streetAddress1,
         String streetAddress2,
         @NotBlank String city,
-        String state,
+        @NotBlank String state,
         @NotBlank String zipCode
 ) {
 }
