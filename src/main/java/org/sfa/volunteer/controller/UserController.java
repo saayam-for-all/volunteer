@@ -14,6 +14,7 @@ import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,7 +24,8 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserController {
     private final UserService userService;
     private final ResponseBuilder responseBuilder;
-
+    @Value("${aws.s3.bucket}")
+    private String bucketName;
     @Autowired
     public UserController(UserService userService, ResponseBuilder responseBuilder) {
         this.userService = userService;
@@ -54,14 +56,24 @@ public class UserController {
     @GetMapping("/profile/{userId}")
     public SaayamResponse<UserProfileResponse> getUserProfile(@PathVariable String userId) {
         UserProfileResponse response = userService.getUserProfileById(userId);
+
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
     @GetMapping("/login/{email}")
     public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
-
         UserProfileResponse response = userService.getUserProfileByEmail(email);
+        String profilepath = response.profilePicturePath();
+        if (profilepath != null) {
+            String presignedUrl = userService.generatePresignedUrl(bucketName, profilepath);
+            System.out.println("presigned URL is :  " + presignedUrl);
+            UserProfileResponse updatedResponse = response.toBuilder()
+                    .profileImageUrl(presignedUrl)
+                    .build();
+            return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, updatedResponse);
+        }
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
+
     }
 
     @PutMapping(value = "/profile/{userId}")

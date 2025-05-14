@@ -9,6 +9,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -43,6 +44,10 @@ public class S3Config {
         }
     }
 
+    @Bean
+    public S3Presigner s3Presigner() {
+        return S3Presigner.builder().region(Region.US_EAST_1).build();
+    }
     public List<String> listBuckets() {
         ListBucketsResponse response = s3Client().listBuckets();
         return response.buckets().stream().map(Bucket::name).toList();

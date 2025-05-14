@@ -27,10 +27,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -55,19 +60,21 @@ public class UserServiceImpl implements UserService {
     private static final Integer DEFAULT_USER_CATEGORY_ID = 1; // User Category: common user
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
     private S3Client s3Client;
+    private final S3Presigner s3Presigner;
     @Value("${aws.s3.bucket}")
     private String bucketName;
     @Value("${aws.s3.users.folder}")
     private String usersFolder;
     @Autowired
     public UserServiceImpl(UserRepository userRepository, UserStatusRepository userStatusRepository, UserCategoryRepository userCategoryRepository,
-                           CountryRepository countryRepository, StateRepository stateRepository, S3Client s3Client) {
+                           CountryRepository countryRepository, StateRepository stateRepository, S3Client s3Client, S3Presigner s3Presigner) {
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
         this.userCategoryRepository = userCategoryRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
         this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
     }
 
     @Override
@@ -96,6 +103,7 @@ public class UserServiceImpl implements UserService {
 
         // Save the User entity to the database
         user = userRepository.save(user);
+
 
         // Create a response object from the saved User entity
         return CreateUserResponse.builder()
@@ -163,16 +171,24 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserProfileResponse getUserProfileByEmail(String email) {
-        List<User> user = userRepository.findByPrimaryEmailAddress(email);
+        User user = userRepository.findByPrimaryEmailAddress(email);
 
-        if (user.isEmpty()) {
+        if (user == null) {
             throw new UserNotFoundException(email);
         }
 
-        return mapToUserProfileResponse(user.get(0));
+        return mapToUserProfileResponse(user);
+//        List<User> user = userRepository.findByPrimaryEmailAddress(email);
+//
+//        if (user.isEmpty()) {
+//            throw new UserNotFoundException(email);
+//        }
+//
+//        return mapToUserProfileResponse(user.get(0));
     }
 
     private UserProfileResponse mapToUserProfileResponse(User user) {
+
         return UserProfileResponse.builder()
                 .id(user.getId())
                 .firstName(user.getFirstName())
@@ -249,5 +265,32 @@ public class UserServiceImpl implements UserService {
             log.info("Failed to upload image '{}' to S3: {}", key, e.getMessage());
 
         }
+    }
+
+    public String generatePresignedUrl(String bucketName, String objectKeyOrUrl) {
+        String prefix = "https://" + bucketName + ".s3.amazonaws.com/";
+
+        String objectKey;
+        if (objectKeyOrUrl.startsWith(prefix)) {
+            objectKey = objectKeyOrUrl.substring(prefix.length());
+        } else if (!objectKeyOrUrl.contains("https://")) {
+            objectKey = objectKeyOrUrl;  // it’s already just a key
+        } else {
+            throw new IllegalArgumentException("Invalid S3 URL format for bucket: " + bucketName);
+        }
+
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(15))
+                .getObjectRequest(getObjectRequest)
+                .build();
+
+        PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+
+        return presignedRequest.url().toString();
     }
 }

@@ -8,7 +8,7 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
+    User findByPrimaryEmailAddress(String email);
 
-
-    List<User> findByPrimaryEmailAddress(String email);
+//    List<User> findByPrimaryEmailAddress(String email);
 }

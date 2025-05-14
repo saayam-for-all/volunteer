@@ -81,4 +81,5 @@ public class User {
     @Column(name = "cntc_mbr")
     private String cntcMbr;
 
+
 }

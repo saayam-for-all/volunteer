@@ -4,7 +4,7 @@ import lombok.Builder;
 
 import java.time.ZonedDateTime;
 
-@Builder
+@Builder(toBuilder = true)
 public record UserProfileResponse(
         String id,
         String firstName,
@@ -31,5 +31,6 @@ public record UserProfileResponse(
         String language2,
         String language3,
         Integer promotionWizardStage,
+        String profileImageUrl,
         ZonedDateTime promotionWizardLastUpdateDate) {
 }
