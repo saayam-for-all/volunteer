@@ -62,6 +62,7 @@ Thumbs.db
 
 # Exclude resources folder
 src/main/resources/application-dev.properties
+src/main/resources/application.properties
 src/main/resources/*.sql
 
 # Node
