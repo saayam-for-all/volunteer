@@ -7,6 +7,7 @@ import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.sfa.volunteer.dto.response.WizardStatusResponse;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.model.Country;
@@ -180,6 +181,20 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserNotFoundException(userId));
         return mapToUserProfileResponse(user);
     }
+
+    @Override
+    public WizardStatusResponse getWizardStatus(String userId) {
+    UserProfileResponse userProfile = getUserProfileById(userId);
+
+    String addressAvailable = (userProfile.addressLine1() != null && !userProfile.addressLine1().trim().isEmpty())
+            ? "Y" : "N";
+
+    return new WizardStatusResponse(
+        userId,
+        userProfile.promotionWizardStage(),
+        addressAvailable
+    );
+}
 
     @Override
     public UserProfileResponse getUserProfileByEmail(String email) {
