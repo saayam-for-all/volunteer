@@ -68,7 +68,9 @@ public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@RequestParam("fil
 
     @PutMapping("/updatestep4")
     public SaayamResponse<VolunteerResponse> updateVolunteerStep4(@Valid @RequestBody VolunteerRequest request) throws Exception {
+        System.out.println("enter step4");
         VolunteerResponse response = volunteerService.updateVolunteerStep4(request);
+        System.out.println("step4");
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[] { request.userId() }, response);
     }
 

@@ -1,5 +1,6 @@
 package org.sfa.volunteer.service.impl;
 import jakarta.transaction.Transactional;
+
 import lombok.extern.slf4j.Slf4j;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
@@ -23,7 +24,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -35,9 +40,12 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequ
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -61,10 +69,14 @@ public class UserServiceImpl implements UserService {
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
     private S3Client s3Client;
     private final S3Presigner s3Presigner;
+    private final RestTemplate restTemplate = new RestTemplate();
     @Value("${aws.s3.bucket}")
     private String bucketName;
     @Value("${aws.s3.users.folder}")
     private String usersFolder;
+    @Value("${aws.s3.region}")
+    private String region;
+
     @Autowired
     public UserServiceImpl(UserRepository userRepository, UserStatusRepository userStatusRepository, UserCategoryRepository userCategoryRepository,
                            CountryRepository countryRepository, StateRepository stateRepository, S3Client s3Client, S3Presigner s3Presigner) {
@@ -268,29 +280,42 @@ public class UserServiceImpl implements UserService {
     }
 
     public String generatePresignedUrl(String bucketName, String objectKeyOrUrl) {
-        String prefix = "https://" + bucketName + ".s3.amazonaws.com/";
+        try {
+            String expectedHost = bucketName + ".s3.amazonaws.com";
+            String objectKey;
 
-        String objectKey;
-        if (objectKeyOrUrl.startsWith(prefix)) {
-            objectKey = objectKeyOrUrl.substring(prefix.length());
-        } else if (!objectKeyOrUrl.contains("https://")) {
-            objectKey = objectKeyOrUrl;  // it’s already just a key
-        } else {
-            throw new IllegalArgumentException("Invalid S3 URL format for bucket: " + bucketName);
+            if (objectKeyOrUrl.startsWith("http")) {
+                // Parse URL properly
+                URI uri = new URI(objectKeyOrUrl);
+                String host = uri.getHost();
+
+                if (host == null || !host.equals(expectedHost)) {
+                    throw new IllegalArgumentException("Invalid S3 host. Expected: " + expectedHost + ", but got: " + host);
+                }
+
+                // Trim leading slash from path to get the object key
+                objectKey = uri.getPath().startsWith("/") ? uri.getPath().substring(1) : uri.getPath();
+            } else {
+                objectKey = objectKeyOrUrl; // already a clean key
+            }
+
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectKey)
+                    .build();
+
+            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                    .signatureDuration(Duration.ofMinutes(15))
+                    .getObjectRequest(getObjectRequest)
+                    .build();
+
+            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+
+            return presignedRequest.url().toString();
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("Malformed S3 URL: " + objectKeyOrUrl, e);
         }
-
-        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(objectKey)
-                .build();
-
-        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(15))
-                .getObjectRequest(getObjectRequest)
-                .build();
-
-        PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
-
-        return presignedRequest.url().toString();
     }
+
+
 }
