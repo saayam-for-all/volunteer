@@ -182,19 +182,19 @@ public class UserServiceImpl implements UserService {
         return mapToUserProfileResponse(user);
     }
 
-    @Override
-    public WizardStatusResponse getWizardStatus(String userId) {
-    UserProfileResponse userProfile = getUserProfileById(userId);
-
-    String addressAvailable = (userProfile.addressLine1() != null && !userProfile.addressLine1().trim().isEmpty())
-            ? "Y" : "N";
-
-    return new WizardStatusResponse(
-        userId,
-        userProfile.promotionWizardStage(),
-        addressAvailable
-    );
-}
+//    @Override
+//    public WizardStatusResponse getWizardStatus(String userId) {
+//    UserProfileResponse userProfile = getUserProfileById(userId);
+//
+//    String addressAvailable = (userProfile.addressLine1() != null && !userProfile.addressLine1().trim().isEmpty())
+//            ? "Y" : "N";
+//
+//    return new WizardStatusResponse(
+//        userId,
+//        userProfile.promotionWizardStage(),
+//        addressAvailable
+//    );
+//}
 
     @Override
     public UserProfileResponse getUserProfileByEmail(String email) {
