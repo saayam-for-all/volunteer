@@ -19,7 +19,7 @@ public interface UserService {
     CreateUserResponse createUser(CreateUserRequest createUserRequest);
 
     UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest updateUserProfileRequest, MultipartFile img);
-    String generatePresignedUrl(String bucketName, String objectKey);
+   // String generatePresignedUrl(String bucketName, String objectKey);
 
 
 }

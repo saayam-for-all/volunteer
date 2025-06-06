@@ -32,5 +32,6 @@ public record UserProfileResponse(
         String language3,
         Integer promotionWizardStage,
         String profileImageUrl,
-        ZonedDateTime promotionWizardLastUpdateDate) {
+        ZonedDateTime promotionWizardLastUpdateDate,
+        String base64ProfileImage) {
 }

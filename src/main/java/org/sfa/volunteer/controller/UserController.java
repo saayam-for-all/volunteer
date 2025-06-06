@@ -74,62 +74,68 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
+//    @GetMapping("/login/{email}")
+//    public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
+//        UserProfileResponse response = userService.getUserProfileByEmail(email);
+//        String profilepath = response.profilePicturePath();
+//        if (profilepath != null) {
+//            // String presignedUrl = userService.generatePresignedUrl(bucketName, profilepath);
+//            String imageProxyUrl = "/api/profile-image/" + URLEncoder.encode(profilepath, StandardCharsets.UTF_8);
+//
+//            System.out.println("imageProxyUrl is :  " + imageProxyUrl);
+//            UserProfileResponse updatedResponse = response.toBuilder()
+//                    .profileImageUrl(imageProxyUrl)
+//                    .build();
+//            return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, updatedResponse);
+//        }
+//        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
+//
+//    }
+
     @GetMapping("/login/{email}")
     public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
         UserProfileResponse response = userService.getUserProfileByEmail(email);
-        String profilepath = response.profilePicturePath();
-        if (profilepath != null) {
-            // String presignedUrl = userService.generatePresignedUrl(bucketName, profilepath);
-            String imageProxyUrl = "/api/profile-image/" + URLEncoder.encode(profilepath, StandardCharsets.UTF_8);
-
-            System.out.println("imageProxyUrl is :  " + imageProxyUrl);
-            UserProfileResponse updatedResponse = response.toBuilder()
-                    .profileImageUrl(imageProxyUrl)
-                    .build();
-            return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, updatedResponse);
-        }
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{email}, response);
-
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 
-    @GetMapping("/api/profile-image/**")
-    public ResponseEntity<byte[]> getProfileImage(HttpServletRequest request) {
-        try {
-            System.out.println("Decoded S3");
-            String basePath = "/api/profile-image/";
-            String encodedUrl = request.getRequestURI().substring(request.getRequestURI().indexOf(basePath) + basePath.length());
-            String decodedUrl = URLDecoder.decode(encodedUrl, StandardCharsets.UTF_8);
-
-            // ✅ Use Java URI to extract path from full URL
-            URI uri = new URI(decodedUrl);
-            String key = uri.getPath().substring(1); // Remove leading "/"
-
-            System.out.println("Decoded S3 key: " + key);
-
-            // ✅ Generate presigned URL using the object key
-            String presignedUrl = userService.generatePresignedUrl(bucketName, key);
-
-            // ✅ Fetch the image using presigned URL
-            URL url = new URL(presignedUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-
-            InputStream is = conn.getInputStream();
-            byte[] imageBytes = is.readAllBytes();
-            is.close();
-
-            String contentType = URLConnection.guessContentTypeFromStream(new ByteArrayInputStream(imageBytes));
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType(contentType != null ? contentType : "application/octet-stream"));
-
-            return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-    }
+//    @GetMapping("/api/profile-image/**")
+//    public ResponseEntity<byte[]> getProfileImage(HttpServletRequest request) {
+//        try {
+//            System.out.println("Decoded S3");
+//            String basePath = "/api/profile-image/";
+//            String encodedUrl = request.getRequestURI().substring(request.getRequestURI().indexOf(basePath) + basePath.length());
+//            String decodedUrl = URLDecoder.decode(encodedUrl, StandardCharsets.UTF_8);
+//
+//            // ✅ Use Java URI to extract path from full URL
+//            URI uri = new URI(decodedUrl);
+//            String key = uri.getPath().substring(1); // Remove leading "/"
+//
+//            System.out.println("Decoded S3 key: " + key);
+//
+//            // ✅ Generate presigned URL using the object key
+//            String presignedUrl = userService.generatePresignedUrl(bucketName, key);
+//
+//            // ✅ Fetch the image using presigned URL
+//            URL url = new URL(presignedUrl);
+//            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+//            conn.setRequestMethod("GET");
+//
+//            InputStream is = conn.getInputStream();
+//            byte[] imageBytes = is.readAllBytes();
+//            is.close();
+//
+//            String contentType = URLConnection.guessContentTypeFromStream(new ByteArrayInputStream(imageBytes));
+//
+//            HttpHeaders headers = new HttpHeaders();
+//            headers.setContentType(MediaType.parseMediaType(contentType != null ? contentType : "application/octet-stream"));
+//
+//            return new ResponseEntity<>(imageBytes, headers, HttpStatus.OK);
+//
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+//        }
+//    }
 
 
 

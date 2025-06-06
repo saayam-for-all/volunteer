@@ -204,15 +204,13 @@ public class UserServiceImpl implements UserService {
             throw new UserNotFoundException(email);
         }
 
-        return mapToUserProfileResponse(user);
-//        List<User> user = userRepository.findByPrimaryEmailAddress(email);
-//
-//        if (user.isEmpty()) {
-//            throw new UserNotFoundException(email);
-//        }
-//
-//        return mapToUserProfileResponse(user.get(0));
+        String base64Image = getBase64ImageFromS3(user.getProfilePicturePath());
+
+        return mapToUserProfileResponse(user).toBuilder()
+                .base64ProfileImage(base64Image)
+                .build();
     }
+
 
     private UserProfileResponse mapToUserProfileResponse(User user) {
 
@@ -294,43 +292,65 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    public String generatePresignedUrl(String bucketName, String objectKeyOrUrl) {
+//    public String generatePresignedUrl(String bucketName, String objectKeyOrUrl) {
+//        try {
+//            String expectedHost = bucketName + ".s3.amazonaws.com";
+//            String objectKey;
+//
+//            if (objectKeyOrUrl.startsWith("http")) {
+//                // Parse URL properly
+//                URI uri = new URI(objectKeyOrUrl);
+//                String host = uri.getHost();
+//
+//                if (host == null || !host.equals(expectedHost)) {
+//                    throw new IllegalArgumentException("Invalid S3 host. Expected: " + expectedHost + ", but got: " + host);
+//                }
+//
+//                // Trim leading slash from path to get the object key
+//                objectKey = uri.getPath().startsWith("/") ? uri.getPath().substring(1) : uri.getPath();
+//            } else {
+//                objectKey = objectKeyOrUrl; // already a clean key
+//            }
+//
+//            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+//                    .bucket(bucketName)
+//                    .key(objectKey)
+//                    .build();
+//
+//            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+//                    .signatureDuration(Duration.ofMinutes(15))
+//                    .getObjectRequest(getObjectRequest)
+//                    .build();
+//
+//            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+//
+//            return presignedRequest.url().toString();
+//        } catch (URISyntaxException e) {
+//            throw new IllegalArgumentException("Malformed S3 URL: " + objectKeyOrUrl, e);
+//        }
+//    }
+
+    private String getBase64ImageFromS3(String profilePicturePath) {
+        if (profilePicturePath == null || profilePicturePath.isEmpty()) return null;
+
         try {
-            String expectedHost = bucketName + ".s3.amazonaws.com";
-            String objectKey;
-
-            if (objectKeyOrUrl.startsWith("http")) {
-                // Parse URL properly
-                URI uri = new URI(objectKeyOrUrl);
-                String host = uri.getHost();
-
-                if (host == null || !host.equals(expectedHost)) {
-                    throw new IllegalArgumentException("Invalid S3 host. Expected: " + expectedHost + ", but got: " + host);
-                }
-
-                // Trim leading slash from path to get the object key
-                objectKey = uri.getPath().startsWith("/") ? uri.getPath().substring(1) : uri.getPath();
-            } else {
-                objectKey = objectKeyOrUrl; // already a clean key
-            }
+            // Extract just the key from the full S3 URL (profilePicturePath)
+            URI uri = new URI(profilePicturePath);
+            String key = uri.getPath().startsWith("/") ? uri.getPath().substring(1) : uri.getPath();
 
             GetObjectRequest getObjectRequest = GetObjectRequest.builder()
                     .bucket(bucketName)
-                    .key(objectKey)
+                    .key(key)
                     .build();
 
-            GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                    .signatureDuration(Duration.ofMinutes(15))
-                    .getObjectRequest(getObjectRequest)
-                    .build();
-
-            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
-
-            return presignedRequest.url().toString();
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Malformed S3 URL: " + objectKeyOrUrl, e);
+            try (InputStream inputStream = s3Client.getObject(getObjectRequest)) {
+                byte[] imageBytes = inputStream.readAllBytes();
+                return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(imageBytes);
+            }
+        } catch (Exception e) {
+            log.error("Failed to fetch or encode image from S3 for key: {}", profilePicturePath, e);
+            return null;
         }
     }
-
 
 }
