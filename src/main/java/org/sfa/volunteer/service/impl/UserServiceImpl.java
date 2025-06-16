@@ -156,6 +156,22 @@ public class UserServiceImpl implements UserService {
         addressAvailable
     );
 }
+    
+    @Override
+    public AddressStatusResponse getAddressStatus(String userId) {
+    UserProfileResponse userProfile = getUserProfileById(userId);
+
+    String addressAvailable = (userProfile.addressLine1() != null && !userProfile.addressLine1().trim().isEmpty())
+            ? "Y" : "N";
+
+    return new AddressStatusResponse(
+        userId,
+        addressAvailable
+    );
+}
+
+
+
 
     @Override
     public UserProfileResponse getUserProfileByEmail(String email) {

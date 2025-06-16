@@ -57,6 +57,12 @@ public class UserController {
         WizardStatusResponse response = userService.getWizardStatus(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
+    
+    @GetMapping("/addressStatus/{userId}")
+    public SaayamResponse<AddressStatusResponse> getAddressStatus(@PathVariable String userId) {
+    	AddressStatusResponse response = userService.getAddressStatus(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    } 
 
     @GetMapping("/login/{email}")
     public SaayamResponse<UserProfileResponse> getUserProfileAfterLogin(@PathVariable String email) {
