@@ -6,18 +6,17 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
-
 public class CorsConfiguration {
-    @Value("${cors.allowed.origin}")
+    @Value("${cors.allowed-origin}")
     private String allowedOrigin;
 
-    @Value("${cors.allowed.headers}")
+    @Value("${cors.allowed-headers}")
     private String allowedHeaders;
 
-    @Value("${cors.allowed.methods}")
+    @Value("${cors.allowed-methods}")
     private String[] allowedMethods;
 
-    @Value("${cors.allowed.credentials}")
+    @Value("${cors.credentials}")
     private boolean allowedCredentials;
 
     @Bean
