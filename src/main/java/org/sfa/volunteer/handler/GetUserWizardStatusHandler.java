@@ -2,7 +2,6 @@ package org.sfa.volunteer.handler;
 
 import java.util.Locale;
 import java.util.Optional;
-import java.util.Map;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
@@ -41,7 +40,6 @@ public class GetUserWizardStatusHandler implements RequestHandler<APIGatewayProx
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
 
         try {
-            System.out.println("Received request: " + requestEvent);
             String lang = Optional.ofNullable(requestEvent.getHeaders())
                     .map(headers -> headers.getOrDefault("Accept-Language", "en"))
                     .orElse("en");
@@ -51,9 +49,7 @@ public class GetUserWizardStatusHandler implements RequestHandler<APIGatewayProx
                     .map(params -> params.get("userId"))
                     .orElseThrow(() -> new IllegalArgumentException("userId path parameter is missing"));
 
-            System.out.println("Calling userService.getWizardStatus for userId = " + userId);
             WizardStatusResponse wizardStatusResponse = userService.getWizardStatus(userId);
-            System.out.println("Received wizard status response: " + wizardStatusResponse);
 
             SaayamResponse<WizardStatusResponse> successResponse = responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.SUCCESS,
