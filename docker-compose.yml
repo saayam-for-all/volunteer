@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: saayam-postgres
+    environment:
+      POSTGRES_DB: saayam
+      POSTGRES_USER: saayam
+      POSTGRES_PASSWORD: saayam
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: saayam-volunteer-app
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/saayam
+      SPRING_DATASOURCE_USERNAME: saayam
+      SPRING_DATASOURCE_PASSWORD: saayam
+    restart: on-failure
+
+volumes:
+  postgres_data:
