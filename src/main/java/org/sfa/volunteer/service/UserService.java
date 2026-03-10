@@ -30,11 +30,17 @@ public interface UserService {
     SignOffResponse signOffUser(String userId, String reason);
 
     UserIdResponse getUserIdByEmail(String email);
-
     // Profile Pic Upload
     // AWS (S3 URI <-> DB)
     void setProfilePicturePath(String userId, String s3Uri);
+
     java.util.Optional<String> getProfilePicturePath(String userId);
+
     boolean userExists(String userId);
+
     String getUserIdByEmailForAuth(String email);
+
+    UserProfileResponse getPersonalInfoById(String userId);
+
+    UserProfileResponse updatePersonalInfo(String userId, UpdateUserProfileRequest updateRequest);
 }

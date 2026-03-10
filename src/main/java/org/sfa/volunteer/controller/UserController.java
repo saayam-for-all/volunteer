@@ -228,5 +228,19 @@ public class UserController {
                 response
         );
     }
+    @GetMapping("/personal-info/{userId}")
+    public SaayamResponse<UserProfileResponse> getPersonalInfo(@PathVariable String userId) {
+        UserProfileResponse response = userService.getPersonalInfoById(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+    @PutMapping("/personal-info/{userId}")
+    public SaayamResponse<UserProfileResponse> updatePersonalInfo(
+            @PathVariable String userId,
+            @RequestBody UpdateUserProfileRequest request) {
+        UserProfileResponse response = userService.updatePersonalInfo(userId, request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
+    }
+
 
 }

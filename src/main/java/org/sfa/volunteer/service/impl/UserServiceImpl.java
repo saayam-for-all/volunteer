@@ -89,36 +89,34 @@ import java.util.stream.Collectors;
         UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
-        Country country = countryRepository.findByCountryName(request.country())
-                .orElseThrow(() -> new CountryNotFoundException(request.country()));
+        // Only fetch country if provided (Google sign-in won't have it)
+        Country country = null;
+        if (request.country() != null && !request.country().isBlank()) {
+            country = countryRepository.findByCountryName(request.country())
+                    .orElseThrow(() -> new CountryNotFoundException(request.country()));
+        }
 
+        String timeZone = (request.timeZone() != null && !request.timeZone().isBlank())
+                ? request.timeZone()
+                : DEFAULT_TIMEZONE;
 
-        String timeZone =
-                (request.timeZone() != null && !request.timeZone().isBlank())
-                        ? request.timeZone()
-                        : DEFAULT_TIMEZONE;
+        String locale = (request.locale() != null && !request.locale().isBlank())
+                ? request.locale()
+                : DEFAULT_LOCALE;
 
-        String locale =
-                (request.locale() != null && !request.locale().isBlank())
-                        ? request.locale()
-                        : DEFAULT_LOCALE;
-
-        // Create a new User entity from the request data
         User user = User.builder()
                 .fullName(request.name())
                 .primaryEmailAddress(request.email())
-                .primaryPhoneNumber(request.phoneNumber())
+                .primaryPhoneNumber(request.phoneNumber())   // null is fine
                 .timeZone(timeZone)
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
                 .userCategory(userCategory)
                 .userStatus(userStatus)
-                .country(country)
+                .country(country)                            // null is fine
                 .build();
 
-        // Save the User entity to the database
         user = userRepository.save(user);
 
-        // Create a response object from the saved User entity
         return CreateUserResponse.builder()
                 .name(user.getFullName())
                 .email(user.getPrimaryEmailAddress())
@@ -381,5 +379,32 @@ import java.util.stream.Collectors;
         return new SignOffResponse(
                 userId
         );
+    }
+
+    @Override
+    public UserProfileResponse getPersonalInfoById(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        return mapToUserProfileResponse(user);
+    }
+
+    @Override
+    public UserProfileResponse updatePersonalInfo(String userId, UpdateUserProfileRequest updateRequest) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        // Update only editable fields for personal info
+        user.setFirstName(updateRequest.firstName());
+        user.setLastName(updateRequest.lastName());
+        user.setPrimaryPhoneNumber(updateRequest.primaryPhoneNumber());
+        user.setAddressLine1(updateRequest.addressLine1());
+        user.setCity(updateRequest.cityName());
+        user.setZipCode(updateRequest.zipCode());
+        user.setGender(updateRequest.gender());
+        user.setTimeZone(updateRequest.timeZone());
+        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
+
+        User updatedUser = userRepository.save(user);
+        return mapToUserProfileResponse(updatedUser);
     }
 }

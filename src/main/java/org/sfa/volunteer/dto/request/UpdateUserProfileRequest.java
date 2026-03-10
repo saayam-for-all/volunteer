@@ -16,5 +16,8 @@ public record UpdateUserProfileRequest(
         String zipCode,
         String profilePicturePath,
         Integer volunteerStage,
-        ZonedDateTime volunteerUpdateDate) {
+        ZonedDateTime volunteerUpdateDate,
+        String primaryPhoneNumber,
+        String gender,
+        String timeZone) {
 }
