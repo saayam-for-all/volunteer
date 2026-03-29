@@ -4,6 +4,7 @@ import lombok.Builder;
 
 @Builder
 public record UserPreferenceRequest(
+        Integer userCategoryId,
         String language1,
         String language2,
         String language3,

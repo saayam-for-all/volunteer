@@ -6,6 +6,8 @@ import lombok.Builder;
 @Builder
 public record UserPreferenceResponse(
         String userId,
+        Integer userCategoryId,
+        String userCategory,
         String language1,
         String language2,
         String language3,
