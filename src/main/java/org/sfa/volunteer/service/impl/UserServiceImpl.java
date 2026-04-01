@@ -444,6 +444,12 @@ import java.util.stream.Collectors;
          User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
+            // update user category if provided
+            if (request.userCategoryId() != null) {
+                UserCategory userCategory = userCategoryRepository.findById(request.userCategoryId())
+                        .orElseThrow(() -> new UserCategoryNotFoundException(request.userCategoryId()));
+                user.setUserCategory(userCategory);
+            }
 
             // update language prefs
             user.setLanguage1(request.language1());
@@ -465,6 +471,8 @@ import java.util.stream.Collectors;
 
             return UserPreferenceResponse.builder()
                     .userId(user.getId())
+                    .userCategoryId(user.getUserCategory() != null ? user.getUserCategory().getUserCategoryId() : null)
+                    .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
                     .language1(user.getLanguage1())
                     .language2(user.getLanguage2())
                     .language3(user.getLanguage3())
