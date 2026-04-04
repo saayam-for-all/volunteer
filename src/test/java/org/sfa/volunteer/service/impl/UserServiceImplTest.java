@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,6 +18,7 @@ import org.mockito.MockitoAnnotations;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.UserPreferenceResponse;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
+import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.model.UserAdditionalDetail;
 import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
 import org.sfa.volunteer.repository.UserCategoryRepository;
@@ -99,5 +101,22 @@ class UserServiceImplTest {
         verify(userRepository).findById(userId);
         verify(userCategoryRepository).findById(999);
         verify(userRepository, never()).save(any(User.class));
+    }
+
+        @Test
+    void testUpdateUserPreferences_UserNotFound() throws Exception {
+        // Arrange
+        String userId = "nonExistentUser";
+        UserPreferenceRequest request = UserPreferenceRequest.builder().build();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThrows(UserNotFoundException.class, () -> userService.updateUserPreferences(userId, request));
+
+        verify(userRepository).findById(userId);
+        verify(userCategoryRepository, never()).findById(anyInt());
+        verify(userRepository, never()).save(any(User.class));
+        verify(userAdditionalDetailRepository, never()).findByUserId(anyString());
     }
 }
