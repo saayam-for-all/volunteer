@@ -7,10 +7,14 @@ import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.context.request.WebRequest;
+
+import java.util.stream.Collectors;
 
 @ControllerAdvice
 @Slf4j
@@ -82,6 +86,18 @@ public class GlobalExceptionHandler {
         String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.ORGANIZATION_NOT_FOUND.getCode(), new Object[]{exception.getUserId()});
         log.error("UserOrganizationNotFoundException: {}", errorMessage);
         return responseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(), SaayamStatusCode.ORGANIZATION_NOT_FOUND, errorMessage);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseBody
+    public ResponseEntity<SaayamResponse<Void>> handleMethodArgumentNotValidException(MethodArgumentNotValidException exception) {
+        String errorMessage = exception.getBindingResult().getFieldErrors().stream()
+                .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
+                .collect(Collectors.joining(", "));
+        log.error("Validation failed: {}", errorMessage);
+        SaayamResponse<Void> response = responseBuilder.buildErrorResponse(
+                HttpStatus.BAD_REQUEST.value(), SaayamStatusCode.BAD_REQUEST, errorMessage);
+        return ResponseEntity.badRequest().body(response);
     }
 
 
