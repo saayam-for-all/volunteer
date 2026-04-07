@@ -1,0 +1,7 @@
+.git
+target
+**/*.log
+.idea
+.vscode
+.DS_Store
+.env

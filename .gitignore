@@ -84,3 +84,4 @@ lib/
 # Generated files
 dist/
 tmp/
+dockerCompose.yaml

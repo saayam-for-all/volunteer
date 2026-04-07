@@ -1,0 +1,114 @@
+name: Build Docker image and upload to S3
+
+on:
+  push:
+    branches: [ "main" ]  
+  pull_request:
+    branches: [ "main" ]   
+
+env:
+  APP_NAME: volunteer-app
+  AWS_REGION: us-east-1
+  S3_BUCKET: saayam-virginia-private
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Extract <version> from pom.xml
+      - name: Extract version from pom.xml
+        id: ver
+        shell: bash
+        run: |
+          VERSION_RAW=$(grep -E '<version>.*</version>' pom.xml | grep -v '<modelVersion>' | head -n1 | sed -E 's/.*<version>([^<]+)<\/version>.*/\1/')
+          VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
+
+          DATE_UTC=$(date -u +%Y%m%d-%H%M)   # e.g., 20250827-1430
+          VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
+
+          echo "version=$VERSION_TAG" >> $GITHUB_OUTPUT
+          echo "archive=${APP_NAME}-${VERSION_TAG}.tar.gz" >> $GITHUB_OUTPUT
+          echo "Using version: $VERSION_TAG"
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t ${{ env.APP_NAME }}:${{ steps.ver.outputs.version }} \
+            -t ${{ env.APP_NAME }}:latest \
+            .
+
+      - name: Save image as .tar.gz
+        run: |
+          docker save ${{ env.APP_NAME }}:${{ steps.ver.outputs.version }} | gzip > ${{ steps.ver.outputs.archive }}
+          ls -lh ${{ steps.ver.outputs.archive }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_VOLUNTEER }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_VOLUNTEER }}
+
+      # Upload versioned tarball under /versions/
+      - name: Upload versioned image
+        run: |
+          aws s3 cp "${{ steps.ver.outputs.archive }}" \
+            "s3://${{ env.S3_BUCKET }}/docker-images/${{ env.APP_NAME }}/dev/versions/${{ steps.ver.outputs.archive }}"
+
+      # Upload/overwrite latest under /latest/
+      - name: Upload latest image
+        run: |
+          cp "${{ steps.ver.outputs.archive }}" "${{ env.APP_NAME }}-latest.tar.gz"
+          aws s3 cp "${{ env.APP_NAME }}-latest.tar.gz" \
+            "s3://${{ env.S3_BUCKET }}/docker-images/${{ env.APP_NAME }}/dev/latest/${{ env.APP_NAME }}-latest.tar.gz"
+
+      # Keep only the newest 3 versioned tarballs
+      - name: Keep only last 3 versioned images
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUCKET="${{ env.S3_BUCKET }}"
+          PREFIX="docker-images/${{ env.APP_NAME }}/dev/versions/"
+
+          KEYS=$(aws s3api list-objects-v2 \
+            --bucket "$BUCKET" \
+            --prefix "$PREFIX" \
+            --query 'reverse(sort_by(Contents[?ends_with(Key, `.tar.gz`)], &LastModified))[].Key' \
+            --output text)
+
+          if [ -z "$KEYS" ]; then
+            echo "No tarballs under s3://$BUCKET/$PREFIX"
+            exit 0
+          fi
+
+          KEYS_NL=$(echo "$KEYS" | tr '\t' '\n')
+          TOTAL=$(echo "$KEYS_NL" | wc -l | tr -d ' ')
+          echo "Found $TOTAL tarballs:"
+          echo "$KEYS_NL"
+
+          if [ "$TOTAL" -le 3 ]; then
+            echo "Nothing to delete (<=3 images)."
+            exit 0
+          fi
+
+          TO_DELETE=$(echo "$KEYS_NL" | tail -n +4)
+          echo "Deleting old tarballs:"
+          echo "$TO_DELETE"
+
+          while IFS= read -r key; do
+            [ -z "$key" ] && continue
+            aws s3 rm "s3://$BUCKET/$key" || true
+          done <<< "$TO_DELETE"
+
+      # Shows what remains after cleanup
+      - name: "List objects after cleanup (versions & latest)"
+        run: |
+          aws s3 ls "s3://${{ env.S3_BUCKET }}/docker-images/${{ env.APP_NAME }}/dev/versions/"
+          aws s3 ls "s3://${{ env.S3_BUCKET }}/docker-images/${{ env.APP_NAME }}/dev/latest/"
