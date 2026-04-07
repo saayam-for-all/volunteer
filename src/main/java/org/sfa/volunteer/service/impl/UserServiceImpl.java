@@ -2,31 +2,48 @@ package org.sfa.volunteer.service.impl;
 
 import jakarta.transaction.Transactional;
 
-import org.sfa.volunteer.dto.common.SaayamResponse;
-import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.*;
+import org.sfa.volunteer.exception.CountryNotFoundException;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.exception.UserOrganizationNotFoundException;
-import org.sfa.volunteer.model.*;
-import org.sfa.volunteer.repository.*;
+import org.sfa.volunteer.model.Country;
+import org.sfa.volunteer.model.Organization;
+import org.sfa.volunteer.model.User;
+import org.sfa.volunteer.model.UserAdditionalDetail;
+import org.sfa.volunteer.model.UserCategory;
+import org.sfa.volunteer.model.UserSignOffReason;
+import org.sfa.volunteer.model.UserSkillId;
+import org.sfa.volunteer.model.UserSkills;
+import org.sfa.volunteer.model.UserStatus;
+import org.sfa.volunteer.repository.CountryRepository;
+import org.sfa.volunteer.repository.OrganizationRepository;
+import org.sfa.volunteer.repository.StateRepository;
+import org.sfa.volunteer.repository.UserCategoryRepository;
+import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.repository.UserSignOffReasonRepository;
+import org.sfa.volunteer.repository.UserSkillRepository;
+import org.sfa.volunteer.repository.UserStatusRepository;
+import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
 import org.sfa.volunteer.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.util.StringUtils;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.stream.Collectors;
 import java.util.*;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -34,11 +51,13 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserStatusRepository userStatusRepository;
     private final OrganizationRepository organizationRepository;
-
+    private final UserSignOffReasonRepository userSignOffReasonRepository;
     private final UserCategoryRepository userCategoryRepository;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
     private final UserSkillRepository userSkillRepository;
+
+    private final UserAdditionalDetailRepository userAdditionalDetailRepository;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -47,19 +66,33 @@ public class UserServiceImpl implements UserService {
     private static final Integer DEFAULT_USER_STATUS_ID = 1; // Active user
     private static final Integer DEFAULT_USER_CATEGORY_ID = 1; // User Category: common user
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
+    private static final String DEFAULT_TIMEZONE = "UTC";
+    private static final String DEFAULT_LOCALE = "en_US";
 
     @Autowired
-    public UserServiceImpl(UserRepository userRepository, UserStatusRepository userStatusRepository,
-            OrganizationRepository organizationRepository, UserCategoryRepository userCategoryRepository,
-            CountryRepository countryRepository, StateRepository stateRepository,
-            UserSkillRepository userSkillRepository) {
+
+    public UserServiceImpl(
+            UserRepository userRepository,
+            UserStatusRepository userStatusRepository,
+            OrganizationRepository organizationRepository,
+            UserCategoryRepository userCategoryRepository,
+            CountryRepository countryRepository,
+            StateRepository stateRepository,
+            UserSkillRepository userSkillRepository,
+            UserSignOffReasonRepository userSignOffReasonRepository,
+            UserAdditionalDetailRepository userAdditionalDetailRepository) {
+
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
         this.organizationRepository = organizationRepository;
         this.userCategoryRepository = userCategoryRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
+
         this.userSkillRepository = userSkillRepository;
+
+        this.userSignOffReasonRepository = userSignOffReasonRepository;
+        this.userAdditionalDetailRepository = userAdditionalDetailRepository;
     }
 
     @Override
@@ -72,14 +105,22 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
         Country country = countryRepository.findByCountryName(request.country())
-                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
+                .orElseThrow(() -> new CountryNotFoundException(request.country()));
+
+        String timeZone = (request.timeZone() != null && !request.timeZone().isBlank())
+                ? request.timeZone()
+                : DEFAULT_TIMEZONE;
+
+        String locale = (request.locale() != null && !request.locale().isBlank())
+                ? request.locale()
+                : DEFAULT_LOCALE;
 
         // Create a new User entity from the request data
         User user = User.builder()
                 .fullName(request.name())
                 .primaryEmailAddress(request.email())
                 .primaryPhoneNumber(request.phoneNumber())
-                .timeZone(request.timeZone())
+                .timeZone(timeZone)
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
                 .userCategory(userCategory)
                 .userStatus(userStatus)
@@ -93,7 +134,7 @@ public class UserServiceImpl implements UserService {
         return CreateUserResponse.builder()
                 .name(user.getFullName())
                 .email(user.getPrimaryEmailAddress())
-                .phoneNumber(user.getPrimaryEmailAddress())
+                .phoneNumber(user.getPrimaryPhoneNumber())
                 .timeZone(user.getTimeZone())
                 .userId(user.getId())
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
@@ -147,6 +188,58 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public PaginationResponse<UserProfileResponse> searchUsers(String query, Integer pageNumber, Integer pageSize) {
+        if (query == null || query.isBlank()) {
+            return PaginationResponse.<UserProfileResponse>builder()
+                    .currentPage(0)
+                    .pageSize(0)
+                    .totalPages(0)
+                    .totalItems(0)
+                    .items(List.of())
+                    .hasNextPage(false)
+                    .hasPreviousPage(false)
+                    .build();
+        }
+
+        int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;
+        int pageSizeNum = (pageSize == null) ? DEFAULT_SIZE : pageSize;
+        Pageable pageable = PageRequest.of(pageNum, pageSizeNum);
+
+        String q = "%" + query.trim().toLowerCase() + "%";
+        Page<User> userPage = userRepository.searchUsers(q, pageable);
+
+        List<UserProfileResponse> userProfiles = userPage.stream()
+                .map(this::mapToUserProfileResponse)
+                .collect(Collectors.toList());
+
+        return PaginationResponse.<UserProfileResponse>builder()
+                .currentPage(userPage.getNumber())
+                .pageSize(userPage.getSize())
+                .totalPages(userPage.getTotalPages())
+                .totalItems(userPage.getTotalElements())
+                .items(userProfiles)
+                .hasNextPage(userPage.hasNext())
+                .hasPreviousPage(userPage.hasPrevious())
+                .build();
+    }
+
+    @Override
+    public boolean isAdminUser(String userId) {
+        if (userId == null || userId.isBlank())
+            return false;
+
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null)
+            return false;
+
+        String category = (user.getUserCategory() == null) ? null : user.getUserCategory().getUserCategory();
+
+        if (category != null && category.toLowerCase().contains("admin"))
+            return true;
+        return false;
+    }
+
+    @Override
     public UserProfileResponse getUserProfileById(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
@@ -157,27 +250,26 @@ public class UserServiceImpl implements UserService {
     public WizardStatusResponse getWizardStatus(String userId) {
         UserProfileResponse userProfile = getUserProfileById(userId);
 
-        String addressAvailable = (userProfile.addressLine1() != null && !userProfile.addressLine1().trim().isEmpty())
-                ? "Y"
-                : "N";
-
         return new WizardStatusResponse(
                 userId,
-                userProfile.promotionWizardStage(),
-                addressAvailable);
+                userProfile.promotionWizardStage());
+    }
+
+    private boolean isUserAddressAvailable(UserProfileResponse userProfile) {
+        return StringUtils.hasText(userProfile.countryName())
+                && StringUtils.hasText(userProfile.addressLine1())
+                && StringUtils.hasText(userProfile.stateName())
+                && StringUtils.hasText(userProfile.city())
+                && StringUtils.hasText(userProfile.zipCode());
     }
 
     @Override
     public AddressStatusResponse getAddressStatus(String userId) {
         UserProfileResponse userProfile = getUserProfileById(userId);
 
-        String addressAvailable = (userProfile.addressLine1() != null && !userProfile.addressLine1().trim().isEmpty())
-                ? "Y"
-                : "N";
-
         return new AddressStatusResponse(
                 userId,
-                addressAvailable);
+                isUserAddressAvailable(userProfile));
     }
 
     @Override
@@ -296,7 +388,6 @@ public class UserServiceImpl implements UserService {
         return OrganizationResponse.builder()
                 .id(organization.getId())
                 .organizationName(organization.getOrganizationName())
-                .organizationName(organization.getOrganizationName())
                 .organizationType(organization.getOrganizationType())
                 .phoneNumber(organization.getPhoneNumber())
                 .email(organization.getEmail())
@@ -364,29 +455,24 @@ public class UserServiceImpl implements UserService {
     @Transactional
     public void updateUserSkills(String userId, List<String> skills) {
 
-        // handle null case
         if (skills == null) {
             skills = List.of();
         }
 
-        // remove duplicates
         Set<String> incomingSkills = new HashSet<>(skills);
 
-        // fetch existing skills from DB
         List<UserSkills> existingSkills = userSkillRepository.findByIdUserId(userId);
 
         Set<String> existing = existingSkills.stream()
                 .map(us -> us.getId().getCatId())
                 .collect(Collectors.toSet());
 
-        // -------- delete removed skills --------
         List<UserSkills> toDelete = existingSkills.stream()
                 .filter(skill -> !incomingSkills.contains(skill.getId().getCatId()))
                 .toList();
 
         userSkillRepository.deleteAll(toDelete);
 
-        // -------- add new skills --------
         List<UserSkills> toInsert = incomingSkills.stream()
                 .filter(skill -> !existing.contains(skill))
                 .map(skill -> {
@@ -398,5 +484,57 @@ public class UserServiceImpl implements UserService {
                 .toList();
 
         userSkillRepository.saveAll(toInsert);
+            }
+
+    @Transactional
+    @Override
+    public SignOffResponse signOffUser(String userId, String reason) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        // Save sign-off reason if provided
+        if (reason != null && !reason.isBlank()) {
+            userSignOffReasonRepository.save(new UserSignOffReason(reason));
+        }
+        // Delete user
+        userRepository.delete(user);
+        // Return response
+        return new SignOffResponse(
+                userId);
+    }
+
+    @Override
+    public UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception {
+        // fetch User by userId
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        // update language prefs
+        user.setLanguage1(request.language1());
+        user.setLanguage2(request.language2());
+        user.setLanguage3(request.language3());
+        userRepository.save(user);
+
+        // fetch UserAdditionalDetail
+        UserAdditionalDetail detail = userAdditionalDetailRepository.findByUserId(user.getId());
+        if (detail == null) {
+            detail = new UserAdditionalDetail();
+            detail.setUser(user);
+        }
+        detail.setSecondaryEmail1(request.secondaryEmail1());
+        detail.setSecondaryEmail2(request.secondaryEmail2());
+        detail.setSecondaryPhone1(request.secondaryPhone1());
+        detail.setSecondaryPhone2(request.secondaryPhone2());
+        userAdditionalDetailRepository.save(detail);
+
+        return UserPreferenceResponse.builder()
+                .userId(user.getId())
+                .language1(user.getLanguage1())
+                .language2(user.getLanguage2())
+                .language3(user.getLanguage3())
+                .secondaryEmail1(detail.getSecondaryEmail1())
+                .secondaryEmail2(detail.getSecondaryEmail2())
+                .secondaryPhone1(detail.getSecondaryPhone1())
+                .secondaryPhone2(detail.getSecondaryPhone2())
+                .build();
     }
 }

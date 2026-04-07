@@ -43,8 +43,6 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
 
         try {
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
-            Locale locale = Locale.forLanguageTag(lang);
 
             Map<String, Object> body = parseBody(requestEvent.getBody());
             CreateUserRequest createRequest = parseRequest(body);
@@ -61,8 +59,7 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
             response.setBody(responseBody);
             response.setStatusCode(201); // Created
         } catch (Exception e) {
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
-            Locale locale = Locale.forLanguageTag(lang);
+            context.getLogger().log("CreateUser error: " + e.getMessage());
             String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
 
             SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(

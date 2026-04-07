@@ -12,6 +12,14 @@ import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.UpdateUserSkillsRequest;
 import org.sfa.volunteer.dto.request.UserSkillsRequest;
+import org.sfa.volunteer.dto.request.SignOffRequest;
+import org.sfa.volunteer.dto.response.AddressStatusResponse;
+import org.sfa.volunteer.dto.response.CreateUserResponse;
+import org.sfa.volunteer.dto.response.OrganizationResponse;
+import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.SignOffResponse;
+import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.sfa.volunteer.dto.response.WizardStatusResponse;
 import org.sfa.volunteer.dto.response.*;
 import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
@@ -19,7 +27,6 @@ import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,14 +35,16 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import org.sfa.volunteer.dto.request.UserPreferenceRequest;
+import org.sfa.volunteer.dto.response.UserPreferenceResponse;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
 
 @RestController
 @RequestMapping("/0.0.1/users")
-
 public class UserController {
+
     private final UserService userService;
     private final ResponseBuilder responseBuilder;
-
     private final ProfileImageStorageService profileImageStorageService;
     private static final String HDR_REGION = "X-Dev-Region";
 
@@ -131,6 +140,22 @@ public class UserController {
     private static final String HDR_CALLER_USER_ID = "X-Caller-UserId";
     private static final String HDR_CALLER_GROUPS = "X-Caller-Groups"; // "admins,superadmins"
 
+    private void requireAdmin(HttpServletRequest req) {
+        String callerUserId = req.getHeader(HDR_CALLER_USER_ID);
+
+        if (callerUserId == null || callerUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Missing caller identity");
+        }
+
+        if (!userService.userExists(callerUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User does not exist");
+        }
+
+        if (!userService.isAdminUser(callerUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not an admin");
+        }
+    }
+
     private void authorize(HttpServletRequest req, String targetUserId) {
         String callerUserId = req.getHeader(HDR_CALLER_USER_ID);
         String groups = req.getHeader(HDR_CALLER_GROUPS);
@@ -216,14 +241,14 @@ public class UserController {
     }
 
     @PostMapping("/profileSkills")
-    public SaayamResponse<UserSkillsResponse> getUserSkills(@RequestBody UserSkillsRequest request) {
+    public SaayamResponse<Void> getUserSkills(@RequestBody UserSkillsRequest request) {
 
-        UserSkillsResponse res = userService.getUserSkills(request.getUserId());
+        userService.getUserSkills(request.getUserId());
 
         return responseBuilder.buildSuccessResponse(
                 SaayamStatusCode.SUCCESS,
                 new Object[] { request.getUserId() },
-                res);
+                null);
 
     }
 
@@ -250,4 +275,38 @@ public class UserController {
                 new Object[] { request.getUserId() },
                 "Skills deleted successfully");
     }
+
+    @DeleteMapping("/profile/signoff")
+    public SaayamResponse<SignOffResponse> signOffUser(
+            @Valid @RequestBody SignOffRequest request) {
+        String userId = request.userId();
+        String reason = request.reason();
+        if (userService.getProfilePicturePath(userId).isPresent()) {
+            profileImageStorageService.delete(userId, "us-east-1");
+        }
+        SignOffResponse response = userService.signOffUser(userId, reason);
+        return responseBuilder.buildSuccessResponse(
+                SaayamStatusCode.USER_DELETED,
+                new Object[]{userId},
+                response
+        );
+    }
+
+    @GetMapping("/search")
+    public SaayamResponse<PaginationResponse<UserProfileResponse>> searchUsers(
+            @RequestParam("q") String query,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest req
+    ) {
+        requireAdmin(req);
+        PaginationResponse<UserProfileResponse> response = userService.searchUsers(query, page, size);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{query, page, size}, response);
+    }
+    @PutMapping("/{userId}/preferences")
+    public SaayamResponse<UserPreferenceResponse> updateUserPreferences(@PathVariable String userId, @Valid @RequestBody UserPreferenceRequest request) throws Exception {
+        UserPreferenceResponse response = userService.updateUserPreferences(userId,request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
 }
