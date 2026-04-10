@@ -2,6 +2,7 @@ package org.sfa.volunteer.service;
 
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
+import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 
 import org.sfa.volunteer.dto.response.*;
@@ -40,7 +41,7 @@ public interface UserService {
 
     String getUserIdByEmailForAuth(String email);
 
-    UserProfileResponse getPersonalInfoById(String userId);
+    PersonalInfoResponse getPersonalInfoById(String userId);
 
-    UserProfileResponse updatePersonalInfo(String userId, UpdateUserProfileRequest updateRequest);
+    PersonalInfoResponse updatePersonalInfo(UpdatePersonalInfoRequest updateRequest);
 }

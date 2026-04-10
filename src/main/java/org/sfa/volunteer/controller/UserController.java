@@ -5,11 +5,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
-import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
-import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
-import org.sfa.volunteer.dto.request.SignOffRequest;
+import org.sfa.volunteer.dto.request.*;
 import org.sfa.volunteer.dto.response.AddressStatusResponse;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.OrganizationResponse;
@@ -228,18 +224,21 @@ public class UserController {
                 response
         );
     }
-    @GetMapping("/personal-info/{userId}")
-    public SaayamResponse<UserProfileResponse> getPersonalInfo(@PathVariable String userId) {
-        UserProfileResponse response = userService.getPersonalInfoById(userId);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    @PostMapping("/personal-info")
+    public SaayamResponse<PersonalInfoResponse> getPersonalInfo(@RequestBody PersonalInfoRequest request) {
+        PersonalInfoResponse response = userService.getPersonalInfoById(request.userId());
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.userId()}, response);
     }
 
-    @PutMapping("/personal-info/{userId}")
-    public SaayamResponse<UserProfileResponse> updatePersonalInfo(
-            @PathVariable String userId,
-            @RequestBody UpdateUserProfileRequest request) {
-        UserProfileResponse response = userService.updatePersonalInfo(userId, request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
+    @PutMapping("/personal-info")
+    public SaayamResponse<PersonalInfoResponse> updatePersonalInfo(
+            @RequestBody UpdatePersonalInfoRequest request) {
+        PersonalInfoResponse response = userService.updatePersonalInfo(request);
+        return responseBuilder.buildSuccessResponse(
+                SaayamStatusCode.USER_ACCOUNT_UPDATED,
+                new Object[]{request.getUserId()},
+                response
+        );
     }
 
 

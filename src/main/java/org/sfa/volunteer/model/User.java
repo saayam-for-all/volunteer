@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.time.LocalDate;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
@@ -92,6 +93,12 @@ public class User {
 
     @Column(name = "last_update_date")
     private ZonedDateTime lastUpdateDate;
+
+    @Column(name = "dob")
+    private LocalDate dob;
+
+    @Column(name = "external_auth_provider")
+    private String externalAuthProvider;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "state_id")

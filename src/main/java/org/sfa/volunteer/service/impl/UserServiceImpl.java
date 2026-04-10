@@ -3,12 +3,10 @@ package org.sfa.volunteer.service.impl;
 import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
+import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.*;
-import org.sfa.volunteer.exception.CountryNotFoundException;
-import org.sfa.volunteer.exception.UserCategoryNotFoundException;
-import org.sfa.volunteer.exception.UserNotFoundException;
-import org.sfa.volunteer.exception.UserOrganizationNotFoundException;
+import org.sfa.volunteer.exception.*;
 import org.sfa.volunteer.model.Country;
 import org.sfa.volunteer.model.Organization;
 import org.sfa.volunteer.model.State;
@@ -31,8 +29,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.sfa.volunteer.dto.response.PersonalInfoResponse;
+import org.sfa.volunteer.model.UserAdditionalDetail;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -382,29 +384,88 @@ import java.util.stream.Collectors;
     }
 
     @Override
-    public UserProfileResponse getPersonalInfoById(String userId) {
+    public PersonalInfoResponse getPersonalInfoById(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-        return mapToUserProfileResponse(user);
+
+        UserAdditionalDetail detail = user.getAdditionalDetail();
+
+        return PersonalInfoResponse.builder()
+                .dateOfBirth(user.getDob() != null
+                        ? user.getDob().format(DateTimeFormatter.ofPattern("MM/dd/yyyy"))
+                        : null)
+                .gender(user.getGender())
+                .addressLine1(user.getAddressLine1())
+                .addressLine2(user.getAddressLine2())
+                .city(user.getCity())
+                .state(user.getState() != null ? user.getState().getStateName() : null)
+                .country(user.getCountry() != null ? user.getCountry().getCountryName() : null)
+                .zipCode(user.getZipCode())
+                .secondaryEmail(detail != null ? detail.getSecondaryEmail1() : null)
+                .secondaryPhone(detail != null ? detail.getSecondaryPhone1() : null)
+                .build();
     }
 
     @Override
-    public UserProfileResponse updatePersonalInfo(String userId, UpdateUserProfileRequest updateRequest) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+    public PersonalInfoResponse updatePersonalInfo(UpdatePersonalInfoRequest updateRequest) {
+        User user = userRepository.findById(updateRequest.getUserId())
+                .orElseThrow(() -> new UserNotFoundException(updateRequest.getUserId()));
 
-        // Update only editable fields for personal info
-        user.setFirstName(updateRequest.firstName());
-        user.setLastName(updateRequest.lastName());
-        user.setPrimaryPhoneNumber(updateRequest.primaryPhoneNumber());
-        user.setAddressLine1(updateRequest.addressLine1());
-        user.setCity(updateRequest.cityName());
-        user.setZipCode(updateRequest.zipCode());
-        user.setGender(updateRequest.gender());
-        user.setTimeZone(updateRequest.timeZone());
+        // Update user fields (only if not null)
+        if (updateRequest.getDateOfBirth() != null) {
+            user.setDob(LocalDate.parse(updateRequest.getDateOfBirth(),
+                    DateTimeFormatter.ofPattern("MM/dd/yyyy")));
+        }
+        if (updateRequest.getGender() != null) {
+            user.setGender(updateRequest.getGender());
+        }
+        if (updateRequest.getAddressLine1() != null) {
+            user.setAddressLine1(updateRequest.getAddressLine1());
+        }
+        if (updateRequest.getAddressLine2() != null) {
+            user.setAddressLine2(updateRequest.getAddressLine2());
+        }
+        if (updateRequest.getCity() != null) {
+            user.setCity(updateRequest.getCity());
+        }
+        if (updateRequest.getZipCode() != null) {
+            user.setZipCode(updateRequest.getZipCode());
+        }
+
+        // Handle state - fetch State entity by name
+        if (updateRequest.getState() != null) {
+            State state = stateRepository.findByStateName(updateRequest.getState())
+                    .orElseThrow(() -> new StateNotFoundException(updateRequest.getState()));
+            user.setState(state);
+        }
+
+        // Handle country - fetch Country entity by name
+        if (updateRequest.getCountry() != null) {
+            Country country = countryRepository.findByCountryName(updateRequest.getCountry())
+                    .orElseThrow(() -> new CountryNotFoundException(updateRequest.getCountry()));
+            user.setCountry(country);
+        }
+
+        // Update additional details
+        UserAdditionalDetail detail = user.getAdditionalDetail();
+        if (detail == null) {
+            detail = new UserAdditionalDetail();
+            detail.setUser(user);
+        }
+
+        if (updateRequest.getSecondaryEmail() != null) {
+            detail.setSecondaryEmail1(updateRequest.getSecondaryEmail());
+        }
+        if (updateRequest.getSecondaryPhone() != null) {
+            detail.setSecondaryPhone1(updateRequest.getSecondaryPhone());
+        }
+
+        user.setAdditionalDetail(detail);
         user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
 
         User updatedUser = userRepository.save(user);
-        return mapToUserProfileResponse(updatedUser);
+
+        // Reuse the getter logic
+        return getPersonalInfoById(updatedUser.getId());
     }
 }
