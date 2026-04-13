@@ -39,5 +39,6 @@ public interface UserService {
     boolean userExists(String userId);
     String getUserIdByEmailForAuth(String email);
 
+    UserPreferenceResponse getUserPreferences(String userId) throws Exception;
     UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception;
 }

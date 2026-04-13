@@ -232,6 +232,11 @@ public class UserController {
         );
     }
 
+    @GetMapping("/{userId}/preferences")
+    public SaayamResponse<UserPreferenceResponse> getUserPreferences(@PathVariable String userId) throws Exception {
+        UserPreferenceResponse response = userService.getUserPreferences(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
     @PutMapping("/{userId}/preferences")
     public SaayamResponse<UserPreferenceResponse> updateUserPreferences(@PathVariable String userId, @Valid @RequestBody UserPreferenceRequest request) throws Exception {
         UserPreferenceResponse response = userService.updateUserPreferences(userId,request);

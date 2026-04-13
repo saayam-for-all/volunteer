@@ -390,6 +390,27 @@ import java.util.stream.Collectors;
     }
 
     @Override
+    public UserPreferenceResponse getUserPreferences(String userId) throws Exception {
+        // fetch User by userId
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        // fetch UserAdditionalDetail
+        UserAdditionalDetail detail = userAdditionalDetailRepository.findByUserId(user.getId());
+
+        return UserPreferenceResponse.builder()
+                .userId(user.getId())
+                .language1(user.getLanguage1())
+                .language2(user.getLanguage2())
+                .language3(user.getLanguage3())
+                .secondaryEmail1(detail != null ? detail.getSecondaryEmail1() : null)
+                .secondaryEmail2(detail != null ? detail.getSecondaryEmail2() : null)
+                .secondaryPhone1(detail != null ? detail.getSecondaryPhone1() : null)
+                .secondaryPhone2(detail != null ? detail.getSecondaryPhone2() : null)
+                .build();
+    }
+
+    @Override
         public UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception {
         // fetch User by userId
          User user = userRepository.findById(userId)
