@@ -400,6 +400,8 @@ import java.util.stream.Collectors;
 
         return UserPreferenceResponse.builder()
                 .userId(user.getId())
+                .userCategoryId(user.getUserCategory() != null ? user.getUserCategory().getUserCategoryId() : null)
+                .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
                 .language1(user.getLanguage1())
                 .language2(user.getLanguage2())
                 .language3(user.getLanguage3())
