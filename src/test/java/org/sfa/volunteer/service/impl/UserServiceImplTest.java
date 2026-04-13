@@ -20,6 +20,7 @@ import org.sfa.volunteer.dto.response.UserPreferenceResponse;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.model.UserAdditionalDetail;
+import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
 import org.sfa.volunteer.repository.UserCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
@@ -80,6 +81,78 @@ class UserServiceImplTest {
         verify(userRepository).save(user);
         verify(userAdditionalDetailRepository).findByUserId(userId);
         verify(userAdditionalDetailRepository).save(any(UserAdditionalDetail.class));
+    }
+
+     @Test
+    void testUpdateUserPreferences_Success_WithExistingDetail() throws Exception {
+        // Arrange
+        String userId = "testUserId";
+        UserPreferenceRequest request = UserPreferenceRequest.builder()
+                .userCategoryId(2)
+                .language1("English")
+                .language2("Spanish")
+                .language3("French")
+                .secondaryEmail1("secondary1@example.com")
+                .secondaryEmail2("secondary2@example.com")
+                .secondaryPhone1("123-456-7890")
+                .secondaryPhone2("098-765-4321")
+                .build();
+
+        User user = User.builder()
+                .id(userId)
+                .language1("Old English")
+                .build();
+
+        UserCategory userCategory = UserCategory.builder()
+                .userCategoryId(2)
+                .userCategory("Volunteer")
+                .build();
+
+        UserAdditionalDetail existingDetail = UserAdditionalDetail.builder()
+                .additionalDetailId(1L)
+                .user(user)
+                .secondaryEmail1("old1@example.com")
+                .build();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userCategoryRepository.findById(2)).thenReturn(Optional.of(userCategory));
+        when(userAdditionalDetailRepository.findByUserId(userId)).thenReturn(existingDetail);
+        when(userRepository.save(any(User.class))).thenReturn(user);
+        when(userAdditionalDetailRepository.save(any(UserAdditionalDetail.class))).thenReturn(existingDetail);
+
+        // Act
+        UserPreferenceResponse response = userService.updateUserPreferences(userId, request);
+
+        // Assert
+        assertNotNull(response);
+        assertEquals(userId, response.userId());
+        assertEquals(2, response.userCategoryId());
+        assertEquals("Volunteer", response.userCategory());
+        assertEquals("English", response.language1());
+        assertEquals("Spanish", response.language2());
+        assertEquals("French", response.language3());
+        assertEquals("secondary1@example.com", response.secondaryEmail1());
+        assertEquals("secondary2@example.com", response.secondaryEmail2());
+        assertEquals("123-456-7890", response.secondaryPhone1());
+        assertEquals("098-765-4321", response.secondaryPhone2());
+
+        verify(userRepository).findById(userId);
+        verify(userCategoryRepository).findById(2);
+        verify(userRepository).save(user);
+        verify(userAdditionalDetailRepository).findByUserId(userId);
+        verify(userAdditionalDetailRepository).save(existingDetail);
+
+        // Verify user fields were updated
+        assertEquals("English", user.getLanguage1());
+        assertEquals("Spanish", user.getLanguage2());
+        assertEquals("French", user.getLanguage3());
+        assertEquals(userCategory, user.getUserCategory());
+
+        // Verify additional detail fields were updated
+        assertEquals("secondary1@example.com", existingDetail.getSecondaryEmail1());
+        assertEquals("secondary2@example.com", existingDetail.getSecondaryEmail2());
+        assertEquals("123-456-7890", existingDetail.getSecondaryPhone1());
+        assertEquals("098-765-4321", existingDetail.getSecondaryPhone2());
     }
 
     @Test
