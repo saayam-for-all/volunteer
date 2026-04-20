@@ -11,5 +11,6 @@ public record VolunteerRequest(
         Boolean termsAndConditions,
         String govtIdPath1,
         String govtIdPath2,
-        List<VolunteerUserAvailabilityRequest> availability) {
+        List<VolunteerUserAvailabilityRequest> availability,
+        Boolean isEmergencyAvailable) {
 }

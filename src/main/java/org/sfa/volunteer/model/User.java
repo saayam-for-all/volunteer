@@ -93,6 +93,9 @@ public class User {
     @Column(name = "last_update_date")
     private ZonedDateTime lastUpdateDate;
 
+    @Column(name = "is_emergency_available")
+    private boolean isEmergencyAvailable;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "state_id")
     @JsonBackReference
@@ -138,6 +141,7 @@ public class User {
                 ", city='" + city + '\'' +
                 ", zipCode='" + zipCode + '\'' +
                 ", lastUpdateDate=" + lastUpdateDate +
+                ", isEmergencyAvailable=" + isEmergencyAvailable +
                 ", state=" + state +
                 ", country=" + country +
                 ", userStatus=" + userStatus +
@@ -152,7 +156,8 @@ public class User {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         User user = (User) o;
-        return Objects.equals(id, user.id) &&
+        return  isEmergencyAvailable == user.isEmergencyAvailable &&
+                Objects.equals(id, user.id) &&
                 Objects.equals(firstName, user.firstName) &&
                 Objects.equals(middleName, user.middleName) &&
                 Objects.equals(lastName, user.lastName) &&
@@ -166,6 +171,6 @@ public class User {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, profilePicturePath, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
+        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, profilePicturePath, primaryPhoneNumber, volunteerStage, volunteerUpdateDate, isEmergencyAvailable);
     }
 }
