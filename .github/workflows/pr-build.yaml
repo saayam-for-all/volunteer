@@ -1,0 +1,84 @@
+name: Build & Deploy Volunteer Microservice
+
+on:
+  push:
+    branches: ["main", "dev", "test"]
+  pull_request:
+    branches: ["main", "dev", "test"]
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: your-private-bucket-name
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Detect build tool (Maven or Gradle)
+      - name: Detect Build Tool
+        id: build-tool
+        run: |
+          if [ -f "pom.xml" ]; then
+            echo "tool=maven" >> $GITHUB_OUTPUT
+          elif [ -f "build.gradle" ]; then
+            echo "tool=gradle" >> $GITHUB_OUTPUT
+          else
+            echo "No supported build tool found" && exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: ${{ steps.build-tool.outputs.tool }}
+
+      # Build with Maven
+      - name: Build with Maven
+        if: steps.build-tool.outputs.tool == 'maven'
+        run: mvn clean package -DskipTests
+
+      # Build with Gradle
+      - name: Build with Gradle
+        if: steps.build-tool.outputs.tool == 'gradle'
+        run: ./gradlew build -x test
+
+      # Identify artifact
+      - name: Locate Artifact
+        id: artifact
+        run: |
+          FILE=$(find target build/libs -name "*.jar" | head -n 1)
+          echo "artifact=$FILE" >> $GITHUB_OUTPUT
+
+      # Configure AWS
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Set environment (main/dev/test)
+      - name: Set Environment
+        id: env
+        run: |
+          BRANCH=${GITHUB_REF##*/}
+          echo "env=$BRANCH" >> $GITHUB_OUTPUT
+
+      # Upload to S3
+      - name: Upload Artifact to S3
+        run: |
+          aws s3 cp ${{ steps.artifact.outputs.artifact }} \
+          s3://${{ env.S3_BUCKET }}/${{ steps.env.outputs.env }}/app.jar
+
+      # Deploy to Lambda
+      - name: Deploy to AWS Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name volunteer-${{ steps.env.outputs.env }} \
+            --s3-bucket ${{ env.S3_BUCKET }} \
+            --s3-key ${{ steps.env.outputs.env }}/app.jar
