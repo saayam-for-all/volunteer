@@ -2,6 +2,7 @@ package org.sfa.volunteer.service;
 
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
+import org.sfa.volunteer.dto.response.VolunteerAvailabilityResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
@@ -34,7 +35,7 @@ public interface VolunteerService {
 
     List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
 
-    List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
+    VolunteerAvailabilityResponse getVolunteerUserAvailability(String userId) throws Exception;
 
 //    UserVolunteerSkillsResponse updateSkills(UserVolunteerSkillsRequest request) throws Exception;
 
