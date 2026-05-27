@@ -1,4 +1,4 @@
-name: Java Spring Boot CI Pipeline
+name: Java CI/CD Pipeline
 
 on:
   push:
@@ -6,13 +6,17 @@ on:
   pull_request:
     branches: ["test", "dev", "main"]
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+env:
+  APP_NAME: volunteer-app
+  AWS_REGION: us-east-1
+  S3_BUCKET: saayam-virginia-private
 
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
@@ -21,10 +25,62 @@ jobs:
           distribution: "temurin"
           cache: "maven"
 
-      # Make sure the wrapper is executable
       - name: Grant execute permission for mvnw
         run: chmod +x mvnw
 
-      # Build, test, and check coverage in one efficient command
+      # CI: This will run tests and enforce 90% coverage via JaCoCo
       - name: Build, Test, and Verify Coverage
         run: ./mvnw clean verify
+
+      # CD: Only runs if the above step passes
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version from pom.xml
+        id: ver
+        shell: bash
+        run: |
+          VERSION_RAW=$(grep -E '<version>.*</version>' pom.xml | grep -v '<modelVersion>' | head -n1 | sed -E 's/.*<version>([^<]+)<\/version>.*/\1/')
+          VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
+          DATE_UTC=$(date -u +%Y%m%d-%H%M)
+          VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
+          echo "version=$VERSION_TAG" >> $GITHUB_OUTPUT
+          echo "archive=${{ env.APP_NAME }}-${VERSION_TAG}.tar.gz" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.APP_NAME }}:${{ steps.ver.outputs.version }} .
+
+      - name: Save image as .tar.gz
+        run: |
+          docker save ${{ env.APP_NAME }}:${{ steps.ver.outputs.version }} | gzip > ${{ steps.ver.outputs.archive }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_VOLUNTEER }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_VOLUNTEER }}
+
+      - name: Upload versioned image
+        run: |
+          aws s3 cp "${{ steps.ver.outputs.archive }}" \
+            "s3://${{ env.S3_BUCKET }}/docker-images/${{ env.APP_NAME }}/dev/versions/${{ steps.ver.outputs.archive }}"
+
+      - name: Upload latest image
+        run: |
+          cp "${{ steps.ver.outputs.archive }}" "${{ env.APP_NAME }}-latest.tar.gz"
+          aws s3 cp "${{ env.APP_NAME }}-latest.tar.gz" \
+            "s3://${{ env.S3_BUCKET }}/docker-images/${{ env.APP_NAME }}/dev/latest/${{ env.APP_NAME }}-latest.tar.gz"
+
+      - name: Keep only last 3 versioned images
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUCKET="${{ env.S3_BUCKET }}"
+          PREFIX="docker-images/${{ env.APP_NAME }}/dev/versions/"
+          KEYS=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIX" --query 'reverse(sort_by(Contents[?ends_with(Key, `.tar.gz`)], &LastModified))[].Key' --output text)
+          if [ -z "$KEYS" ]; then exit 0; fi
+          KEYS_NL=$(echo "$KEYS" | tr '\t' '\n')
+          TO_DELETE=$(echo "$KEYS_NL" | tail -n +4)
+          while IFS= read -r key; do [ -z "$key" ] && continue; aws s3 rm "s3://$BUCKET/$key" || true; done <<< "$TO_DELETE"
