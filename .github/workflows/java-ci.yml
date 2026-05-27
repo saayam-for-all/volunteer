@@ -25,12 +25,9 @@ jobs:
           distribution: "temurin"
           cache: "maven"
 
-      - name: Grant execute permission for mvnw
-        run: chmod +x mvnw
-
-      # CI: This will run tests and enforce 90% coverage via JaCoCo
+      # CI: Use 'mvn' directly since the wrapper files are not present in your repo
       - name: Build, Test, and Verify Coverage
-        run: ./mvnw clean verify
+        run: mvn clean verify
 
       # CD: Only runs if the above step passes
       - name: Set up Docker Buildx
