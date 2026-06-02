@@ -7,8 +7,10 @@ import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.VolunteerAvailabilityResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
+import org.sfa.volunteer.exception.AvailabilityErrorMessages;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.exception.VolunteerException;
 import org.sfa.volunteer.model.User;
@@ -23,10 +25,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,7 +45,9 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     // private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
 
@@ -191,9 +199,17 @@ public class VolunteerServiceImpl implements VolunteerService {
 
         volunteer.setUser(user);
 
-        // Convert request.availability -> availability_days + availability_times JSONB
+        //get availability slots
         List<VolunteerUserAvailabilityRequest> avail = Optional.ofNullable(request.availability())
                 .orElse(Collections.emptyList());
+
+        // validate the slots
+        List<String> errors = new ArrayList<>();
+        validateEndAfterStart(avail, errors);
+        validateNoOverlaps(avail, errors);
+        if (!errors.isEmpty()) {
+            throw VolunteerException.validationFailed(errors);
+        }
 
         ArrayNode days = MAPPER.createArrayNode();
         Set<String> uniqueDays = new LinkedHashSet<>();
@@ -209,10 +225,74 @@ public class VolunteerServiceImpl implements VolunteerService {
         volunteer.setAvailabilityTimes(times);
 
         volunteer = volunteerRepository.save(volunteer);
+
+
+        updateVolunteerUserAvailability(request.userId(), avail);
+
+        if (request.isEmergencyAvailable() != null) {
+            user.setEmergencyAvailable(request.isEmergencyAvailable());
+        }
+
         updateUser(user, request.step());
 
         return mapToVolunteerResponse(volunteer);
     }
+
+    private void validateEndAfterStart(List<VolunteerUserAvailabilityRequest> avail,
+                                       List<String> errors) {
+        for (int i = 0; i < avail.size(); i++) {
+            VolunteerUserAvailabilityRequest slot = avail.get(i);
+
+            //  missing fields check first
+            if (slot.startTime() == null || slot.endTime() == null) {
+                errors.add(String.format(
+                        "Slot %d (%s): %s",
+                        i + 1,
+                        slot.dayOfWeek(),
+                        AvailabilityErrorMessages.MISSING_TIME_FIELDS
+                ));
+                continue; // skip end>start check if times are missing
+            }
+
+            //  end must be strictly after start
+            if (!slot.endTime().isAfter(slot.startTime())) {
+                errors.add(String.format(
+                        "Slot %d (%s): %s",
+                        i + 1,
+                        slot.dayOfWeek(),
+                        AvailabilityErrorMessages.END_BEFORE_START
+                ));
+            }
+        }
+    }
+
+    private void validateNoOverlaps(List<VolunteerUserAvailabilityRequest> avail,
+                                    List<String> errors) {
+        Map<String, List<VolunteerUserAvailabilityRequest>> byDay = avail.stream()
+                .filter(a -> a.dayOfWeek() != null)
+                .collect(Collectors.groupingBy(VolunteerUserAvailabilityRequest::dayOfWeek));
+
+        byDay.forEach((day, slots) -> {
+            for (int i = 0; i < slots.size(); i++) {
+                for (int j = i + 1; j < slots.size(); j++) {
+                    if (overlaps(slots.get(i), slots.get(j))) {
+                        errors.add(String.format(
+                                AvailabilityErrorMessages.SLOT_OVERLAP,
+                                day
+                        ));
+                    }
+                }
+            }
+        });
+    }
+    private boolean overlaps(VolunteerUserAvailabilityRequest a,
+                             VolunteerUserAvailabilityRequest b) {
+        if (a.startTime() == null || a.endTime() == null ||
+                b.startTime() == null || b.endTime() == null) return false;
+
+        return a.startTime().isBefore(b.endTime()) && a.endTime().isAfter(b.startTime());
+    }
+
 
     @Override
     public List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId,
@@ -225,6 +305,12 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw VolunteerException.volunteerNotFound(userId);
         }
 
+        List<VolunteerUserAvailability> existingSlots = userAvailabilityRepository.findUserAvailability(userId);
+
+        if(!existingSlots.isEmpty()){
+            userAvailabilityRepository.deleteAll(existingSlots);
+        }
+
         List<VolunteerUserAvailability> userAvailabilityList = request.stream()
                 .map(req -> mapToVolunteerUserAvailability(req, user)).collect(Collectors.toList());
 
@@ -235,7 +321,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     @Override
-    public List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) {
+    public VolunteerAvailabilityResponse getVolunteerUserAvailability(String userId) {
         Volunteer volunteer = volunteerRepository.findById(userId)
                 .orElseThrow(() -> {
                     try {
@@ -245,7 +331,29 @@ public class VolunteerServiceImpl implements VolunteerService {
                     }
                 });
 
-        return toAvailabilityResponses((JsonNode) volunteer.getAvailabilityTimes(), userId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        List<VolunteerUserAvailability> slots =
+                userAvailabilityRepository.findUserAvailability(userId);
+
+        List<VolunteerUserAvailabilityResponse> responseList = slots.stream()
+                .map(entity -> new VolunteerUserAvailabilityResponse(
+                        entity.getId(),
+                        userId,
+                        entity.getDayOfWeek(),
+                        entity.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm")),
+                        entity.getEndTime().format(DateTimeFormatter.ofPattern("HH:mm")),
+                        entity.getLastUpdateDate()
+                ))
+                .collect(Collectors.toList());
+
+        return new VolunteerAvailabilityResponse(
+                userId,
+                user.isEmergencyAvailable(),
+                responseList.size(),
+                responseList
+        );
     }
 
     private List<VolunteerUserAvailabilityResponse> toAvailabilityResponses(JsonNode availabilityTimes, String userId) {
@@ -262,9 +370,9 @@ public class VolunteerServiceImpl implements VolunteerService {
                         .id(r.id())
                         .userId(userId)
                         .dayOfWeek(r.dayOfWeek())
-                        .startTime(r.startTime() == null ? null : r.startTime().atZone(ZoneId.of("UTC")))
-                        .endTime(r.endTime() == null ? null : r.endTime().atZone(ZoneId.of("UTC")))
-                        .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
+                        .startTime(r.startTime() == null ? null : r.startTime().format(DateTimeFormatter.ofPattern("HH:mm")))
+                        .endTime(r.endTime() == null ? null : r.endTime().format(DateTimeFormatter.ofPattern("HH:mm")))
+                        .lastUpdateDate(LocalDateTime.now())
                         .build()
                 )
                 .collect(Collectors.toList());
@@ -376,8 +484,8 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .id(availability.getId())
                 .userId(availability.getUser().getId())
                 .dayOfWeek(availability.getDayOfWeek())
-                .startTime(availability.getStartTime())
-                .endTime(availability.getEndTime())
+                .startTime(availability.getStartTime()== null ? null : availability.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm")))
+                .endTime(availability.getEndTime() == null ? null : availability.getEndTime().format(DateTimeFormatter.ofPattern("HH:mm")))
                 .lastUpdateDate(availability.getLastUpdateDate())
                 .build();
     }
@@ -387,9 +495,9 @@ public class VolunteerServiceImpl implements VolunteerService {
         return VolunteerUserAvailability.builder()
                 .user(user)
                 .dayOfWeek(request.dayOfWeek())
-                .startTime(ZonedDateTime.from(request.startTime()))
-                .endTime(ZonedDateTime.from(request.endTime()))
-                //.lastUpdateDate(request.lastUpdateDate())
+                .startTime(request.startTime())
+                .endTime(request.endTime())
+                .lastUpdateDate(LocalDateTime.now())
                 .build();
     }
 }

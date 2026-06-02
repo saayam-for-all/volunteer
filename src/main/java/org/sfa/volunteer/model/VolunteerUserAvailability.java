@@ -7,7 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Objects;
 
 @Entity
@@ -23,22 +24,22 @@ public class VolunteerUserAvailability {
     @Column(name = "user_availability_id", nullable = false)
     private Integer id;
 
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonBackReference
     private User user;
 
-    @Column(name = "day_of_week")
+    @Column(name = "day_of_week",nullable = false,length = 10)
     private String dayOfWeek;
 
-    @Column(name = "start_time")
-    private ZonedDateTime startTime;
+    @Column(name = "start_time",nullable = false)
+    private LocalTime startTime;
 
-    @Column(name = "end_time")
-    private ZonedDateTime endTime;
+    @Column(name = "end_time", nullable = false)
+    private LocalTime endTime;
 
     @Column(name = "last_update_date")
-    private ZonedDateTime lastUpdateDate;
+    private LocalDateTime lastUpdateDate;
 
     @Override
     public String toString() {
