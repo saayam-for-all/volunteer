@@ -148,6 +148,7 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                    <skip>true</skip>
                 </configuration>
             </plugin>
 
@@ -157,6 +158,11 @@
                 <version>3.6.0</version>
                 <configuration>
                     <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <shadedArtifactAttached>true</shadedArtifactAttached>
+                    <shadedClassifierName>lambda</shadedClassifierName>
+                    <transformers>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                    </transformers>
                 </configuration>
                 <executions>
                     <execution>
