@@ -148,8 +148,18 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
-                    <skip>true</skip>
                 </configuration>
+                <executions>
+                    <execution>
+                        <id>repackage</id>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                        <configuration>
+                            <skip>true</skip>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>
