@@ -2,7 +2,9 @@ package org.sfa.volunteer.controller;
 import jakarta.validation.Valid;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.NotificationRequest;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.response.NotificationCountResponse;
 import org.sfa.volunteer.dto.response.NotificationPaginationResponse;
 import org.sfa.volunteer.dto.response.NotificationsResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
@@ -26,6 +28,9 @@ import java.time.LocalDateTime;
 @RestController
 @RequestMapping("/0.0.1/volunteers")
 public class VolunteerController {
+    private static final int DEFAULT_NOTIFICATION_PAGE = 0;
+    private static final int DEFAULT_NOTIFICATION_SIZE = 10;
+
     private final VolunteerService volunteerService;
     private final ResponseBuilder responseBuilder;
 
@@ -91,10 +96,16 @@ public class VolunteerController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
-    @GetMapping("/count/{userId}")
+    @PostMapping("/count/{userId}")
     public SaayamResponse<Long> getNotificationsCount(@PathVariable String userId) {
         Long notificationCount = volunteerService.getNotificationsCountAfterLastAccessed(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, notificationCount);
+    }
+
+    @PostMapping("/getNotificationsCount")
+    public SaayamResponse<NotificationCountResponse> getNotificationsCount(@Valid @RequestBody NotificationRequest request) {
+        Long notificationCount = volunteerService.getNotificationsCountAfterLastAccessed(request.userId());
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new NotificationCountResponse(notificationCount));
     }
 
     //    Need to test this
@@ -105,13 +116,32 @@ public class VolunteerController {
 //        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, notificationsList);
 //    }
 
-    @GetMapping("/getNotifications/{userId}")
+    @PostMapping("/getNotifications/{userId}")
     public SaayamResponse<NotificationPaginationResponse<NotificationsResponse>> getAllNotifications(@PathVariable String userId, @RequestParam int page, @RequestParam int size, @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime refTime) throws Exception {
         try{
             NotificationPaginationResponse<NotificationsResponse> notificationsList = volunteerService.getNotificationsList(userId, page, size, refTime);
             return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, notificationsList);
         } catch (VolunteerException e){
             return  responseBuilder.buildErrorResponse(500, SaayamStatusCode.BAD_REQUEST, e.getMessage());
+        }
     }
-}
+
+    @PostMapping("/getNotificationsList")
+    public SaayamResponse<NotificationPaginationResponse<NotificationsResponse>> getAllNotifications(
+            @Valid @RequestBody NotificationRequest request,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            @RequestParam(value = "clientRefTime", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime clientRefTime) throws Exception {
+        int pageNumber = request.page() != null ? request.page() : (page != null ? page : DEFAULT_NOTIFICATION_PAGE);
+        int pageSize = request.size() != null ? request.size() : (size != null ? size : DEFAULT_NOTIFICATION_SIZE);
+        LocalDateTime referenceTime = request.clientRefTime() != null ? request.clientRefTime() : clientRefTime;
+
+        try{
+            NotificationPaginationResponse<NotificationsResponse> notificationsList = volunteerService.getNotificationsList(request.userId(), pageNumber, pageSize, referenceTime);
+            return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, notificationsList);
+        } catch (VolunteerException e){
+            return  responseBuilder.buildErrorResponse(500, SaayamStatusCode.BAD_REQUEST, e.getMessage());
+        }
+    }
 }
