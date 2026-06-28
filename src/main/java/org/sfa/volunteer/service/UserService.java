@@ -17,6 +17,8 @@ public interface UserService {
 
     AddressStatusResponse getAddressStatus(String userId);
 
+    boolean doesUserHavePIIData(String userId);
+
     UserProfileResponse getUserProfileByEmail(String email);
 
     CreateUserResponse createUser(CreateUserRequest createUserRequest);

@@ -229,4 +229,10 @@ public class UserController {
         );
     }
 
+    @GetMapping("/{userId}/pii-check")
+    public SaayamResponse<Boolean> doesUserHavePIIData(@PathVariable String userId) {
+        boolean result = userService.doesUserHavePIIData(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_PII_DATA_CHECK, new Object[]{userId}, result);
+    }
+
 }
