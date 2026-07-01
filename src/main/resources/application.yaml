@@ -28,6 +28,6 @@ zoom:
   api:
     base-url: ${ZOOM_API_BASE_URL:https://api.zoom.us/v2}
   oauth:
-    account-id: ${ZOOM_OAUTH_ACCOUNT_ID:FrIX-rRjQS26Hko2lZK3Qw}
-    client-id: ${ZOOM_OAUTH_CLIENT_ID:1okPmS2SSUm0awcTf1z1GQ}
-    client-secret: ${ZOOM_OAUTH_CLIENT_SECRET:AQpU5LBhUeTpsfhUZ5ZFL2JGkv5gE8M4}
+    account-id: ${ZOOM_OAUTH_ACCOUNT_ID:placeholder-account-id}
+    client-id: ${ZOOM_OAUTH_CLIENT_ID:placeholder-client-id}
+    client-secret: ${ZOOM_OAUTH_CLIENT_SECRET:placeholder-client-secret}
