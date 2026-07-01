@@ -1,15 +1,33 @@
 cors:
-  allowed-origin: <application-url>
-  allowed-methods: GET, POST, PUT, DELETE, OPTIONS
-  allowed-headers: Authorization
-  allow-credentials: true
+  allowed:
+    origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
+    methods: GET, POST, PUT, DELETE, OPTIONS
+    headers: ${CORS_ALLOWED_HEADERS:Authorization, Content-Type}
+    credentials: true
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/saayam
-    username: <username>
-    password: <password>
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/saayam}
+    username: ${SPRING_DATASOURCE_USERNAME:saayam}
+    password: ${SPRING_DATASOURCE_PASSWORD:saayam123}
   jpa:
     hibernate:
       ddl-auto: update
     open-in-view: false
+  mail:
+    host: ${SPRING_MAIL_HOST:localhost}
+    port: ${SPRING_MAIL_PORT:1025}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_SMTP_AUTH:false}
+          starttls:
+            enable: ${SPRING_MAIL_SMTP_STARTTLS:false}
+
+zoom:
+  api:
+    base-url: ${ZOOM_API_BASE_URL:https://api.zoom.us/v2}
+  oauth:
+    account-id: ${ZOOM_OAUTH_ACCOUNT_ID:FrIX-rRjQS26Hko2lZK3Qw}
+    client-id: ${ZOOM_OAUTH_CLIENT_ID:1okPmS2SSUm0awcTf1z1GQ}
+    client-secret: ${ZOOM_OAUTH_CLIENT_SECRET:AQpU5LBhUeTpsfhUZ5ZFL2JGkv5gE8M4}
