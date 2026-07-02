@@ -1,5 +1,6 @@
 package org.sfa.volunteer.service;
 
+import org.sfa.volunteer.dto.request.ValidateProfileRequest;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
@@ -35,6 +36,8 @@ public interface UserService {
     SignOffResponse signOffUser(String userId, String reason);
 
     UserIdResponse getUserIdByEmail(String email);
+    
+    ProfileValidationResponse validateProfile(ValidateProfileRequest request);
 
     // Profile Pic Upload
     // AWS (S3 URI <-> DB)

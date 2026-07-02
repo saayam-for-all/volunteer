@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.ValidateProfileRequest;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
@@ -123,6 +124,18 @@ public class UserController {
         OrganizationResponse organization = userService.getOrganizationByUserId(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, organization);
     }
+    
+    @PostMapping("/validateProfile")
+    public SaayamResponse<ProfileValidationResponse> validateProfile(
+            @Valid @RequestBody ValidateProfileRequest request) {
+
+        ProfileValidationResponse response = userService.validateProfile(request);
+        return responseBuilder.buildSuccessResponse(
+                SaayamStatusCode.PROFILE_VALIDATION_CHECK,
+                response
+        );
+    }
+    
     /* Profile Pic Upload */
     // Helper
     private String regionHint(HttpServletRequest req) {
