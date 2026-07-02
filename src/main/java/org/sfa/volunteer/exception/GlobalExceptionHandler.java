@@ -1,12 +1,18 @@
 package org.sfa.volunteer.exception;
 
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
+
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -103,7 +109,21 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseBody
+    public ResponseEntity<SaayamResponse<Void>> handleIllegalArgumentException(
+            IllegalArgumentException exception) {
 
+        log.error("Illegal argument exception: {}", exception.getMessage());
+
+        SaayamResponse<Void> response = responseBuilder.buildErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                SaayamStatusCode.BAD_REQUEST,
+                exception.getMessage()
+        );
+
+        return ResponseEntity.badRequest().body(response);
+    }
 
 
 //    @ExceptionHandler(Exception.class)

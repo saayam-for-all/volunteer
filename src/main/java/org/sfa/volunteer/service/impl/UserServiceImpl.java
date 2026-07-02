@@ -1,6 +1,8 @@
 package org.sfa.volunteer.service.impl;
 
 import jakarta.transaction.Transactional;
+
+import org.sfa.volunteer.dto.request.ValidateProfileRequest;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
@@ -35,6 +37,7 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -382,4 +385,41 @@ import java.util.stream.Collectors;
                 userId
         );
     }
+    
+    @Override
+    public ProfileValidationResponse validateProfile(ValidateProfileRequest request) {
+    	String userId = request.userId();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        List<String> missingFields = new ArrayList<>();
+
+        if (user.getFirstName() == null || user.getFirstName().trim().isEmpty()) {
+            missingFields.add("firstName");
+        }
+
+        if (user.getLastName() == null || user.getLastName().trim().isEmpty()) {
+            missingFields.add("lastName");
+        }
+
+        if (user.getPrimaryEmailAddress() == null || user.getPrimaryEmailAddress().trim().isEmpty()) {
+            missingFields.add("email");
+        }
+
+        if (user.getPrimaryPhoneNumber() == null || user.getPrimaryPhoneNumber().trim().isEmpty()) {
+            missingFields.add("phone");
+        }
+
+        if (user.getCountry() == null || user.getCountry().getCountryName() == null
+                || user.getCountry().getCountryName().trim().isEmpty()) {
+            missingFields.add("country");
+        }
+
+        return ProfileValidationResponse.builder()
+                .profileComplete(missingFields.isEmpty())
+                .userId(user.getId())
+                .missingFields(missingFields)
+                .build();
+    }
+    
 }
