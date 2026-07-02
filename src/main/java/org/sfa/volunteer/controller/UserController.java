@@ -32,6 +32,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Base64;
 import java.util.Map;
+import org.sfa.volunteer.dto.request.UserPreferenceRequest;
+import org.sfa.volunteer.dto.response.UserPreferenceResponse;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
 
 @RestController
 @RequestMapping("/0.0.1/users")
@@ -143,6 +146,22 @@ public class UserController {
     private static final String HDR_CALLER_USER_ID = "X-Caller-UserId";
     private static final String HDR_CALLER_GROUPS  = "X-Caller-Groups"; // "admins,superadmins"
 
+    private void requireAdmin(HttpServletRequest req) {
+        String callerUserId = req.getHeader(HDR_CALLER_USER_ID);
+
+        if (callerUserId == null || callerUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Missing caller identity");
+        }
+
+        if (!userService.userExists(callerUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User does not exist");
+        }
+
+        if (!userService.isAdminUser(callerUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not an admin");
+        }
+    }
+
     private void authorize(HttpServletRequest req, String targetUserId) {
         String callerUserId = req.getHeader(HDR_CALLER_USER_ID);
         String groups = req.getHeader(HDR_CALLER_GROUPS);
@@ -240,6 +259,23 @@ public class UserController {
                 new Object[]{userId},
                 response
         );
+    }
+
+    @GetMapping("/search")
+    public SaayamResponse<PaginationResponse<UserProfileResponse>> searchUsers(
+            @RequestParam("q") String query,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest req
+    ) {
+        requireAdmin(req);
+        PaginationResponse<UserProfileResponse> response = userService.searchUsers(query, page, size);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{query, page, size}, response);
+    }
+    @PutMapping("/{userId}/preferences")
+    public SaayamResponse<UserPreferenceResponse> updateUserPreferences(@PathVariable String userId, @Valid @RequestBody UserPreferenceRequest request) throws Exception {
+        UserPreferenceResponse response = userService.updateUserPreferences(userId,request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
 }

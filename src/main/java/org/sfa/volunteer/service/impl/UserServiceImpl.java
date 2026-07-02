@@ -6,6 +6,7 @@ import org.sfa.volunteer.dto.request.ValidateProfileRequest;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.*;
 import org.sfa.volunteer.exception.CountryNotFoundException;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
@@ -15,6 +16,7 @@ import org.sfa.volunteer.model.Country;
 import org.sfa.volunteer.model.Organization;
 import org.sfa.volunteer.model.State;
 import org.sfa.volunteer.model.User;
+import org.sfa.volunteer.model.UserAdditionalDetail;
 import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserSignOffReason;
 import org.sfa.volunteer.model.UserStatus;
@@ -25,6 +27,7 @@ import org.sfa.volunteer.repository.UserCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserSignOffReasonRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
+import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
 import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +56,7 @@ import java.util.stream.Collectors;
     private final UserCategoryRepository userCategoryRepository;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
+    private final UserAdditionalDetailRepository userAdditionalDetailRepository;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -72,7 +76,8 @@ import java.util.stream.Collectors;
             UserCategoryRepository userCategoryRepository,
             CountryRepository countryRepository,
             StateRepository stateRepository,
-            UserSignOffReasonRepository userSignOffReasonRepository) {
+            UserSignOffReasonRepository userSignOffReasonRepository,
+            UserAdditionalDetailRepository userAdditionalDetailRepository) {
 
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
@@ -81,6 +86,7 @@ import java.util.stream.Collectors;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
         this.userSignOffReasonRepository = userSignOffReasonRepository;
+        this.userAdditionalDetailRepository = userAdditionalDetailRepository;
     }
 
     @Override
@@ -176,6 +182,55 @@ import java.util.stream.Collectors;
                 .hasNextPage(userPage.hasNext())
                 .hasPreviousPage(userPage.hasPrevious())
                 .build();
+    }
+
+    @Override
+    public PaginationResponse<UserProfileResponse> searchUsers(String query, Integer pageNumber, Integer pageSize) {
+        if (query == null || query.isBlank()) {
+            return PaginationResponse.<UserProfileResponse>builder()
+                    .currentPage(0)
+                    .pageSize(0)
+                    .totalPages(0)
+                    .totalItems(0)
+                    .items(List.of())
+                    .hasNextPage(false)
+                    .hasPreviousPage(false)
+                    .build();
+        }
+
+        int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;
+        int pageSizeNum = (pageSize == null) ? DEFAULT_SIZE : pageSize;
+        Pageable pageable = PageRequest.of(pageNum, pageSizeNum);
+
+        String q = "%" + query.trim().toLowerCase() + "%";
+        Page<User> userPage = userRepository.searchUsers(q, pageable);
+
+        List<UserProfileResponse> userProfiles = userPage.stream()
+                .map(this::mapToUserProfileResponse)
+                .collect(Collectors.toList());
+
+        return PaginationResponse.<UserProfileResponse>builder()
+                .currentPage(userPage.getNumber())
+                .pageSize(userPage.getSize())
+                .totalPages(userPage.getTotalPages())
+                .totalItems(userPage.getTotalElements())
+                .items(userProfiles)
+                .hasNextPage(userPage.hasNext())
+                .hasPreviousPage(userPage.hasPrevious())
+                .build();
+    }
+
+    @Override
+    public boolean isAdminUser(String userId) {
+        if (userId == null || userId.isBlank()) return false;
+
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return false;
+
+        String category = (user.getUserCategory() == null) ? null : user.getUserCategory().getUserCategory();
+
+        if (category != null && category.toLowerCase().contains("admin")) return true;
+        return false;
     }
 
     @Override
@@ -422,4 +477,41 @@ import java.util.stream.Collectors;
                 .build();
     }
     
+
+    @Override
+        public UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception {
+        // fetch User by userId
+         User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+
+            // update language prefs
+            user.setLanguage1(request.language1());
+            user.setLanguage2(request.language2());
+            user.setLanguage3(request.language3());
+            userRepository.save(user);
+
+            // fetch UserAdditionalDetail
+            UserAdditionalDetail detail = userAdditionalDetailRepository.findByUserId(user.getId());
+            if(detail == null) {
+                detail = new UserAdditionalDetail();
+                detail.setUser(user);
+            }
+            detail.setSecondaryEmail1(request.secondaryEmail1());
+            detail.setSecondaryEmail2(request.secondaryEmail2());
+            detail.setSecondaryPhone1(request.secondaryPhone1());
+            detail.setSecondaryPhone2(request.secondaryPhone2());
+            userAdditionalDetailRepository.save(detail);
+
+            return UserPreferenceResponse.builder()
+                    .userId(user.getId())
+                    .language1(user.getLanguage1())
+                    .language2(user.getLanguage2())
+                    .language3(user.getLanguage3())
+                    .secondaryEmail1(detail.getSecondaryEmail1())
+                    .secondaryEmail2(detail.getSecondaryEmail2())
+                    .secondaryPhone1(detail.getSecondaryPhone1())
+                    .secondaryPhone2(detail.getSecondaryPhone2())
+                    .build();
+    }
 }

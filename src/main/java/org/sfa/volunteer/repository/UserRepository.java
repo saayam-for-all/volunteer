@@ -1,6 +1,8 @@
 package org.sfa.volunteer.repository;
 
 import org.sfa.volunteer.model.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -19,7 +21,15 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findFirstByPrimaryEmailAddressOrderByLastUpdateDateDesc(String email);
     // fallback if lastUpdateDate is null/old data
     Optional<User> findFirstByPrimaryEmailAddressOrderByIdDesc(String email);
-    
-    @Query("SELECT u FROM User u LEFT JOIN FETCH u.country WHERE u.id = :userId")
-    Optional<User> findByIdWithCountry(@Param("userId") String userId);
+
+    @Query("""
+            select u from User u
+            where
+              lower(coalesce(u.fullName, '')) like :q
+              or lower(coalesce(u.primaryEmailAddress, '')) like :q
+              or coalesce(u.primaryPhoneNumber, '') like :q
+              or lower(concat(coalesce(u.firstName, ''), ' ', coalesce(u.lastName, ''))) like :q
+              or lower(concat(coalesce(u.lastName, ''), ' ', coalesce(u.firstName, ''))) like :q
+            """)
+    Page<User> searchUsers(@Param("q") String q, Pageable pageable);
 }
