@@ -1,14 +1,15 @@
 cors:
-  allowed-origin: <application-url>
-  allowed-methods: GET, POST, PUT, DELETE, OPTIONS
-  allowed-headers: Authorization
-  allow-credentials: true
+  allowed:
+    origin: http://localhost:3000
+    methods: GET, POST, PUT, DELETE, OPTIONS
+    headers: Authorization
+    credentials: true
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/saayam
-    username: <username>
-    password: <password>
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/saayam}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
   jpa:
     hibernate:
       ddl-auto: update
