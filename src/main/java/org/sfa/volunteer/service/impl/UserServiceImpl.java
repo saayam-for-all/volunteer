@@ -265,8 +265,16 @@ import java.util.stream.Collectors;
         );
     }
 
-
-
+    @Override
+    public boolean doesUserHavePIIData(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        return StringUtils.hasText(user.getFirstName())
+                && StringUtils.hasText(user.getLastName())
+                && StringUtils.hasText(user.getPrimaryEmailAddress())
+                && StringUtils.hasText(user.getPrimaryPhoneNumber())
+                && user.getCountry() != null;
+    }
 
     @Override
     public UserProfileResponse getUserProfileByEmail(String email) {
