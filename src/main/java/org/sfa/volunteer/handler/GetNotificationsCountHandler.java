@@ -10,6 +10,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.NotificationRequest;
 import org.sfa.volunteer.dto.response.NotificationCountResponse;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.MessageSourceUtil;
@@ -40,11 +41,18 @@ public class GetNotificationsCountHandler implements RequestHandler<APIGatewayPr
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent requestEvent, Context context) {
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
         try{
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
+            String lang = Optional.ofNullable(requestEvent.getHeaders())
+                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
+                    .orElse("en");
             Locale locale = Locale.forLanguageTag(lang);
+            NotificationRequest bodyRequest = parseBodyRequest(requestEvent);
             String userId = Optional.ofNullable(requestEvent.getPathParameters())
                     .map(p -> p.get("userId"))
-                    .orElseThrow(() -> new RuntimeException("Missing path parameter 'userId'"));
+                    .filter(id -> !id.isBlank())
+                    .orElse(bodyRequest != null ? bodyRequest.userId() : null);
+            if (userId == null || userId.isBlank()) {
+                throw new RuntimeException("Missing userId");
+            }
 
             Long notificationsCount = volunteerService.getNotificationsCountAfterLastAccessed(userId);
             NotificationCountResponse notificationCountResponse = new NotificationCountResponse(notificationsCount);
@@ -75,5 +83,12 @@ public class GetNotificationsCountHandler implements RequestHandler<APIGatewayPr
 
 
         return response;
+    }
+
+    private NotificationRequest parseBodyRequest(APIGatewayProxyRequestEvent requestEvent) throws Exception {
+        if (requestEvent.getBody() == null || requestEvent.getBody().isBlank()) {
+            return null;
+        }
+        return objectMapper.readValue(requestEvent.getBody(), NotificationRequest.class);
     }
 }
