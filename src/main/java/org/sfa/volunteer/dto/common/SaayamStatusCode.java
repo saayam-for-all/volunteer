@@ -19,6 +19,7 @@ public enum SaayamStatusCode {
     VOLUNTEER_CREATED("SAAAYAM-1208"),
     VOLUNTEER_UPDATED("SAAAYAM-1209"),
     VOLUNTEER_EXISTS("SAAAYAM-1210"),
+    MEETING_CREATED("SAAAYAM-1211"),
 
 
     // Client error codes (1300-1349)

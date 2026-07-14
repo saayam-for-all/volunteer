@@ -5,7 +5,7 @@ import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-@Component
+@Component("saayamResponseBuilder")
 public class ResponseBuilder {
 
     private final MessageSourceUtil messageSourceUtil;

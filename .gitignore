@@ -83,3 +83,5 @@ lib/
 # Generated files
 dist/
 tmp/
+
+application.properties
