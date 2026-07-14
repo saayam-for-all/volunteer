@@ -14,6 +14,7 @@ Saayam For All - Volunteer Service is a Java-based backend service designed to m
 - **Internationalization Support**
 - **Database Repository Integration**
 - **Docker and Kubernetes Deployment Ready**
+- **Distributed Tracing with Zipkin and Sleuth**
 
 ## Technologies Used
 - 🛠 **Spring Boot** - Backend Framework
@@ -91,6 +92,7 @@ Includes unit and integration tests for application components.
 - ⚙️ Maven 3.8+
 - 🐳 Docker (optional, for containerized deployment)
 - ☸️ Kubernetes (optional, for cloud deployment)
+- 📡 Zipkin Server (optional, for distributed tracing)
 
 ### Clone Repository
 ```sh
@@ -109,6 +111,24 @@ mvn spring-boot:run
 docker build -t saayam-volunteer .
 docker run -p 8080:8080 saayam-volunteer
 ```
+
+### Configure Zipkin and Sleuth
+1. **Run Zipkin**:
+   You can start a Zipkin server locally using one of the following methods:
+
+   - **Using Docker**:
+     ```bash
+     docker run -d -p 9411:9411 openzipkin/zipkin
+     ```
+
+   - **Using JAR File**:
+     Download the Zipkin server JAR from [Zipkin Releases](https://zipkin.io/pages/quickstart) and run it:
+     ```bash
+     java -jar zipkin-server-<version>.jar
+     ```
+
+2. **Verify Tracing**:
+   Once the server is running, access the Zipkin UI at `http://localhost:9411` to view traces.
 
 ## API Documentation
 Once the application is running, Swagger API documentation is available at:
