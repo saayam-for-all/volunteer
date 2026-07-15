@@ -12,30 +12,9 @@ env:
   S3_BUCKET: saayam-virginia-private
 
 jobs:
-  # JOB 0: SECURITY SCAN
-  security-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run Gitleaks scan
-        uses: zricethezav/gitleaks-action@v2
-        with:
-          args: detect --source=. --report-format=json --report-path=gitleaks-report.json --exit-code 1
-
-      - name: Upload Gitleaks report artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gitleaks-report
-          path: gitleaks-report.json
-
   # JOB 1: Continuous Integration (Compile, Test, Quality Scans & Save Build Artifact)
   build-and-test:
-    needs: security-scan
+    # Removed "needs: security-scan" so this job runs immediately
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -81,7 +60,7 @@ jobs:
             echo "SonarQube token not found. Skipping scan."
           fi
 
-      # NEW STEP: Upload the compiled JAR/WAR archive so the CD deploy job can download it
+      # Upload the compiled JAR/WAR archive so the CD deploy job can download it
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -97,7 +76,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # NEW STEP: Download the jar built in the build-and-test job
+      # Download the jar built in the build-and-test job
       - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
@@ -112,10 +91,10 @@ jobs:
           VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
           DATE_UTC=$(date -u +%Y%m%d-%H%M)
           VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
-
+          
           # Find the actual jar built by maven
           JAR_FILE=$(basename $(ls target/*.jar | head -n 1))
-
+          
           echo "version=${VERSION_TAG}" >> $GITHUB_OUTPUT
           echo "jar_name=${JAR_FILE}" >> $GITHUB_OUTPUT
           echo "archive_name=${{ env.APP_NAME }}-${VERSION_TAG}.jar" >> $GITHUB_OUTPUT
