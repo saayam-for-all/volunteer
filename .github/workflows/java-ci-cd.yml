@@ -12,8 +12,30 @@ env:
   S3_BUCKET: saayam-virginia-private
 
 jobs:
-  # JOB 1: Continuous Integration (Compile, Test, Quality Scans)
+  # JOB 0: SECURITY SCAN
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks scan
+        uses: zricethezav/gitleaks-action@v2
+        with:
+          args: detect --source=. --report-format=json --report-path=gitleaks-report.json --exit-code 1
+
+      - name: Upload Gitleaks report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+
+  # JOB 1: Continuous Integration (Compile, Test, Quality Scans & Save Build Artifact)
   build-and-test:
+    needs: security-scan
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -35,11 +57,11 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      # Builds and compiles. Note: Ensure your local Test file contains the H2/mock profiles
+      # Builds, compiles and runs tests
       - name: Build and Verify with Maven
         run: mvn clean verify
 
-      # Enforce Code Coverage rule (Handles both PR merges and direct pushes)
+      # Enforce Code Coverage rule
       - name: Enforce Code Coverage Threshold
         if: |
           github.base_ref == 'dev' || github.base_ref == 'main' || 
@@ -59,7 +81,14 @@ jobs:
             echo "SonarQube token not found. Skipping scan."
           fi
 
-  # JOB 2: Continuous Deployment (Triggered only on Pushes to specific branches)
+      # NEW STEP: Upload the compiled JAR/WAR archive so the CD deploy job can download it
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiled-build-archive
+          path: target/*.jar # Grabs the built executable Jar file
+
+  # JOB 2: Continuous Deployment (Uploads the built archive to S3)
   deploy:
     needs: build-and-test
     if: github.event_name == 'push'
@@ -68,8 +97,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # NEW STEP: Download the jar built in the build-and-test job
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: compiled-build-archive
+          path: target/
 
       - name: Extract version from pom.xml
         id: ver
@@ -79,8 +112,13 @@ jobs:
           VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
           DATE_UTC=$(date -u +%Y%m%d-%H%M)
           VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
+
+          # Find the actual jar built by maven
+          JAR_FILE=$(basename $(ls target/*.jar | head -n 1))
+
           echo "version=${VERSION_TAG}" >> $GITHUB_OUTPUT
-          echo "archive=${{ env.APP_NAME }}-${VERSION_TAG}.tar.gz" >> $GITHUB_OUTPUT
+          echo "jar_name=${JAR_FILE}" >> $GITHUB_OUTPUT
+          echo "archive_name=${{ env.APP_NAME }}-${VERSION_TAG}.jar" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -90,28 +128,25 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_VOLUNTEER }}
 
       # --- BRANCH STRATEGY 1: TEST BRANCH DEPLOYMENT ---
-      - name: Deploy to Test Environment (Simulated Netlify/S3 API)
+      - name: Deploy to Test Environment
         if: github.ref_name == 'test'
         run: |
-          echo "Deploying application to test environment..."
+          echo "Deploying application archive to test environment..."
+          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/test/archives/${{ steps.ver.outputs.archive_name }}"
 
       # --- BRANCH STRATEGY 2: DEV BRANCH DEPLOYMENT ---
       - name: Deploy to Dev Environment
         if: github.ref_name == 'dev'
         run: |
-          echo "Deploying application to dev environment..."
-          docker build -t ${{ env.APP_NAME }}:${{ steps.ver.outputs.version }} .
-          docker save ${{ env.APP_NAME }}:${{ steps.ver.outputs.version }} | gzip > ${{ steps.ver.outputs.archive }}
-          aws s3 cp "${{ steps.ver.outputs.archive }}" "s3://${{ env.S3_BUCKET }}/docker-images/${{ env.APP_NAME }}/dev/versions/${{ steps.ver.outputs.archive }}"
+          echo "Deploying application archive to dev environment..."
+          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/dev/archives/${{ steps.ver.outputs.archive_name }}"
 
       # --- BRANCH STRATEGY 3: MAIN/PRODUCTION DEPLOYMENT ---
       - name: Deploy to Production Environment (AWS S3 staging/prod)
         if: github.ref_name == 'main'
         run: |
-          echo "Deploying application to Production AWS S3..."
-          docker build -t ${{ env.APP_NAME }}:prod-latest .
-          docker save ${{ env.APP_NAME }}:prod-latest | gzip > ${{ env.APP_NAME }}-prod-latest.tar.gz
-          aws s3 cp "${{ env.APP_NAME }}-prod-latest.tar.gz" "s3://${{ env.S3_BUCKET }}/prod/latest/"
+          echo "Deploying application archive to Production AWS S3..."
+          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/prod/archives/${{ env.APP_NAME }}-prod-latest.jar"
 
       # --- POST-DEPLOYMENT QA: PLAYWRIGHT INTEGRATION ---
       - name: Install Node.js for Playwright E2E Tests
@@ -136,15 +171,15 @@ jobs:
           fi
           echo "Running E2E validation tests against $TARGET_URL"
 
-      # Safe cleanup mechanism for old images
-      - name: Keep only last 3 versioned images
+      # Safe cleanup mechanism for old archives (Keeps only last 3 versions in Dev)
+      - name: Keep only last 3 versioned archives
         if: github.ref_name == 'dev'
         shell: bash
         run: |
           set -euo pipefail
           BUCKET="${{ env.S3_BUCKET }}"
-          PREFIX="docker-images/${{ env.APP_NAME }}/dev/versions/"
-          KEYS=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIX" --query 'reverse(sort_by(Contents[?ends_with(Key, `.tar.gz`)], &LastModified))[].Key' --output text)
+          PREFIX="dev/archives/"
+          KEYS=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIX" --query 'reverse(sort_by(Contents[?ends_with(Key, `.jar`)], &LastModified))[].Key' --output text)
           if [ -z "$KEYS" ] || [ "$KEYS" = "None" ]; then exit 0; fi
           KEYS_NL=$(echo "$KEYS" | tr '\t' '\n')
           TO_DELETE=$(echo "$KEYS_NL" | tail -n +4)
