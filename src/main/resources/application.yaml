@@ -1,8 +1,8 @@
 cors:
   allowed-origin: <application-url>
-  allowed-methods: GET, POST, PUT, DELETE, OPTIONS
   allowed-headers: Authorization
-  allow-credentials: true
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  credentials: true
 
 spring:
   datasource:
@@ -11,5 +11,5 @@ spring:
     password: <password>
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     open-in-view: false

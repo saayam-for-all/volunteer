@@ -29,7 +29,7 @@ public class State {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
     @Column(name = "state_id")
-    private Integer stateId;
+    private String stateId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "country_id")
@@ -57,7 +57,7 @@ public class State {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         State state = (State) o;
-        return stateId == state.stateId &&
+        return Objects.equals(stateId, state.stateId) &&
                 Objects.equals(stateName, state.stateName) &&
                 Objects.equals(lastUpdateDate, state.lastUpdateDate);
     }

@@ -11,82 +11,110 @@ import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
-import org.sfa.volunteer.dto.response.UserProfileResponse;
+import org.sfa.volunteer.dto.response.UserIdResponse;
+import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
 
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-public class GetUserByEmailHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+public class GetUserIdByEmailHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
     private static final UserService userService;
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
-            .enable(SerializationFeature.INDENT_OUTPUT); // Enable pretty printing for better readability
+            .enable(SerializationFeature.INDENT_OUTPUT);
     private static final ResponseBuilder responseBuilder;
     private static final MessageSourceUtil messageSourceUtil;
 
+    // --- CORS headers ---
+    private static final Map<String, String> CORS_HEADERS = new HashMap<>();
     static {
         ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
         userService = context.getBean(UserService.class);
         responseBuilder = context.getBean(ResponseBuilder.class);
         messageSourceUtil = context.getBean(MessageSourceUtil.class);
+
+        CORS_HEADERS.put("Access-Control-Allow-Origin", "*");
+        CORS_HEADERS.put("Access-Control-Allow-Methods", "POST,OPTIONS");
+        CORS_HEADERS.put("Access-Control-Allow-Headers", "Content-Type,Authorization");
     }
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent requestEvent, Context context) {
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
+        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent().withHeaders(CORS_HEADERS);
+
+        // Preflight
+        if (requestEvent.getHttpMethod() != null && requestEvent.getHttpMethod().equalsIgnoreCase("OPTIONS")) {
+            return response.withStatusCode(204);
+        }
 
         try {
-//            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
-//            Locale locale = Locale.forLanguageTag(lang);
             String lang = Optional.ofNullable(requestEvent.getHeaders())
-                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
+                    .map(h -> h.getOrDefault("Accept-Language", "en"))
                     .orElse("en");
             Locale locale = Locale.forLanguageTag(lang);
 
             Map<String, Object> body = parseBody(requestEvent.getBody());
-            FindUserProfileUsingEmail request = parseRequest(body);
-            String email = request.email();
+            FindUserProfileUsingEmail req = parseRequest(body);
 
-            UserProfileResponse profileByEmail = userService.getUserProfileByEmail(email);
+            UserIdResponse userId = userService.getUserIdByEmail(req.email());
 
-            SaayamResponse<UserProfileResponse> successResponse = responseBuilder.buildSuccessResponse(
+            SaayamResponse<UserIdResponse> successResponse = responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.SUCCESS,
-                    new Object[]{profileByEmail.countryName()},
-                    profileByEmail
+                    new Object[]{ req.email() },
+                    userId
             );
 
             String responseBody = objectMapper.writeValueAsString(successResponse);
-            response.setBody(responseBody);
-            response.setStatusCode(201); // Created
+            return response.withStatusCode(200).withBody(responseBody);
+
+        } catch (UserNotFoundException unfe) {
+            String msg = messageSourceUtil.getMessage(
+                    SaayamStatusCode.USER_NOT_FOUND.getCode(),
+                    new Object[]{ unfe.getUserId() }
+            );
+
+            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
+                    404,
+                    SaayamStatusCode.USER_NOT_FOUND,
+                    msg
+            );
+
+            String responseBody;
+            try {
+                responseBody = objectMapper.writeValueAsString(errorResponse);
+            } catch (Exception jsonException) {
+                responseBody = "{\"message\":\"Failed to serialize error response\"}";
+            }
+            return response.withStatusCode(404).withBody(responseBody);
+
         } catch (Exception e) {
-            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
-            Locale locale = Locale.forLanguageTag(lang);
-            String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
+            String msg = messageSourceUtil.getMessage(
+                    SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(),
+                    null
+            );
 
             SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
                     500,
                     SaayamStatusCode.INTERNAL_SERVER_ERROR,
-                    errorMessage
+                    msg
             );
 
+            String responseBody;
             try {
-                String responseBody = objectMapper.writeValueAsString(errorResponse);
-                response.setBody(responseBody);
+                responseBody = objectMapper.writeValueAsString(errorResponse);
             } catch (Exception jsonException) {
-                response.setBody("{\"message\":\"Failed to serialize error response\"}");
+                responseBody = "{\"message\":\"Failed to serialize error response\"}";
             }
-
-            response.setStatusCode(500); // Internal Server Error
+            return response.withStatusCode(500).withBody(responseBody);
         }
-
-        return response;
     }
 
     private FindUserProfileUsingEmail parseRequest(Map<String, Object> body) {
@@ -97,7 +125,6 @@ public class GetUserByEmailHandler implements RequestHandler<APIGatewayProxyRequ
         try {
             return objectMapper.readValue(body, Map.class);
         } catch (Exception e) {
-            // todo: define a customized error
             throw new RuntimeException("Failed to parse request body", e);
         }
     }

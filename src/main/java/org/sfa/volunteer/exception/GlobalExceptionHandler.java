@@ -76,6 +76,35 @@ public class GlobalExceptionHandler {
         return responseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(), status , errorMessage);
     }
 
+    @ExceptionHandler(UserOrganizationNotFoundException.class)
+    @ResponseBody
+    public <T> SaayamResponse<T> handleUserOrganizationNotFoundException(UserOrganizationNotFoundException exception, WebRequest request) {
+        String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.ORGANIZATION_NOT_FOUND.getCode(), new Object[]{exception.getUserId()});
+        log.error("UserOrganizationNotFoundException: {}", errorMessage);
+        return responseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(), SaayamStatusCode.ORGANIZATION_NOT_FOUND, errorMessage);
+    }
+    @ExceptionHandler(CountryNotFoundException.class)
+    @ResponseBody
+    public <T> SaayamResponse<T> handleCountryNotFoundException(
+            CountryNotFoundException exception,
+            WebRequest request) {
+
+        String errorMessage = messageSourceUtil.getMessage(
+                SaayamStatusCode.COUNTRY_NOT_FOUND.getCode(),
+                new Object[]{exception.getCountryName()}
+        );
+
+        log.error("CountryNotFoundException: {}", errorMessage);
+
+        return responseBuilder.buildErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                SaayamStatusCode.COUNTRY_NOT_FOUND,
+                errorMessage
+        );
+    }
+
+
+
 
 //    @ExceptionHandler(Exception.class)
 //    @ResponseBody

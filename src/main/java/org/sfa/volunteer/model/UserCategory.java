@@ -22,16 +22,27 @@ import java.time.ZonedDateTime;
 public class UserCategory {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "user_category_id")
+    @Column(name = "user_category_id", nullable = false)
     private Integer userCategoryId;
 
-    @Column(name = "user_category")
+    @Column(name = "user_category", length = 255)
     private String userCategory;
 
-    @Column(name = "user_category_desc")
+    @Column(name = "user_category_desc", length = 255)
     private String userCategoryDesc;
 
-    @Column(name = "last_update_date")
-    private ZonedDateTime lastUpdateDate;
+    @Column(name = "category_code", length = 50)
+    private String categoryCode;
+
+    @Column(name = "user_access_level")
+    private Short userAccessLevel;
+
+    @Column(name = "is_deprecated")
+    private Boolean isDeprecated;
+
+    @Column(name = "permissions", columnDefinition = "jsonb")
+    private String permissions;
+
+    @Column(name = "last_updated_at")
+    private ZonedDateTime lastUpdatedAt;
 }

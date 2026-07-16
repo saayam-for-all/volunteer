@@ -116,7 +116,8 @@ public class User {
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private UserAdditionalDetail additionalDetail;
 
-    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    //@OneToOne(mappedBy = "user", fetch = FetchType.LAZY) //, cascade = CascadeType.ALL
+    @Transient
     private Volunteer volunteer;
 
     @Override
