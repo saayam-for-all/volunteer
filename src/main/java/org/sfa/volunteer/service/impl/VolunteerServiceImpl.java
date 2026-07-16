@@ -1,33 +1,33 @@
 package org.sfa.volunteer.service.impl;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import jakarta.transaction.Transactional;
-//import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
-//import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
-//import org.sfa.volunteer.model.UserVolunteerSkills;
-//import org.sfa.volunteer.repository.UserVolunteerSkillsRepository;
-import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
-import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.exception.VolunteerException;
-import org.sfa.volunteer.model.Volunteer;
 import org.sfa.volunteer.model.User;
+import org.sfa.volunteer.model.Volunteer;
 import org.sfa.volunteer.model.VolunteerUserAvailability;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.VolunteerRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
 import org.sfa.volunteer.service.VolunteerService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,25 +37,26 @@ public class VolunteerServiceImpl implements VolunteerService {
     private final UserRepository userRepository;
     private final VolunteerUserAvailabilityRepository userAvailabilityRepository;
 
-//    private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
+    // private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
 
     @Autowired
     public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository,
-            VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository,
-            VolunteerUserAvailabilityRepository userAvailabilityRepository) {
+                                VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository,
+                                VolunteerUserAvailabilityRepository userAvailabilityRepository) {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
         this.userAvailabilityRepository = userAvailabilityRepository;
-//        this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
+        // this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
     }
 
     private void updateUser(User user, Integer step) {
         user.setVolunteerStage(step);
         user.setVolunteerUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        user = userRepository.save(user);
+        userRepository.save(user);
     }
 
     @Override
@@ -63,39 +64,30 @@ public class VolunteerServiceImpl implements VolunteerService {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
-        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
-        if (Objects.nonNull(volunteer)) {
-            throw VolunteerException.volunteerExists(request.userId());
-        }
-        if (request.step() != 1)
-            throw VolunteerException.volunteerInvalidStep(request.userId());
-        else {
-            volunteer = Volunteer.builder()
-                    .user(user)
-                    .termsAndConditions(request.termsAndConditions())
-                    .tcUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
-                    .build();
-            volunteer = volunteerRepository.save(volunteer);
-            updateUser(user, request.step());
-            return mapToVolunteerResponse(volunteer);
-        }
+        Volunteer existing = volunteerRepository.findById(request.userId()).orElse(null);
+        if (existing != null) throw VolunteerException.volunteerExists(request.userId());
+
+        if (request.step() != 1) throw VolunteerException.volunteerInvalidStep(request.userId());
+
+        Volunteer volunteer = Volunteer.builder()
+                .user(user)
+                .termsAndConditions(request.termsAndConditions())
+                .termsAcceptedAt(LocalDateTime.now(ZoneId.of("UTC")))
+                .build();
+
+        volunteer = volunteerRepository.save(volunteer);
+        updateUser(user, request.step());
+
+        return mapToVolunteerResponse(volunteer);
     }
 
     @Override
     public VolunteerResponse updateVolunteer(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        VolunteerResponse response = null;
-        if (request.step() == 1)
-            response = updateVolunteerStep1(request);
-        else if (request.step() == 2)
-            response = updateVolunteerStep2(request);
-        else if (request.step() == 3)
-            response = updateVolunteerStep3(request);
-        else if (request.step() == 4)
-            response = updateVolunteerStep4(request);
-        return response;
+        if (request.step() == 1) return updateVolunteerStep1(request);
+        if (request.step() == 2) return updateVolunteerStep2(request);
+        if (request.step() == 3) return updateVolunteerStep3(request);
+        if (request.step() == 4) return updateVolunteerStep4(request);
+        throw VolunteerException.volunteerInvalidStep(request.userId());
     }
 
     @Override
@@ -103,18 +95,22 @@ public class VolunteerServiceImpl implements VolunteerService {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
-        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
-        if (Objects.isNull(volunteer)) {
-            throw VolunteerException.volunteerNotFound(request.userId());
-        }
+        Volunteer volunteer = volunteerRepository.findById(request.userId())
+                .orElseThrow(() -> {
+                    try {
+                        return VolunteerException.volunteerNotFound(request.userId());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+        if (request.step() != 1) throw VolunteerException.volunteerInvalidStep(request.userId());
+
         volunteer.setUser(user);
-        if (request.step() != 1)
-            throw VolunteerException.volunteerInvalidStep(request.userId());
-
         volunteer.setTermsAndConditions(request.termsAndConditions());
-        volunteer.setTcUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        volunteer = volunteerRepository.save(volunteer);
+        volunteer.setTermsAcceptedAt(LocalDateTime.now(ZoneId.of("UTC")));
 
+        volunteer = volunteerRepository.save(volunteer);
         updateUser(user, request.step());
 
         return mapToVolunteerResponse(volunteer);
@@ -125,18 +121,30 @@ public class VolunteerServiceImpl implements VolunteerService {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
-        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
-        if (Objects.isNull(volunteer)) {
-            throw VolunteerException.volunteerNotFound(request.userId());
-        }
+        Volunteer volunteer = volunteerRepository.findById(request.userId())
+                .orElseThrow(() -> {
+                    try {
+                        return VolunteerException.volunteerNotFound(request.userId());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+        if (request.step() != 2) throw VolunteerException.volunteerInvalidStep(request.userId());
+
         volunteer.setUser(user);
-        if (request.step() != 2)
-            throw VolunteerException.volunteerInvalidStep(request.userId());
 
-        volunteer.setGovtIdFilename(request.govtIdFilename());
-        volunteer.setGovtUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
+        // Persist new DB columns
+        if (request.govtIdPath1() != null) {
+            volunteer.setGovtIdPath1(request.govtIdPath1());
+            volunteer.setPath1UpdatedAt(LocalDateTime.now(ZoneId.of("UTC")));
+        }
+        if (request.govtIdPath2() != null) {
+            volunteer.setGovtIdPath2(request.govtIdPath2());
+            volunteer.setPath2UpdatedAt(LocalDateTime.now(ZoneId.of("UTC")));
+        }
+
         volunteer = volunteerRepository.save(volunteer);
-
         updateUser(user, request.step());
 
         return mapToVolunteerResponse(volunteer);
@@ -147,17 +155,19 @@ public class VolunteerServiceImpl implements VolunteerService {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
-        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
-        if (Objects.isNull(volunteer)) {
-            throw VolunteerException.volunteerNotFound(request.userId());
-        }
+        Volunteer volunteer = volunteerRepository.findById(request.userId())
+                .orElseThrow(() -> {
+                    try {
+                        return VolunteerException.volunteerNotFound(request.userId());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+        if (request.step() != 3) throw VolunteerException.volunteerInvalidStep(request.userId());
+
         volunteer.setUser(user);
-        if (request.step() != 3)
-            throw VolunteerException.volunteerInvalidStep(request.userId());
-
-        volunteer.setSkills(request.skills());
         volunteer = volunteerRepository.save(volunteer);
-
         updateUser(user, request.step());
 
         return mapToVolunteerResponse(volunteer);
@@ -168,31 +178,45 @@ public class VolunteerServiceImpl implements VolunteerService {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
-        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
-        if (Objects.isNull(volunteer)) {
-            throw VolunteerException.volunteerNotFound(request.userId());
-        }
+        Volunteer volunteer = volunteerRepository.findById(request.userId())
+                .orElseThrow(() -> {
+                    try {
+                        return VolunteerException.volunteerNotFound(request.userId());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+        if (request.step() != 4) throw VolunteerException.volunteerInvalidStep(request.userId());
+
         volunteer.setUser(user);
-        if (request.step() != 4)
-        throw VolunteerException.volunteerInvalidStep(request.userId());
 
-        volunteer.setNotification(request.notification());
-        volunteer.setIsCompleted(request.isCompleted());
-        volunteer.setCompletedDate(ZonedDateTime.now(ZoneId.of("UTC")));
+        // Convert request.availability -> availability_days + availability_times JSONB
+        List<VolunteerUserAvailabilityRequest> avail = Optional.ofNullable(request.availability())
+                .orElse(Collections.emptyList());
+
+        ArrayNode days = MAPPER.createArrayNode();
+        Set<String> uniqueDays = new LinkedHashSet<>();
+        for (var a : avail) {
+            if (a != null && a.dayOfWeek() != null) uniqueDays.add(a.dayOfWeek());
+        }
+        uniqueDays.forEach(days::add);
+
+        // Store full availability items as JSON array
+        JsonNode times = MAPPER.valueToTree(avail);
+
+        volunteer.setAvailabilityDays(days);
+        volunteer.setAvailabilityTimes(times);
+
         volunteer = volunteerRepository.save(volunteer);
+        updateUser(user, request.step());
 
-        List<VolunteerUserAvailability> userAvailabilityList = request.availability().stream()
-                .map(req -> mapToVolunteerUserAvailability(req, user)).collect(Collectors.toList());
-
-        List<VolunteerUserAvailability> savedAvailabilityList = userAvailabilityRepository
-                .saveAll(userAvailabilityList);
-
-        return mapToVolunteerResponse(volunteer, savedAvailabilityList);
+        return mapToVolunteerResponse(volunteer);
     }
 
     @Override
     public List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId,
-            List<VolunteerUserAvailabilityRequest> request) throws Exception {
+                                                                                   List<VolunteerUserAvailabilityRequest> request) throws Exception {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
@@ -212,40 +236,60 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+        Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> {
+                    try {
+                        return VolunteerException.volunteerNotFound(userId);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
 
-        List<VolunteerUserAvailability> availabilityList = userAvailabilityRepository.findUserAvailability(userId);
-        List<VolunteerUserAvailabilityResponse> availability = availabilityList.stream()
-                .map(this::mapToVolunteerUserAvailabilityResponse)
-                .collect(Collectors.toList());
-
-        return availability;
+        return toAvailabilityResponses((JsonNode) volunteer.getAvailabilityTimes(), userId);
     }
 
-//    @Override
-//    public UserVolunteerSkillsResponse findSkillsList() throws Exception {
-//        return null;
-//    }
+    private List<VolunteerUserAvailabilityResponse> toAvailabilityResponses(JsonNode availabilityTimes, String userId) {
+        if (availabilityTimes == null || !availabilityTimes.isArray()) return List.of();
+
+        List<VolunteerUserAvailabilityRequest> reqs = new ArrayList<>();
+        for (JsonNode node : availabilityTimes) {
+            reqs.add(MAPPER.convertValue(node, VolunteerUserAvailabilityRequest.class));
+        }
+
+        // Map request -> response
+        return reqs.stream()
+                .map(r -> VolunteerUserAvailabilityResponse.builder()
+                        .id(r.id())
+                        .userId(userId)
+                        .dayOfWeek(r.dayOfWeek())
+                        .startTime(r.startTime() == null ? null : r.startTime().atZone(ZoneId.of("UTC")))
+                        .endTime(r.endTime() == null ? null : r.endTime().atZone(ZoneId.of("UTC")))
+                        .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
+                        .build()
+                )
+                .collect(Collectors.toList());
+    }
+
+    // @Override
+    // public UserVolunteerSkillsResponse findSkillsList() throws Exception {
+    // return null;
+    // }
 
     @Override
     public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) throws Exception {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
-        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(request.userId());
-        if (Objects.isNull(volunteer)) {
-            throw VolunteerException.volunteerNotFound(request.userId());
-        }
+        Volunteer volunteer = volunteerRepository.findById(request.userId())
+                .orElseThrow(() -> {
+                    try {
+                        return VolunteerException.volunteerNotFound(request.userId());
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
 
-        volunteer.setIsCompleted(request.isCompleted());
-        volunteer.setCompletedDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        volunteer = volunteerRepository.save(volunteer);
-
-        Integer step = 4;
-        if (Objects.nonNull(request.step()))
-            step = request.step();
-
+        Integer step = request.step() != null ? request.step() : 4;
         updateUser(user, step);
 
         return mapToVolunteerResponse(volunteer);
@@ -253,10 +297,14 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public VolunteerResponse getVolunteerByUserId(String userId) throws Exception {
-        Volunteer volunteer = volunteerRepository.findVolunteerByUserId(userId);
-        if (volunteer == null || volunteer.getId() == 0) {
-            throw VolunteerException.volunteerNotFound(userId);
-        }
+        Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> {
+                    try {
+                        return VolunteerException.volunteerNotFound(userId);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
         return mapToVolunteerResponse(volunteer);
     }
 
@@ -264,6 +312,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     public PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize) {
         int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;
         int pageSizeNum = (pageSize == null) ? DEFAULT_SIZE : pageSize;
+
         Pageable pageable = PageRequest.of(pageNum, pageSizeNum);
         Page<Volunteer> volunteerPage = volunteerRepository.findAll(pageable);
 
@@ -283,34 +332,41 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer) {
+        String uid = volunteer.getUser() != null ? volunteer.getUser().getId() : volunteer.getId();
+
         return VolunteerResponse.builder()
-                .id(volunteer.getId())
-                .userId(volunteer.getUser().getId())
+                .id(uid)
+                .userId(uid)
                 .termsAndConditions(volunteer.getTermsAndConditions())
-                .tcUpdateDate(volunteer.getTcUpdateDate())
-                .govtIdFilename(volunteer.getGovtIdFilename())
-                .govtUpdateDate(volunteer.getGovtUpdateDate())
-                .skills(volunteer.getSkills())
-                .notification(volunteer.getNotification())
-                .isCompleted(volunteer.getIsCompleted())
-                .completedDate(volunteer.getCompletedDate())
+                .termsAcceptedAt(volunteer.getTermsAcceptedAt())
+                .govtIdPath1(volunteer.getGovtIdPath1())
+                .govtIdPath2(volunteer.getGovtIdPath2())
+                .path1UpdatedAt(volunteer.getPath1UpdatedAt())
+                .path2UpdatedAt(volunteer.getPath2UpdatedAt())
+                .availabilityDays((JsonNode) volunteer.getAvailabilityDays())
+                .availabilityTimes((JsonNode) volunteer.getAvailabilityTimes())
+                .createdAt(volunteer.getCreatedAt())
+                .lastUpdatedAt(volunteer.getLastUpdatedAt())
                 .build();
     }
 
     private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,
-            List<VolunteerUserAvailability> availabilityList) {
+                                                     List<VolunteerUserAvailability> availabilityList) {
+        String uid = volunteer.getUser() != null ? volunteer.getUser().getId() : volunteer.getId();
+
         return VolunteerResponse.builder()
-                .id(volunteer.getId())
-                .userId(volunteer.getUser().getId())
+                .id(uid)
+                .userId(uid)
                 .termsAndConditions(volunteer.getTermsAndConditions())
-                .tcUpdateDate(volunteer.getTcUpdateDate())
-                .govtIdFilename(volunteer.getGovtIdFilename())
-                .govtUpdateDate(volunteer.getGovtUpdateDate())
-                .skills(volunteer.getSkills())
-                .notification(volunteer.getNotification())
-                .isCompleted(volunteer.getIsCompleted())
-                .completedDate(volunteer.getCompletedDate())
-                .availability(availabilityList.stream().map(this::mapToVolunteerUserAvailabilityResponse).toList())
+                .termsAcceptedAt(volunteer.getTermsAcceptedAt())
+                .govtIdPath1(volunteer.getGovtIdPath1())
+                .govtIdPath2(volunteer.getGovtIdPath2())
+                .path1UpdatedAt(volunteer.getPath1UpdatedAt())
+                .path2UpdatedAt(volunteer.getPath2UpdatedAt())
+                .availabilityDays((JsonNode) volunteer.getAvailabilityDays())
+                .availabilityTimes((JsonNode) volunteer.getAvailabilityTimes())
+                .createdAt(volunteer.getCreatedAt())
+                .lastUpdatedAt(volunteer.getLastUpdatedAt())
                 .build();
     }
 
@@ -327,13 +383,13 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     private VolunteerUserAvailability mapToVolunteerUserAvailability(VolunteerUserAvailabilityRequest request,
-            User user) {
+                                                                     User user) {
         return VolunteerUserAvailability.builder()
                 .user(user)
                 .dayOfWeek(request.dayOfWeek())
-                .startTime(request.startTime())
-                .endTime(request.endTime())
-                .lastUpdateDate(request.lastUpdateDate()) 
+                .startTime(ZonedDateTime.from(request.startTime()))
+                .endTime(ZonedDateTime.from(request.endTime()))
+                //.lastUpdateDate(request.lastUpdateDate())
                 .build();
     }
 }

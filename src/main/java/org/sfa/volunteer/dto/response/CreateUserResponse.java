@@ -10,6 +10,7 @@ public record CreateUserResponse(
         @NotBlank @Email String email,
         @NotBlank String phoneNumber,
         @NotBlank String timeZone,
-        @NotBlank String userId
+        @NotBlank String userId,
+        String countryName
 ) {
 }

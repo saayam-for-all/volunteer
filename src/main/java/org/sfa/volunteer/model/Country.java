@@ -11,6 +11,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 
 @Entity
@@ -21,17 +22,25 @@ import java.time.ZonedDateTime;
 @Table(name = "country")
 public class Country {
 
+
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "country_id", updatable = false, nullable = false)
+    @Column(name = "country_id", nullable = false)
     private Integer countryId;
 
-    @Column(name = "country_name")
+    @Column(name = "country_name", length = 100)
     private String countryName;
 
-    @Column(name = "phone_country_code")
-    private String phoneCountryCode;
+    @Column(name = "phone_code", length = 5)
+    private String phoneCode;
+
+    @Column(name = "country_code", length = 6)
+    private String countryCode;
+
+    @Column(name = "is_eu_member")
+    private Boolean isEuMember;
 
     @Column(name = "last_update_date")
-    private ZonedDateTime lastUpdateDate;
+    private LocalDateTime lastUpdateDate;
+
+
 }

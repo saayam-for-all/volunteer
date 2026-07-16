@@ -1,20 +1,16 @@
 package org.sfa.volunteer.model;
+
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import org.springframework.context.annotation.Lazy;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
@@ -23,14 +19,14 @@ import java.util.Objects;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "volunteer_details")
-
+@Lazy
 public class Volunteer {
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE)
-    @Column(name = "volunteer_detail_id", nullable = false)
-    private Integer id;
+    @Column(name = "user_id")
+    private String id;
 
     @OneToOne(fetch = FetchType.LAZY)
+    @MapsId
     @JoinColumn(name = "user_id", nullable = false)
     @JsonBackReference
     private User user;
@@ -38,40 +34,51 @@ public class Volunteer {
     @Column(name = "terms_and_conditions")
     private Boolean termsAndConditions;
 
-    @Column(name = "terms_and_conditions_update_date")
-    private ZonedDateTime tcUpdateDate;
+    @Column(name = "terms_accepted_at")
+    private LocalDateTime termsAcceptedAt;
 
-    @Column(name = "govt_id")
-    private String govtIdFilename;
+    @Column(name = "govt_id_path1")
+    private String govtIdPath1;
 
-    @Column(name = "govt_id_update_date")
-    private ZonedDateTime govtUpdateDate;
+    @Column(name = "govt_id_path2")
+    private String govtIdPath2;
 
-    @Column(name = "skills")
-    private String skills;
+    @Column(name = "path1_updated_at")
+    private LocalDateTime path1UpdatedAt;
 
-    @Column(name = "notification")
-    private Boolean notification;
+    @Column(name = "path2_updated_at")
+    private LocalDateTime path2UpdatedAt;
 
-    @Column(name = "iscomplete")
-    private Boolean isCompleted;
+    // jsonb columns
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "availability_days")
+    private Object availabilityDays;
 
-    @Column(name = "completed_date")
-    private ZonedDateTime completedDate;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "availability_times")
+    private Object availabilityTimes;
+
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "last_updated_at", insertable = false, updatable = false)
+    private LocalDateTime lastUpdatedAt;
 
     @Override
     public String toString() {
-        return "Volunteer {" +
-                "id=" + id +
-                ", user='" + user + '\'' +
+        return "Volunteer{" +
+                "id='" + id + '\'' +
+                ", user=" + user +
                 ", termsAndConditions=" + termsAndConditions +
-                ", tcUpdateDate=" + tcUpdateDate +
-                ", govtIdFilename='" + govtIdFilename + '\'' +
-                ", govtUpdateDate=" + govtUpdateDate +
-                ", skills='" + skills + '\'' +
-                ", notification=" + notification +
-                ", isCompleted=" + isCompleted +
-                ", completedDate=" + completedDate +
+                ", termsAcceptedAt=" + termsAcceptedAt +
+                ", govtIdPath1='" + govtIdPath1 + '\'' +
+                ", govtIdPath2='" + govtIdPath2 + '\'' +
+                ", path1UpdatedAt=" + path1UpdatedAt +
+                ", path2UpdatedAt=" + path2UpdatedAt +
+                ", availabilityDays=" + availabilityDays +
+                ", availabilityTimes=" + availabilityTimes +
+                ", createdAt=" + createdAt +
+                ", lastUpdatedAt=" + lastUpdatedAt +
                 '}';
     }
 
@@ -80,20 +87,11 @@ public class Volunteer {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Volunteer volunteer = (Volunteer) o;
-        return Objects.equals(id, volunteer.id) &&
-                Objects.equals(user, volunteer.user) &&
-                Objects.equals(termsAndConditions, volunteer.termsAndConditions) &&
-                Objects.equals(tcUpdateDate, volunteer.tcUpdateDate) &&
-                Objects.equals(govtIdFilename, volunteer.govtIdFilename) &&
-                Objects.equals(govtUpdateDate, volunteer.govtUpdateDate) &&
-                Objects.equals(skills, volunteer.skills) &&
-                Objects.equals(notification, volunteer.notification) &&
-                Objects.equals(isCompleted, volunteer.isCompleted) &&
-                Objects.equals(completedDate, volunteer.completedDate);
+        return Objects.equals(id, volunteer.id) && Objects.equals(user, volunteer.user) && Objects.equals(termsAndConditions, volunteer.termsAndConditions) && Objects.equals(termsAcceptedAt, volunteer.termsAcceptedAt) && Objects.equals(govtIdPath1, volunteer.govtIdPath1) && Objects.equals(govtIdPath2, volunteer.govtIdPath2) && Objects.equals(path1UpdatedAt, volunteer.path1UpdatedAt) && Objects.equals(path2UpdatedAt, volunteer.path2UpdatedAt) && Objects.equals(availabilityDays, volunteer.availabilityDays) && Objects.equals(availabilityTimes, volunteer.availabilityTimes) && Objects.equals(createdAt, volunteer.createdAt) && Objects.equals(lastUpdatedAt, volunteer.lastUpdatedAt);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, user, termsAndConditions, tcUpdateDate, govtIdFilename, govtUpdateDate, skills, notification, isCompleted, completedDate );
+        return Objects.hash(id, user, termsAndConditions, termsAcceptedAt, govtIdPath1, govtIdPath2, path1UpdatedAt, path2UpdatedAt, availabilityDays, availabilityTimes, createdAt, lastUpdatedAt);
     }
 }
