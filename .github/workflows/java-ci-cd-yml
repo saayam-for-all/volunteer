@@ -91,10 +91,10 @@ jobs:
           VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
           DATE_UTC=$(date -u +%Y%m%d-%H%M)
           VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
-
+          
           # Find the actual jar built by maven
           JAR_FILE=$(basename $(ls target/*.jar | head -n 1))
-
+          
           echo "version=${VERSION_TAG}" >> $GITHUB_OUTPUT
           echo "jar_name=${JAR_FILE}" >> $GITHUB_OUTPUT
           echo "archive_name=${{ env.APP_NAME }}-${VERSION_TAG}.jar" >> $GITHUB_OUTPUT
