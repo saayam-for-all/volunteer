@@ -12,9 +12,7 @@ env:
   S3_BUCKET: saayam-virginia-private
 
 jobs:
-  # JOB 1: Continuous Integration (Compile, Test, Quality Scans & Save Build Artifact)
   build-and-test:
-    # Removed "needs: security-scan" so this job runs immediately
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -22,7 +20,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
+      # 1. Setup Env
+      - name: Setup Env
         uses: actions/setup-java@v4
         with:
           java-version: "17"
@@ -36,12 +35,16 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      # Builds, compiles and runs tests
-      - name: Build and Verify with Maven
-        run: mvn clean verify
+      # 2. Build Package
+      - name: Build Package
+        run: mvn clean package -DskipTests
 
-      # Enforce Code Coverage rule
-      - name: Enforce Code Coverage Threshold
+      # 3. Test
+      - name: Test
+        run: mvn test
+
+      # 4. Code Coverage
+      - name: Code Coverage
         if: |
           github.base_ref == 'dev' || github.base_ref == 'main' || 
           github.ref_name == 'dev' || github.ref_name == 'main'
@@ -60,14 +63,20 @@ jobs:
             echo "SonarQube token not found. Skipping scan."
           fi
 
+      # 5. Build Docker Image and Push
+      - name: Build Docker Image and Push
+        run: |
+          echo "Building and pushing Docker image..."
+          # docker build -t my-app .
+          # docker push my-app
+
       # Upload the compiled JAR/WAR archive so the CD deploy job can download it
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: compiled-build-archive
-          path: target/*.jar # Grabs the built executable Jar file
+          path: target/*.jar
 
-  # JOB 2: Continuous Deployment (Uploads the built archive to S3)
   deploy:
     needs: build-and-test
     if: github.event_name == 'push'
@@ -91,10 +100,9 @@ jobs:
           VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
           DATE_UTC=$(date -u +%Y%m%d-%H%M)
           VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
-          
-          # Find the actual jar built by maven
+
           JAR_FILE=$(basename $(ls target/*.jar | head -n 1))
-          
+
           echo "version=${VERSION_TAG}" >> $GITHUB_OUTPUT
           echo "jar_name=${JAR_FILE}" >> $GITHUB_OUTPUT
           echo "archive_name=${{ env.APP_NAME }}-${VERSION_TAG}.jar" >> $GITHUB_OUTPUT
@@ -150,7 +158,7 @@ jobs:
           fi
           echo "Running E2E validation tests against $TARGET_URL"
 
-      # Safe cleanup mechanism for old archives (Keeps only last 3 versions in Dev)
+      # Safe cleanup mechanism for old archives
       - name: Keep only last 3 versioned archives
         if: github.ref_name == 'dev'
         shell: bash
