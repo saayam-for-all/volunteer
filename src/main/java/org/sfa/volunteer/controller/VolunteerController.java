@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.sfa.volunteer.dto.response.VolunteerBasedOnSkillsResponse;
+import java.util.*;
 
 @RestController
 @RequestMapping("/0.0.1/volunteers")
@@ -83,5 +85,12 @@ public class VolunteerController {
     public SaayamResponse<VolunteerResponse> getVolunteerDetails(@PathVariable String userId) throws Exception {
         VolunteerResponse response = volunteerService.getVolunteerByUserId(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+    @GetMapping("/matchVolunteerOnSkills")
+    public SaayamResponse<List<VolunteerBasedOnSkillsResponse>> getVolunteersBasedOnSkills(
+            @RequestParam(value = "skills", required = false) String skills) {
+        List<VolunteerBasedOnSkillsResponse> response = volunteerService.getVolunteersBasedOnSkills(skills);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 }
