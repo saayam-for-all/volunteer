@@ -7,6 +7,7 @@ import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
+import org.sfa.volunteer.dto.request.ProfileRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.SignOffRequest;
@@ -82,6 +83,20 @@ public class UserController {
     public SaayamResponse<UserProfileResponse> getUserProfile(@PathVariable String userId) {
         UserProfileResponse response = userService.getUserProfileById(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+    @PostMapping("/profile")
+    public SaayamResponse<UserProfileResponse> getUserProfile(
+        @Valid @RequestBody ProfileRequest request
+    ) {
+        String userId = request.userId(); // Method-style getter for Java records
+        UserProfileResponse response = userService.getUserProfileById(userId);
+        
+        return responseBuilder.buildSuccessResponse(
+            SaayamStatusCode.SUCCESS, 
+            new Object[]{userId}, 
+            response
+        );
     }
 
     @GetMapping("/wizard/{userId}")

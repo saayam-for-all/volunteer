@@ -87,10 +87,10 @@ public class User {
     @Column(name = "promotion_wizard_stage")
     private Integer volunteerStage;
 
-    @Column(name = "promotion_wizard_last_update_date")
+    @Column(name = "promotion_wizard_last_updated_at")
     private ZonedDateTime volunteerUpdateDate;
 
-    @Column(name = "last_update_date")
+    @Column(name = "last_updated_at")
     private ZonedDateTime lastUpdateDate;
 
     @ManyToOne(fetch = FetchType.LAZY)

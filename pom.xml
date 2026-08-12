@@ -44,6 +44,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -111,7 +116,25 @@
             <version>2.16.1</version>
         </dependency>
     </dependencies>
-
+    <profiles>
+        <profile>
+            <id>local</id>
+            <dependencies>
+                <!-- Overrides the test scope to compile just for local execution -->
+                <dependency>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-tomcat</artifactId>
+                    <scope>compile</scope>
+                </dependency>
+                <!-- DevTools only for local live-reloads -->
+                <dependency>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-devtools</artifactId>
+                    <optional>true</optional>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
     <build>
         <plugins>
             <plugin>
@@ -138,6 +161,15 @@
                 <version>3.6.0</version>
                 <configuration>
                     <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <artifactSet>
+                        <excludes>
+                            <!-- Explicitly exclude DevTools from the final shaded JAR -->
+                            <exclude>org.springframework.boot:spring-boot-devtools</exclude>
+                            <!-- Keep Tomcat out as well just in case -->
+                            <exclude>org.springframework.boot:spring-boot-starter-tomcat</exclude>
+                            <exclude>org.apache.tomcat.embed:*</exclude>
+                        </excludes>
+                    </artifactSet>
                 </configuration>
                 <executions>
                     <execution>

@@ -95,7 +95,7 @@ import java.util.stream.Collectors;
         UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
-        Country country = countryRepository.findByCountryName(request.country())
+        Country country = countryRepository.findByCountryCode(request.country())
                 .orElseThrow(() -> new CountryNotFoundException(request.country()));
 
 
