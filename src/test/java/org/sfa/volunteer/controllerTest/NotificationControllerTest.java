@@ -16,6 +16,7 @@ import org.sfa.volunteer.dto.request.UpsertLastSeenRequest;
 import org.sfa.volunteer.dto.response.GetNotificationsResponse;
 import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
 import org.sfa.volunteer.entities.UserNotificationStatus;
+import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.repository.UserNotificationStatusRepository;
 import org.sfa.volunteer.service.NotificationService;
 import org.sfa.volunteer.util.ResponseBuilder;
@@ -138,8 +139,9 @@ class NotificationControllerTest {
 
         @Test
         void testUpdateLastSeen_Success() throws Exception {
-                UpsertLastSeenRequest request = new UpsertLastSeenRequest(null);
-                UpsertLastSeenResponse mockResponse = new UpsertLastSeenResponse(null, null, null);
+
+                UpsertLastSeenRequest request = new UpsertLastSeenRequest("U1");
+                UpsertLastSeenResponse mockResponse = new UpsertLastSeenResponse(true, false, "Updated");
 
                 SaayamResponse<UpsertLastSeenResponse> mockSaayamResponse = SaayamResponse
                                 .<UpsertLastSeenResponse>builder()
@@ -168,5 +170,34 @@ class NotificationControllerTest {
 
                 verify(repository, never()).getLastSeenTimestamp(anyString());
                 verify(repository, never()).updateLastSeenTimestamp(anyString(), any());
+        }
+
+        // -------------------------------
+        // 1. userId is null → throw exception
+        // -------------------------------
+        @Test
+        void testUpdateLastSeen_whenUserIdIsNull() {
+                UpsertLastSeenRequest request = new UpsertLastSeenRequest(null);
+
+                assertThrows(NotificationException.class,
+                                () -> notificationController.updateLastSeen(request));
+
+                // CRUD verification — repository must NOT be called at all
+                verify(repository, never()).existsByUserId(anyString());
+                verify(repository, never()).updateLastSeenTimestamp(anyString(), any());
+                verify(repository, never()).createLastSeenTimestamp(anyString(), any());
+        }
+
+        @Test
+        void testUpdateLastSeen_whenUserIdIsBlank() {
+                UpsertLastSeenRequest request = new UpsertLastSeenRequest("   ");
+
+                assertThrows(NotificationException.class,
+                                () -> notificationController.updateLastSeen(request));
+
+                // CRUD verification — repository must NOT be called
+                verify(repository, never()).existsByUserId(anyString());
+                verify(repository, never()).updateLastSeenTimestamp(anyString(), any());
+                verify(repository, never()).createLastSeenTimestamp(anyString(), any());
         }
 }

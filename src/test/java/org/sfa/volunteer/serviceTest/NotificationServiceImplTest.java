@@ -12,16 +12,21 @@ import org.sfa.volunteer.dto.response.NotificationResponse;
 import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
 import org.sfa.volunteer.entities.UserNotificationStatus;
 import org.sfa.volunteer.enums.StatusType;
+import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.repository.NotificationsRepository;
 import org.sfa.volunteer.repository.UserNotificationStatusRepository;
 import org.sfa.volunteer.service.impl.NotificationServiceImpl;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageImpl;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Arrays;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -110,6 +115,18 @@ class NotificationServiceImplTest {
 
                 Timestamp watermark = Timestamp.from(Instant.now());
 
+                // Mock DB row (Object[])
+                Object[] row = new Object[] {
+                                1L, // notification_id
+                                "ignored", // status
+                                "Help", // type_name
+                                "Old message", // message
+                                Timestamp.from(Instant.now().minusSeconds(7200)) // createDttm (old)
+                };
+
+                List<Object[]> rows = Arrays.<Object[]>asList(row);
+                Page<Object[]> mockPage = new PageImpl<>(rows);
+
                 NotificationResponse mockNotification = NotificationResponse.builder()
                                 .notificationId(1)
                                 .status("ignored")
@@ -120,7 +137,7 @@ class NotificationServiceImplTest {
 
                 when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(watermark);
                 when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
-                                .thenReturn(List.of(mockNotification));
+                                .thenReturn(mockPage);
                 when(nRepository.countAllNotifications(userId)).thenReturn(10);
                 when(nRepository.countNewNotifications(eq(userId), any(Timestamp.class))).thenReturn(3);
 
@@ -136,8 +153,7 @@ class NotificationServiceImplTest {
 
                 // CRUD verification
                 verify(userNSRepository, times(1)).getLastSeenTimestamp(userId);
-                verify(nRepository, times(1))
-                                .findNotifications(eq(userId), any(Pageable.class));
+                verify(nRepository, times(1)).findNotifications(eq(userId), any(Pageable.class));
                 verify(nRepository, times(1)).countAllNotifications(userId);
                 verify(nRepository, times(1))
                                 .countNewNotifications(eq(userId), eq(watermark));
@@ -154,17 +170,21 @@ class NotificationServiceImplTest {
 
                 Timestamp watermark = Timestamp.from(Instant.now());
 
-                NotificationResponse mockNotification = NotificationResponse.builder()
-                                .notificationId(1)
-                                .status("ignored")
-                                .typeName("Help")
-                                .message("Old message")
-                                .createDttm(Timestamp.from(Instant.now().plusSeconds(100)))
-                                .build();
+                // Mock DB row (Object[])
+                Object[] row = new Object[] {
+                                1L, // notification_id
+                                "ignored", // status (ignored by service)
+                                "Help", // type_name
+                                "Old message", // message
+                                Timestamp.from(Instant.now().plusSeconds(100)) // NEW (after watermark)
+                };
+
+                List<Object[]> rows = Arrays.<Object[]>asList(row);
+                Page<Object[]> mockPage = new PageImpl<>(rows);
 
                 when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(watermark);
                 when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
-                                .thenReturn(List.of(mockNotification));
+                                .thenReturn(mockPage);
                 when(nRepository.countAllNotifications(userId)).thenReturn(10);
                 when(nRepository.countNewNotifications(eq(userId), any(Timestamp.class))).thenReturn(3);
 
@@ -180,8 +200,7 @@ class NotificationServiceImplTest {
 
                 // CRUD verification
                 verify(userNSRepository, times(1)).getLastSeenTimestamp(userId);
-                verify(nRepository, times(1))
-                                .findNotifications(eq(userId), any(Pageable.class));
+                verify(nRepository, times(1)).findNotifications(eq(userId), any(Pageable.class));
                 verify(nRepository, times(1)).countAllNotifications(userId);
                 verify(nRepository, times(1))
                                 .countNewNotifications(eq(userId), eq(watermark));
@@ -196,17 +215,21 @@ class NotificationServiceImplTest {
 
                 GetNotificationsRequest request = new GetNotificationsRequest(userId, rowStart, rowEnd);
 
-                NotificationResponse mockNotification = NotificationResponse.builder()
-                                .notificationId(1)
-                                .status("ignored")
-                                .typeName("Alert")
-                                .message("Test")
-                                .createDttm(Timestamp.from(Instant.now().minusSeconds(5000)))
-                                .build();
+                // Mock DB row (Object[])
+                Object[] row = new Object[] {
+                                1L, // notification_id
+                                "ignored", // status (ignored by service)
+                                "Alert", // type_name
+                                "old", // message
+                                Timestamp.from(Instant.now().plusSeconds(100)) // NEW (after watermark)
+                };
+
+                List<Object[]> rows = Arrays.<Object[]>asList(row);
+                Page<Object[]> mockPage = new PageImpl<>(rows);
 
                 when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(null);
                 when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
-                                .thenReturn(List.of(mockNotification));
+                                .thenReturn(mockPage);
                 when(nRepository.countAllNotifications(userId)).thenReturn(5);
                 when(nRepository.countNewNotifications(eq(userId), any(Timestamp.class))).thenReturn(5);
 
@@ -217,12 +240,11 @@ class NotificationServiceImplTest {
                 assertEquals(5, response.newNotificationsCount());
                 assertEquals(1, response.notifications().size());
                 assertEquals("Alert", response.notifications().get(0).typeName());
-                assertEquals("old", response.notifications().get(0).status());
+                assertEquals("new", response.notifications().get(0).status());
 
                 // CRUD verification
                 verify(userNSRepository, times(1)).getLastSeenTimestamp(userId);
-                verify(nRepository, times(1))
-                                .findNotifications(eq(userId), any(Pageable.class));
+                verify(nRepository, times(1)).findNotifications(eq(userId), any(Pageable.class));
                 verify(nRepository, times(1)).countAllNotifications(userId);
                 verify(nRepository, times(1))
                                 .countNewNotifications(eq(userId), any(Timestamp.class));
@@ -234,9 +256,14 @@ class NotificationServiceImplTest {
                 String userId = "U1";
                 GetNotificationsRequest req = new GetNotificationsRequest(userId, 0, 10);
 
-                when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(Timestamp.from(Instant.now()));
+                Timestamp watermark = Timestamp.from(Instant.now());
+
+                // Empty page content
+                Page<Object[]> emptyPage = new PageImpl<>(List.of());
+
+                when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(watermark);
                 when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
-                                .thenReturn(List.of());
+                                .thenReturn(emptyPage);
                 when(nRepository.countAllNotifications(userId)).thenReturn(0);
                 when(nRepository.countNewNotifications(eq(userId), any(Timestamp.class))).thenReturn(0);
 
@@ -250,38 +277,7 @@ class NotificationServiceImplTest {
                 verify(userNSRepository, times(1)).getLastSeenTimestamp(userId);
                 verify(nRepository, times(1)).findNotifications(eq(userId), any(Pageable.class));
                 verify(nRepository, times(1)).countAllNotifications(userId);
-                verify(nRepository, times(1)).countNewNotifications(eq(userId), any(Timestamp.class));
-        }
-
-        // UpdateLastSeen TestCases
-        // -------------------------------
-        // 1. userId is null → throw exception
-        // -------------------------------
-        @Test
-        void testUpdateLastSeen_whenUserIdIsNull() {
-                UpsertLastSeenRequest request = new UpsertLastSeenRequest(null);
-
-                assertThrows(UserNotFoundException.class,
-                                () -> notificationService.upsertLastSeen(request));
-
-                // CRUD verification — repository must NOT be called at all
-                verify(userNSRepository, never()).existsByUserId(anyString());
-                verify(userNSRepository, never()).updateLastSeenTimestamp(anyString(), any());
-        }
-
-        // -------------------------------
-        // 2. userId is blank → throw exception
-        // -------------------------------
-        @Test
-        void testUpdateLastSeen_whenUserIdIsBlank() {
-                UpsertLastSeenRequest request = new UpsertLastSeenRequest("   ");
-
-                assertThrows(UserNotFoundException.class,
-                                () -> notificationService.upsertLastSeen(request));
-
-                // CRUD verification — repository must NOT be called
-                verify(userNSRepository, never()).existsByUserId(anyString());
-                verify(userNSRepository, never()).updateLastSeenTimestamp(anyString(), any());
+                verify(nRepository, times(1)).countNewNotifications(eq(userId), eq(watermark));
         }
 
         @Test

@@ -10,6 +10,7 @@ import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.service.NotificationService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
 
@@ -42,6 +44,12 @@ public class NotificationController {
         public SaayamResponse<GetNotificationsResponse> getNotificationCounts(
                         @PathVariable String userId) throws Exception {
 
+                if (userId == null || userId.isBlank()) {
+                        throw new NotificationException(
+                                        SaayamStatusCode.USER_NOT_FOUND.toString(),
+                                        userId);
+                }
+
                 GetNotificationsRequest request = GetNotificationsRequest.builder().userId(userId).build();
                 GetNotificationsResponse response = notificationService.getNotificationCounts(request);
                 return responseBuilder.buildSuccessResponse(
@@ -51,8 +59,14 @@ public class NotificationController {
 
         @GetMapping("/{userId}")
         public SaayamResponse<GetNotificationsResponse> getNotifications(
-                        @PathVariable String userId, @RequestParam int rowStart, @RequestParam int rowEnd)
+                        @PathVariable String userId, @RequestParam Integer rowStart, @RequestParam Integer rowEnd)
                         throws Exception {
+
+                if (userId == null || userId.isBlank()) {
+                        throw new NotificationException(
+                                        SaayamStatusCode.USER_NOT_FOUND.toString(),
+                                        userId);
+                }
 
                 GetNotificationsRequest request = GetNotificationsRequest.builder().userId(userId).rowStart(rowStart)
                                 .rowEnd(rowEnd).build();
@@ -67,6 +81,12 @@ public class NotificationController {
         @PostMapping("/lastseen")
         public SaayamResponse<UpsertLastSeenResponse> updateLastSeen(
                         @Valid @RequestBody UpsertLastSeenRequest request) throws Exception {
+                String userId = request.userId();
+                if (userId == null || userId.isBlank()) {
+                        throw new NotificationException(
+                                        SaayamStatusCode.USER_NOT_FOUND.toString(),
+                                        userId);
+                }
 
                 UpsertLastSeenResponse response = notificationService.upsertLastSeen(request);
                 return responseBuilder.buildSuccessResponse(
