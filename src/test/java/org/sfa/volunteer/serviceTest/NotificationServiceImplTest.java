@@ -125,7 +125,7 @@ class NotificationServiceImplTest {
                 };
 
                 List<Object[]> rows = Arrays.<Object[]>asList(row);
-                Page<Object[]> mockPage = new PageImpl<>(rows);
+                Page<Object[]> mockPage = new PageImpl<Object[]>(rows);
 
                 NotificationResponse mockNotification = NotificationResponse.builder()
                                 .notificationId(1)
@@ -180,7 +180,7 @@ class NotificationServiceImplTest {
                 };
 
                 List<Object[]> rows = Arrays.<Object[]>asList(row);
-                Page<Object[]> mockPage = new PageImpl<>(rows);
+                Page<Object[]> mockPage = new PageImpl<Object[]>(rows);
 
                 when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(watermark);
                 when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
@@ -225,7 +225,7 @@ class NotificationServiceImplTest {
                 };
 
                 List<Object[]> rows = Arrays.<Object[]>asList(row);
-                Page<Object[]> mockPage = new PageImpl<>(rows);
+                Page<Object[]> mockPage = new PageImpl<Object[]>(rows);
 
                 when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(null);
                 when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
