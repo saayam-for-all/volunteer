@@ -1,10 +1,11 @@
 name: Java CI/CD Pipeline
 
 on:
+  workflow_dispatch:
   push:
-    branches: ["test", "dev", "main"]
+    branches: ["test", "dev", "main", "**"]
   pull_request:
-    branches: ["test", "dev", "main"]
+    branches: ["test", "dev", "main", "**"]
 
 env:
   APP_NAME: volunteer-app
@@ -119,21 +120,21 @@ jobs:
         if: github.ref_name == 'test'
         run: |
           echo "Deploying application archive to test environment..."
-          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/test/archives/${{ steps.ver.outputs.archive_name }}"
+          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/code/test/volunteer/v1.0.0/${{ steps.ver.outputs.archive_name }}"
 
       # --- BRANCH STRATEGY 2: DEV BRANCH DEPLOYMENT ---
       - name: Deploy to Dev Environment
-        if: github.ref_name == 'dev'
+        if: github.ref_name == 'dev' || github.ref_name == 'emmax007_Java_CI_Pipeline'
         run: |
           echo "Deploying application archive to dev environment..."
-          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/dev/archives/${{ steps.ver.outputs.archive_name }}"
+          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/code/dev/volunteer/v1.0.0/${{ steps.ver.outputs.archive_name }}"
 
       # --- BRANCH STRATEGY 3: MAIN/PRODUCTION DEPLOYMENT ---
       - name: Deploy to Production Environment (AWS S3 staging/prod)
         if: github.ref_name == 'main'
         run: |
           echo "Deploying application archive to Production AWS S3..."
-          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/prod/archives/${{ env.APP_NAME }}-prod-latest.jar"
+          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/code/prod/volunteer/v1.0.0/${{ env.APP_NAME }}-prod-latest.jar"
 
       # --- POST-DEPLOYMENT QA: PLAYWRIGHT INTEGRATION ---
       - name: Install Node.js for Playwright E2E Tests
@@ -165,7 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           BUCKET="${{ env.S3_BUCKET }}"
-          PREFIX="dev/archives/"
+          PREFIX="code/dev/volunteer/v1.0.0/"
           KEYS=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIX" --query 'reverse(sort_by(Contents[?ends_with(Key, `.jar`)], &LastModified))[].Key' --output text)
           if [ -z "$KEYS" ] || [ "$KEYS" = "None" ]; then exit 0; fi
           KEYS_NL=$(echo "$KEYS" | tr '\t' '\n')
