@@ -123,7 +123,7 @@ jobs:
 
       # --- BRANCH STRATEGY 2: DEV BRANCH DEPLOYMENT ---
       - name: Deploy to Dev Environment
-        if: github.ref_name == 'dev'
+        if: github.ref_name == 'dev' || github.ref_name == 'emmax007_Java_CI_Pipeline'
         run: |
           echo "Deploying application archive to dev environment..."
           aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/code/dev/volunteer/v1.0.0/${{ steps.ver.outputs.archive_name }}"
