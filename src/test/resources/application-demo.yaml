@@ -1,0 +1,34 @@
+# Controlled local demo profile. Points the volunteer service at the same Postgres
+# container the request service's notification demo writes to, proving the two
+# services really do share the notifications table.
+cors:
+  allowed-origin: http://localhost:5173
+  allowed-headers: Authorization
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  credentials: true
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:55432/saayam
+    username: saayam
+    password: saayam
+    hikari:
+      connection-init-sql: SET search_path TO virginia_dev_saayam_rdbms, public
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        default_schema: virginia_dev_saayam_rdbms
+  main:
+    lazy-initialization: true
+
+saayam:
+  s3:
+    buckets:
+      euPrivate: eu-west-1
+      usPrivate: us-east-1
+    maxBytes: 2097152
+    allowedMime: image/jpeg,image/png,image/webp
+    keyPattern: users/%s/profile
