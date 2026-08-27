@@ -19,7 +19,7 @@ import java.time.ZonedDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "country")
+@Table(name = "countries")
 public class Country {
 
 

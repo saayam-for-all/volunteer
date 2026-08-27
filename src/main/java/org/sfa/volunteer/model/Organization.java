@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.time.ZonedDateTime;
 
 @Entity
-@Table(name = "organization")
+@Table(name = "organizations")
 @Data
 @Builder
 @NoArgsConstructor
@@ -54,6 +54,6 @@ public class Organization {
     @Column(name = "zip_code")
     private String zipCode;
 
-    @Column(name = "last_update_date")
+    @Column(name = "last_updated_at")
     private ZonedDateTime lastUpdateDate;
 }

@@ -1,6 +1,7 @@
 package org.sfa.volunteer.service.impl;
 
 import jakarta.transaction.Transactional;
+import jakarta.persistence.EntityManager;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
@@ -18,6 +19,7 @@ import org.sfa.volunteer.model.UserAdditionalDetail;
 import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserSignOffReason;
 import org.sfa.volunteer.model.UserStatus;
+import org.sfa.volunteer.model.SupportedLanguages;
 import org.sfa.volunteer.repository.CountryRepository;
 import org.sfa.volunteer.repository.OrganizationRepository;
 import org.sfa.volunteer.repository.StateRepository;
@@ -54,6 +56,7 @@ import java.util.stream.Collectors;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
     private final UserAdditionalDetailRepository userAdditionalDetailRepository;
+    private final EntityManager entityManager;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -74,7 +77,8 @@ import java.util.stream.Collectors;
             CountryRepository countryRepository,
             StateRepository stateRepository,
             UserSignOffReasonRepository userSignOffReasonRepository,
-            UserAdditionalDetailRepository userAdditionalDetailRepository) {
+            UserAdditionalDetailRepository userAdditionalDetailRepository,
+            EntityManager entityManager) {
 
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
@@ -84,6 +88,7 @@ import java.util.stream.Collectors;
         this.stateRepository = stateRepository;
         this.userSignOffReasonRepository = userSignOffReasonRepository;
         this.userAdditionalDetailRepository = userAdditionalDetailRepository;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -224,9 +229,9 @@ import java.util.stream.Collectors;
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) return false;
 
-        String category = (user.getUserCategory() == null) ? null : user.getUserCategory().getUserCategory();
+        //String category = (user.getUserCategory() == null) ? null : user.getUserCategory().getUserCategory();
 
-        if (category != null && category.toLowerCase().contains("admin")) return true;
+        //if (category != null && category.toLowerCase().contains("admin")) return true;
         return false;
     }
 
@@ -314,12 +319,13 @@ import java.util.stream.Collectors;
                 .stateName(user.getState() != null ? user.getState().getStateName() : null)
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus() : null)
-                .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
+            //    .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
                 .gender(user.getGender())
-                .lastLocation(user.getLastLocation())
-                .language1(user.getLanguage1())
-                .language2(user.getLanguage2())
-                .language3(user.getLanguage3())
+            //    .lastLocation(user.getLastLocation())
+                .language1(user.getLanguage1() != null ? user.getLanguage1().getLanguageName() : null)
+                .language2(user.getLanguage2() != null ? user.getLanguage2().getLanguageName() : null)
+                .language3(user.getLanguage3() != null ? user.getLanguage3().getLanguageName() : null)
+
                 .promotionWizardStage(user.getVolunteerStage())
                 .promotionWizardLastUpdateDate(user.getVolunteerUpdateDate())
                 .build();
@@ -445,10 +451,13 @@ import java.util.stream.Collectors;
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
 
-            // update language prefs
-            user.setLanguage1(request.language1());
-            user.setLanguage2(request.language2());
-            user.setLanguage3(request.language3());
+            // Get the list of IDs from your updated request DTO
+            List<Long> languageIds = request.preferredLanguageIds();
+
+            // Safely pull from the list if the index exists, otherwise set to null
+            user.setLanguage1(languageIds != null && languageIds.size() > 0 ? entityManager.getReference(SupportedLanguages.class, languageIds.get(0)) : null);
+            user.setLanguage2(languageIds != null && languageIds.size() > 1 ? entityManager.getReference(SupportedLanguages.class, languageIds.get(1)) : null);
+            user.setLanguage3(languageIds != null && languageIds.size() > 2 ? entityManager.getReference(SupportedLanguages.class, languageIds.get(2)) : null);
             userRepository.save(user);
 
             // fetch UserAdditionalDetail
@@ -465,9 +474,9 @@ import java.util.stream.Collectors;
 
             return UserPreferenceResponse.builder()
                     .userId(user.getId())
-                    .language1(user.getLanguage1())
-                    .language2(user.getLanguage2())
-                    .language3(user.getLanguage3())
+                    .language1(user.getLanguage1() != null ? user.getLanguage1().getLanguageName() : null)
+                    .language2(user.getLanguage2() != null ? user.getLanguage2().getLanguageName() : null)
+                    .language3(user.getLanguage3() != null ? user.getLanguage3().getLanguageName() : null)
                     .secondaryEmail1(detail.getSecondaryEmail1())
                     .secondaryEmail2(detail.getSecondaryEmail2())
                     .secondaryPhone1(detail.getSecondaryPhone1())

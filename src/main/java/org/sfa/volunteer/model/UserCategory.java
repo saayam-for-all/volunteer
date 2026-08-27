@@ -18,7 +18,7 @@ import java.time.ZonedDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "user_category")
+@Table(name = "user_categories")
 public class UserCategory {
 
     @Id
@@ -45,4 +45,7 @@ public class UserCategory {
 
     @Column(name = "last_updated_at")
     private ZonedDateTime lastUpdatedAt;
+
+//    @ManyToMany(mappedBy = "user_category")
+//    private List<User> users = new ArrayList<>();
 }

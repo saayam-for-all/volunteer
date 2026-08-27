@@ -8,9 +8,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Singular;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
+import java.util.List;
 
 @Entity
 @Data
@@ -72,17 +74,27 @@ public class User {
     @Column(name = "gender")
     private String gender;
 
-    @Column(name = "last_location")
-    private String lastLocation;
+    //Not using right now
+   // @Column(name = "last_location")
+    //private String lastLocation;
 
-    @Column(name = "language_1")
-    private String language1;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "language_1")
+    private SupportedLanguages language1;
 
-    @Column(name = "language_2")
-    private String language2;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "language_2")
+    private SupportedLanguages language2;
 
-    @Column(name = "language_3")
-    private String language3;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "language_3")
+    private SupportedLanguages language3;
+
+   // @Column(name = "language_2")
+   // private String language2;
+
+    //@Column(name = "language_3")
+    //private String language3;
 
     @Column(name = "promotion_wizard_stage")
     private Integer volunteerStage;
@@ -108,10 +120,17 @@ public class User {
     @JsonBackReference
     private UserStatus userStatus;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_category_id", nullable = false)
-    @JsonBackReference
-    private UserCategory userCategory;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name ="user_category_map",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "user_category_id")
+    )
+//    @JoinColumn(name = "user_category_id", nullable = false)
+    //@JsonBackReference
+//    private UserCategory userCategory;
+    @Singular("userCategory")
+    private List<UserCategory> user_category = new java.util.ArrayList<>();
 
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private UserAdditionalDetail additionalDetail;
@@ -141,7 +160,7 @@ public class User {
                 ", state=" + state +
                 ", country=" + country +
                 ", userStatus=" + userStatus +
-                ", userCategory=" + userCategory +
+//                ", userCategory=" + userCategory +
                 ", volunteerStage=" + volunteerStage +
                 ", volunteerUpdateDate=" + volunteerUpdateDate +
                 '}';
