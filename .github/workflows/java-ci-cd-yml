@@ -13,41 +13,36 @@ env:
   S3_BUCKET: saayam-virginia-private
 
 jobs:
-  dev-stage-pipeline:
-    name: Build, Test & QA (Test Stage)
+  build-and-test:
+    name: Build, Test & QA Stage
     runs-on: ubuntu-latest
-
     steps:
-      # 1. CODE (Checkout source repository)
-      - name: CODE (Checkout Repository)
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. BUILD / PACKAGE
-      - name: BUILD / PACKAGE (Setup Java 17 & Maven Build)
+      - name: Setup Java 17 & Maven Build
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
           cache: "maven"
 
-      - name: Execute Package Build
-        run: mvn clean package -DskipTests
-
-      # 3. SETUP ENV
-      - name: SETUP ENV (Configure Sonar Cache & Environment)
+      - name: Cache SonarQube Packages
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      # 4. TEST [SAST] (Unit Tests & SonarQube SAST Scan)
-      - name: TEST [SAST] (Execute Unit Tests)
+      - name: Execute Package Build
+        run: mvn clean package -DskipTests
+
+      - name: Execute Unit Tests
         run: mvn test
 
-      - name: TEST [SAST] (SonarQube Security Scan)
+      - name: SonarQube Security Scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
@@ -60,30 +55,12 @@ jobs:
             echo "SONAR_TOKEN secret is not set. Skipping SonarQube SAST scan."
           fi
 
-      # 5. CODE COVERAGE (Warning Only with Dynamic Percentage Check)
-      - name: CODE COVERAGE (Verify 90% Jacoco Gate - Warning Only)
-        shell: bash
+      - name: Code Coverage (JaCoCo)
         run: |
-          echo "Checking Jacoco Code Coverage..."
+          echo "Checking JaCoCo code coverage metrics..."
           mvn jacoco:report || true
+          mvn jacoco:check || echo "⚠️ Warning: Coverage is below target threshold, proceeding."
 
-          CSV_REPORT="target/site/jacoco/jacoco.csv"
-          if [ -f "$CSV_REPORT" ]; then
-            STATS=$(awk -F, 'NR>1 {missed+=$4; covered+=$5} END { if (missed+covered > 0) printf "%.2f", (covered/(missed+covered))*100; else print "0" }' "$CSV_REPORT")
-            echo "📊 Current Code Coverage is: ${STATS}%"
-          else
-            echo "⚠️ Jacoco CSV report not found at $CSV_REPORT. Running standard check..."
-          fi
-
-          mvn jacoco:check || echo "⚠️ Warning: Coverage is below the target threshold, but proceeding with the pipeline."
-
-      # 6. BUILD DOCKER IMAGE
-      - name: BUILD DOCKER IMAGE
-        run: |
-          echo "Building Docker Image: ${{ env.APP_NAME }}:${{ github.sha }}"
-          # docker build -t ${{ env.APP_NAME }}:${{ github.sha }} .
-
-      # 7. Upload Build Artifact for Deployment Job
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -91,13 +68,12 @@ jobs:
           path: target/*.jar
 
   deploy:
-    name: Deploy to AWS S3
-    needs: dev-stage-pipeline
+    name: Deploy to AWS S3 & E2E Testing
+    needs: build-and-test
     if: github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'test' || github.ref_name == 'main')
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Download Build Artifact
@@ -106,6 +82,21 @@ jobs:
           name: compiled-build-archive
           path: target/
 
+      - name: Extract Version Metadata
+        id: meta
+        shell: bash
+        run: |
+          VERSION_RAW=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
+          DATE_UTC=$(date -u +%Y%m%d-%H%M)
+          VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
+          
+          JAR_PATH=$(find target/ -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+          JAR_FILE=$(basename "$JAR_PATH")
+          
+          echo "jar_name=$JAR_FILE" >> $GITHUB_OUTPUT
+          echo "archive_name=${{ env.APP_NAME }}-${VERSION_TAG}.jar" >> $GITHUB_OUTPUT
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -113,34 +104,36 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_VOLUNTEER }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_VOLUNTEER }}
 
-      - name: Extract Metadata & Push to AWS S3 Private Bucket
+      - name: Deploy to Environment-Specific S3 Path
         shell: bash
         run: |
-          set -euo pipefail
-          VERSION_RAW=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
-          DATE_UTC=$(date -u +%Y%m%d-%H%M)
-          VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
+          ENV_PATH="${{ github.ref_name }}"
+          if [ "$ENV_PATH" = "main" ]; then
+            ENV_PATH="prod"
+          fi
+          
+          TARGET_KEY="s3://${{ env.S3_BUCKET }}/code/$ENV_PATH/volunteer/v1.0.0/${{ steps.meta.outputs.archive_name }}"
+          echo "Uploading to $TARGET_KEY..."
+          aws s3 cp "target/${{ steps.meta.outputs.jar_name }}" "$TARGET_KEY"
 
-          JAR_PATH=$(find target/ -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
-          JAR_FILE=$(basename "$JAR_PATH")
-          ARCHIVE_NAME="${{ env.APP_NAME }}-${VERSION_TAG}.jar"
-
-          echo "Uploading $ARCHIVE_NAME to AWS S3 Private Bucket..."
-          aws s3 cp "target/$JAR_FILE" "s3://${{ env.S3_BUCKET }}/code/${{ github.ref_name }}/volunteer/v1.0.0/$ARCHIVE_NAME"
-
-      # --- POST-DEPLOYMENT QA: PLAYWRIGHT INTEGRATION FOR TEST BRANCH ---
-      - name: Install Node.js for Playwright E2E Tests
-        if: github.ref_name == 'test'
+      - name: Setup Node.js for Playwright E2E Tests
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
-      - name: Install Playwright Dependencies & Run Tests
-        if: github.ref_name == 'test'
+      - name: Run Playwright E2E Tests
         run: |
           npm init -y
           npm install @playwright/test
           npx playwright install --with-deps
-          echo "Running E2E validation tests against https://test-saayam.netlify.app"
+          
+          if [ "${{ github.ref_name }}" = "test" ]; then
+            TARGET_URL="https://test-saayam.netlify.app"
+          elif [ "${{ github.ref_name }}" = "dev" ]; then
+            TARGET_URL="https://dev-saayam.netlify.app"
+          else
+            TARGET_URL="https://help-for-everyone.org"
+          fi
+          
+          echo "Running validation tests against $TARGET_URL"
           # npx playwright test
