@@ -9,7 +9,7 @@ import org.springframework.test.context.TestPropertySource;
     "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
     "spring.datasource.driver-class-name=org.h2.Driver",
     "spring.datasource.username=sa",
-    "spring.datasource.password=test", // Set to "test" to prevent GitHub secrets-masking bugs
+    "spring.datasource.password=test",
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
     "spring.jpa.hibernate.ddl-auto=create-drop",
     "spring.jpa.open-in-view=false",
@@ -32,11 +32,11 @@ import org.springframework.test.context.TestPropertySource;
     "saayam.s3.buckets.euPrivate=test-bucket-eu",
     "saayam.s3.buckets.usPrivate=test-bucket-us",
     "saayam.s3.region=us-east-1"
-
 })
 public class VolunteerApplicationTests {
 
     @Test
     void contextLoads() {
     }
+   
 }
