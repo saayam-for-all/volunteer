@@ -56,10 +56,23 @@ jobs:
           fi
 
       - name: Code Coverage (JaCoCo)
+        shell: bash
         run: |
           echo "Checking JaCoCo code coverage metrics..."
           mvn jacoco:report || true
-          mvn jacoco:check || echo "⚠️ Warning: Coverage is below target threshold, proceeding."
+
+          TARGET_BRANCH="${{ github.base_ref }}"
+          if [ -z "$TARGET_BRANCH" ]; then
+            TARGET_BRANCH="${{ github.ref_name }}"
+          fi
+
+          if [ "$TARGET_BRANCH" = "dev" ]; then
+            echo "Strict 90% code coverage enforcement active for dev branch."
+            mvn jacoco:check
+          else
+            echo "Relaxed coverage check for $TARGET_BRANCH branch (Warnings only)."
+            mvn jacoco:check || echo "⚠️ Warning: Coverage is below target threshold, but proceeding."
+          fi
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
