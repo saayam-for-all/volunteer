@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sfa.volunteer.dto.response.OrganizationResponse;
 import org.sfa.volunteer.repository.OrganizationRepository;
 import org.sfa.volunteer.repository.UserOrgMapRepository;
+import org.sfa.volunteer.repository.OrgSkillRepository;
 import org.sfa.volunteer.service.impl.OrganizationServiceImpl;
 
 import java.util.Collections;
@@ -32,6 +33,9 @@ class OrganizationServiceImplTest {
     @InjectMocks
     private OrganizationServiceImpl organizationService;
 
+    @Mock
+    private OrgSkillRepository orgSkillRepository;
+
     @Test
     void searchByName_returnsEmptyList_whenNoMatches() {
         when(organizationRepository.findByOrgNameContainingIgnoreCase("xyz"))
@@ -44,7 +48,7 @@ class OrganizationServiceImplTest {
     @Test
     void searchByName_returnsMatchingOrganizations() {
         Organization org = Organization.builder()
-                .orgId("ORG-00-000-000-001")
+                .orgId("ORG-000-000-000-0001")
                 .orgName("Red Cross")
                 .cityName("Washington")
                 .stateId("DC")
@@ -57,7 +61,7 @@ class OrganizationServiceImplTest {
 
         assertEquals(1, results.size());
         assertEquals("Red Cross", results.get(0).orgName());
-        assertEquals("ORG-00-000-000-001", results.get(0).orgId());
+        assertEquals("ORG-000-000-000-0001", results.get(0).orgId());
     }
     @Test
     void createOrganization_returnsGeneratedOrgId() {
@@ -69,7 +73,7 @@ class OrganizationServiceImplTest {
                 .build();
 
         Organization savedOrg = Organization.builder()
-                .orgId("ORG-00-000-000-004")
+                .orgId("ORG-000-000-000-0004")
                 .orgName("Hope Shelter")
                 .cityName("Boston")
                 .stateId("MA")
@@ -80,7 +84,7 @@ class OrganizationServiceImplTest {
 
         OrganizationResponse response = organizationService.createOrganization(request);
 
-        assertEquals("ORG-00-000-000-004", response.orgId());
+        assertEquals("ORG-000-000-000-0004", response.orgId());
         assertEquals("Hope Shelter", response.orgName());
     }
 }
