@@ -81,8 +81,10 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse createOrganization(CreateOrganizationRequest request) {
         Organization organization = Organization.builder()
                 .orgName(request.orgName())
-                .orgType(request.orgType())
-                .orgSize(request.orgSize())
+                .orgType(request.orgType() == null ? null
+                        : OrgType.fromString(request.orgType()).getDbValue())
+                .orgSize(request.orgSize() == null ? null
+                        : OrgSize.fromString(request.orgSize()).getDbValue())
                 .street(request.street())
                 .cityName(request.cityName())
                 .stateId(request.stateId())

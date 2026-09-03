@@ -67,4 +67,13 @@ public class Organization {
     @Column(name = "org_size")
     @ColumnTransformer(write = "?::org_size_enum")
     private String orgSize;
+
+    @Column(name = "is_contributor")
+    private Boolean isContributor;
+
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private java.time.LocalDateTime createdAt;
+
+    @Column(name = "last_updated_at", insertable = false, updatable = false)
+    private java.time.LocalDateTime lastUpdatedAt;
 }
