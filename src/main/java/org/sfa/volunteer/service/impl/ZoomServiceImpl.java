@@ -8,6 +8,7 @@ import org.sfa.volunteer.entities.Meeting;
 import org.sfa.volunteer.entities.MeetingAttendee;
 import org.sfa.volunteer.repository.MeetingRepository;
 import org.sfa.volunteer.service.ZoomService;
+import org.sfa.volunteer.service.EmailService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class ZoomServiceImpl implements ZoomService {
 
     private final WebClient zoomWebClient;
     private final MeetingRepository meetingRepository;
+    private final EmailService emailService;
 
     @Value("${zoom.oauth.account-id}")
     private String accountId;
@@ -33,9 +35,10 @@ public class ZoomServiceImpl implements ZoomService {
     @Value("${zoom.oauth.client-secret}")
     private String clientSecret;
 
-    public ZoomServiceImpl(WebClient zoomWebClient, MeetingRepository meetingRepository) {
+    public ZoomServiceImpl(WebClient zoomWebClient, MeetingRepository meetingRepository, EmailService emailService) {
         this.zoomWebClient = zoomWebClient;
         this.meetingRepository = meetingRepository;
+        this.emailService = emailService;
     }
 
     @Override
@@ -69,9 +72,9 @@ public class ZoomServiceImpl implements ZoomService {
         settings.put("join_before_host", false);
         settings.put("mute_upon_entry", true);
         settings.put("audio", "both");
-        settings.put("approval_type", 0);           // Auto-approve registrants
-        settings.put("registration_type", 1);        // Register once
-        settings.put("registrants_email_notification", true);  // Zoom sends emails!
+        settings.put("approval_type", 0); // Auto-approve registrants
+        settings.put("registration_type", 1); // Register once
+        settings.put("registrants_email_notification", true); // Zoom sends emails!
 
         Map<String, Object> meetingData = new HashMap<>();
         meetingData.put("topic", request.topic());
@@ -111,7 +114,15 @@ public class ZoomServiceImpl implements ZoomService {
         }
 
         // Persist
+        // Persist
         Meeting savedMeeting = meetingRepository.save(meeting);
+
+        // Send email invites to all selected volunteers
+        emailService.sendMeetingInvites(
+                request.attendeeEmails(),
+                savedMeeting.getTopic(),
+                savedMeeting.getJoinUrl(),
+                savedMeeting.getStartTime().toString());
 
         return new MeetingResponse(
                 savedMeeting.getId(),
@@ -123,8 +134,7 @@ public class ZoomServiceImpl implements ZoomService {
                 savedMeeting.getStartTime(),
                 savedMeeting.getDurationMinutes(),
                 savedMeeting.getHostUserId(),
-                request.attendeeEmails()
-        );
+                request.attendeeEmails());
     }
 
     private void addRegistrant(String meetingId, String email, String accessToken) {

@@ -1,4 +1,5 @@
 package org.sfa.volunteer.service.impl;
+
 import jakarta.transaction.Transactional;
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
@@ -37,7 +38,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     private final UserRepository userRepository;
     private final VolunteerUserAvailabilityRepository userAvailabilityRepository;
 
-//    private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
+    // private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -49,7 +50,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
         this.userAvailabilityRepository = userAvailabilityRepository;
-//        this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
+        // this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
     }
 
     private void updateUser(User user, Integer step) {
@@ -174,7 +175,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         }
         volunteer.setUser(user);
         if (request.step() != 4)
-        throw VolunteerException.volunteerInvalidStep(request.userId());
+            throw VolunteerException.volunteerInvalidStep(request.userId());
 
         volunteer.setNotification(request.notification());
         volunteer.setIsCompleted(request.isCompleted());
@@ -223,10 +224,10 @@ public class VolunteerServiceImpl implements VolunteerService {
         return availability;
     }
 
-//    @Override
-//    public UserVolunteerSkillsResponse findSkillsList() throws Exception {
-//        return null;
-//    }
+    // @Override
+    // public UserVolunteerSkillsResponse findSkillsList() throws Exception {
+    // return null;
+    // }
 
     @Override
     public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) throws Exception {
@@ -286,6 +287,10 @@ public class VolunteerServiceImpl implements VolunteerService {
         return VolunteerResponse.builder()
                 .id(volunteer.getId())
                 .userId(volunteer.getUser().getId())
+                .name(volunteer.getUser().getFullName())
+                .email(volunteer.getUser().getPrimaryEmailAddress())
+                .phone(volunteer.getUser().getPrimaryPhoneNumber())
+                .location(volunteer.getUser().getCity())
                 .termsAndConditions(volunteer.getTermsAndConditions())
                 .tcUpdateDate(volunteer.getTcUpdateDate())
                 .govtIdFilename(volunteer.getGovtIdFilename())
@@ -302,6 +307,10 @@ public class VolunteerServiceImpl implements VolunteerService {
         return VolunteerResponse.builder()
                 .id(volunteer.getId())
                 .userId(volunteer.getUser().getId())
+                .name(volunteer.getUser().getFullName())
+                .email(volunteer.getUser().getPrimaryEmailAddress())
+                .phone(volunteer.getUser().getPrimaryPhoneNumber())
+                .location(volunteer.getUser().getCity())
                 .termsAndConditions(volunteer.getTermsAndConditions())
                 .tcUpdateDate(volunteer.getTcUpdateDate())
                 .govtIdFilename(volunteer.getGovtIdFilename())
@@ -333,7 +342,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .dayOfWeek(request.dayOfWeek())
                 .startTime(request.startTime())
                 .endTime(request.endTime())
-                .lastUpdateDate(request.lastUpdateDate()) 
+                .lastUpdateDate(request.lastUpdateDate())
                 .build();
     }
 }
