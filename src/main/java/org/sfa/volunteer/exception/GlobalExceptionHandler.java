@@ -1,5 +1,7 @@
 package org.sfa.volunteer.exception;
 
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
@@ -116,6 +118,16 @@ public class GlobalExceptionHandler {
                                 SaayamStatusCode.COUNTRY_NOT_FOUND,
                                 errorMessage);
         }
+
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseBody
+    public <T> SaayamResponse<T> handleValidationException(MethodArgumentNotValidException exception, WebRequest request) {
+        String errorMessage = exception.getBindingResult().getFieldErrors().stream()
+                .map(fieldError -> fieldError.getDefaultMessage())
+                .collect(Collectors.joining("; "));
+        log.error("ValidationException: {}", errorMessage);
+        return responseBuilder.buildErrorResponse(HttpStatus.BAD_REQUEST.value(), SaayamStatusCode.BAD_REQUEST, errorMessage);
+    }
 
         @ExceptionHandler(NotificationException.class)
         @ResponseBody
