@@ -108,65 +108,7 @@ class NotificationServiceImplTest {
         void testGetNotifications_whenWatermarkExists() {
 
                 String userId = "U1";
-                int rowStart = 0;
-                int rowEnd = 9;
-
-                GetNotificationsRequest request = new GetNotificationsRequest(userId, rowStart, rowEnd);
-
-                Timestamp watermark = Timestamp.from(Instant.now());
-
-                // Mock DB row (Object[])
-                Object[] row = new Object[] {
-                                1L, // notification_id
-                                "ignored", // status
-                                "Help", // type_name
-                                "Old message", // message
-                                Timestamp.from(Instant.now().minusSeconds(7200)) // createDttm (old)
-                };
-
-                List<Object[]> rows = Arrays.<Object[]>asList(row);
-                Page<Object[]> mockPage = new PageImpl<Object[]>(rows);
-
-                NotificationResponse mockNotification = NotificationResponse.builder()
-                                .notificationId(1)
-                                .status("ignored")
-                                .typeName("Help")
-                                .message("Old message")
-                                .createDttm(Timestamp.from(Instant.now().minusSeconds(7200))) // 2 hours ago
-                                .build();
-
-                when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(watermark);
-                when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
-                                .thenReturn(mockPage);
-                when(nRepository.countAllNotifications(userId)).thenReturn(10);
-                when(nRepository.countNewNotifications(eq(userId), any(Timestamp.class))).thenReturn(3);
-
-                GetNotificationsResponse response = notificationService.getNotifications(request);
-
-                assertNotNull(response);
-                assertEquals(10, response.totalCount());
-                assertEquals(3, response.newNotificationsCount());
-                assertEquals(1, response.notifications().size());
-                assertEquals("Help", response.notifications().get(0).typeName());
-
-                assertEquals("old", response.notifications().get(0).status());
-
-                // CRUD verification
-                verify(userNSRepository, times(1)).getLastSeenTimestamp(userId);
-                verify(nRepository, times(1)).findNotifications(eq(userId), any(Pageable.class));
-                verify(nRepository, times(1)).countAllNotifications(userId);
-                verify(nRepository, times(1))
-                                .countNewNotifications(eq(userId), eq(watermark));
-        }
-
-        @Test
-        void testGetNotifications_whenWatermarkExists_new() {
-
-                String userId = "U1";
-                int rowStart = 0;
-                int rowEnd = 9;
-
-                GetNotificationsRequest request = new GetNotificationsRequest(userId, rowStart, rowEnd);
+                GetNotificationsRequest request = new GetNotificationsRequest(userId, 0, 9);
 
                 Timestamp watermark = Timestamp.from(Instant.now());
 
@@ -176,26 +118,73 @@ class NotificationServiceImplTest {
                                 "ignored", // status (ignored by service)
                                 "Help", // type_name
                                 "Old message", // message
-                                Timestamp.from(Instant.now().plusSeconds(100)) // NEW (after watermark)
+                                Timestamp.from(Instant.now().minusSeconds(7200)) // older than watermark
                 };
 
+                // Page<Object[]> mock
                 List<Object[]> rows = Arrays.<Object[]>asList(row);
                 Page<Object[]> mockPage = new PageImpl<Object[]>(rows);
 
+                // Mock repository calls
                 when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(watermark);
-                when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
-                                .thenReturn(mockPage);
+                when(nRepository.findNotifications(eq(userId), any(Pageable.class))).thenReturn(mockPage);
                 when(nRepository.countAllNotifications(userId)).thenReturn(10);
                 when(nRepository.countNewNotifications(eq(userId), any(Timestamp.class))).thenReturn(3);
 
+                // Execute service
                 GetNotificationsResponse response = notificationService.getNotifications(request);
 
+                // Assertions
                 assertNotNull(response);
                 assertEquals(10, response.totalCount());
                 assertEquals(3, response.newNotificationsCount());
                 assertEquals(1, response.notifications().size());
                 assertEquals("Help", response.notifications().get(0).typeName());
+                assertEquals("old", response.notifications().get(0).status());
 
+                // Verify CRUD interactions
+                verify(userNSRepository).getLastSeenTimestamp(userId);
+                verify(nRepository).findNotifications(eq(userId), any(Pageable.class));
+                verify(nRepository).countAllNotifications(userId);
+                verify(nRepository).countNewNotifications(eq(userId), eq(watermark));
+        }
+
+        @Test
+        void testGetNotifications_whenWatermarkExists_new() {
+
+                String userId = "U1";
+                GetNotificationsRequest request = new GetNotificationsRequest(userId, 0, 9);
+
+                Timestamp watermark = Timestamp.from(Instant.now());
+
+                // Mock DB row (Object[])
+                Object[] row = new Object[] {
+                                1L, // notification_id
+                                "ignored", // status (ignored by service)
+                                "Help", // type_name
+                                "Old message", // message
+                                Timestamp.from(Instant.now().plusSeconds(100)) // newer than watermark → NEW
+                };
+
+                // Page<Object[]> mock
+                List<Object[]> rows = Arrays.<Object[]>asList(row);
+                Page<Object[]> mockPage = new PageImpl<Object[]>(rows);
+
+                // Repository mocks
+                when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(watermark);
+                when(nRepository.findNotifications(eq(userId), any(Pageable.class))).thenReturn(mockPage);
+                when(nRepository.countAllNotifications(userId)).thenReturn(10);
+                when(nRepository.countNewNotifications(eq(userId), any(Timestamp.class))).thenReturn(3);
+
+                // Execute service
+                GetNotificationsResponse response = notificationService.getNotifications(request);
+
+                // Assertions
+                assertNotNull(response);
+                assertEquals(10, response.totalCount());
+                assertEquals(3, response.newNotificationsCount());
+                assertEquals(1, response.notifications().size());
+                assertEquals("Help", response.notifications().get(0).typeName());
                 assertEquals("new", response.notifications().get(0).status());
 
                 // CRUD verification

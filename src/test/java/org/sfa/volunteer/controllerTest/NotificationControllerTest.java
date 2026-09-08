@@ -21,6 +21,8 @@ import org.sfa.volunteer.repository.UserNotificationStatusRepository;
 import org.sfa.volunteer.service.NotificationService;
 import org.sfa.volunteer.util.ResponseBuilder;
 
+import jakarta.validation.Valid;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -51,7 +53,8 @@ class NotificationControllerTest {
         // ---------------------------------------------------------
         @Test
         void testGetNotificationCounts() throws Exception {
-                String userId = "U123";
+
+                GetNotificationsRequest request = new GetNotificationsRequest("U123", null, null);
 
                 GetNotificationsResponse mockResponse = new GetNotificationsResponse(0,
                                 0, null);
@@ -73,7 +76,7 @@ class NotificationControllerTest {
                                 mockResponse))
                                 .thenReturn(mockSaayamResponse);
 
-                SaayamResponse<GetNotificationsResponse> result = notificationController.getNotificationCounts(userId);
+                SaayamResponse<GetNotificationsResponse> result = notificationController.getNotificationCounts(request);
 
                 assertNotNull(result);
                 assertTrue(result.success());
@@ -99,9 +102,11 @@ class NotificationControllerTest {
 
         @Test
         void testGetNotifications() throws Exception {
-                String userId = "U123";
+
                 int rowStart = 0;
                 int rowEnd = 10;
+
+                GetNotificationsRequest request = new GetNotificationsRequest("U123", 0, 10);
 
                 GetNotificationsResponse mockResponse = new GetNotificationsResponse(rowStart,
                                 rowEnd, null);
@@ -123,9 +128,7 @@ class NotificationControllerTest {
                                 mockResponse))
                                 .thenReturn(mockSaayamResponse);
 
-                SaayamResponse<GetNotificationsResponse> result = notificationController.getNotifications(userId,
-                                rowStart,
-                                rowEnd);
+                SaayamResponse<GetNotificationsResponse> result = notificationController.getNotifications(request);
 
                 assertNotNull(result);
                 assertTrue(result.success());
