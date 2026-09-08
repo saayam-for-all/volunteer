@@ -1,3 +1,4 @@
+
 package org.sfa.volunteer.service;
 
 import org.sfa.volunteer.exception.UserNotFoundException;
@@ -40,8 +41,7 @@ public class ProfileImageStorageService {
     public ProfileImageStorageService(
             UserService userService,
             @Qualifier("s3ClientUs") S3Client s3ClientUs,
-            @Qualifier("s3ClientEu") S3Client s3ClientEu
-    ) {
+            @Qualifier("s3ClientEu") S3Client s3ClientEu) {
         this.userService = userService;
         this.s3ClientUs = s3ClientUs;
         this.s3ClientEu = s3ClientEu;
@@ -85,8 +85,7 @@ public class ProfileImageStorageService {
                             .contentType(detected)
                             .serverSideEncryption("AES256")
                             .build(),
-                    RequestBody.fromBytes(bytes)
-            );
+                    RequestBody.fromBytes(bytes));
         } catch (software.amazon.awssdk.services.s3.model.S3Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload to S3", e);
         }
@@ -99,8 +98,7 @@ public class ProfileImageStorageService {
                 "userId", userId,
                 "s3Uri", s3Uri,
                 "bucket", bucket,
-                "key", key
-        );
+                "key", key);
     }
 
     public void delete(String userId, String regionHint) {
@@ -115,7 +113,8 @@ public class ProfileImageStorageService {
 
         URI uri = URI.create(uriOpt.get());
         String ssp = uri.getSchemeSpecificPart();
-        if (ssp.startsWith("//")) ssp = ssp.substring(2);
+        if (ssp.startsWith("//"))
+            ssp = ssp.substring(2);
 
         int slash = ssp.indexOf('/');
         if (slash <= 0) {
@@ -156,11 +155,13 @@ public class ProfileImageStorageService {
         }
 
         var uriOpt = userService.getProfilePicturePath(userId);
-        if (uriOpt.isEmpty()) return Optional.empty();
+        if (uriOpt.isEmpty())
+            return Optional.empty();
 
         URI uri = URI.create(uriOpt.get());
         String ssp = uri.getSchemeSpecificPart();
-        if (ssp.startsWith("//")) ssp = ssp.substring(2);
+        if (ssp.startsWith("//"))
+            ssp = ssp.substring(2);
 
         int slash = ssp.indexOf('/');
         if (slash <= 0) {
@@ -179,7 +180,8 @@ public class ProfileImageStorageService {
                     .getObjectAsBytes(GetObjectRequest.builder().bucket(bucket).key(key).build());
 
             String contentType = obj.response().contentType();
-            if (contentType == null || contentType.isBlank()) contentType = "application/octet-stream";
+            if (contentType == null || contentType.isBlank())
+                contentType = "application/octet-stream";
 
             return Optional.of(new DownloadedImage(contentType, obj.asByteArray()));
 
@@ -188,7 +190,8 @@ public class ProfileImageStorageService {
         }
     }
 
-    public record DownloadedImage(String contentType, byte[] bytes) {}
+    public record DownloadedImage(String contentType, byte[] bytes) {
+    }
 
     // ---------------- helpers ----------------
 
@@ -203,7 +206,8 @@ public class ProfileImageStorageService {
     private void validate(String mime, long size) {
         String m = Optional.ofNullable(mime).orElse("").trim();
         int semi = m.indexOf(';');
-        if (semi > -1) m = m.substring(0, semi).trim();
+        if (semi > -1)
+            m = m.substring(0, semi).trim();
 
         List<String> allowed = Arrays.asList(allowedMimeCsv.split(","));
         if (!allowed.contains(m)) {
@@ -238,8 +242,10 @@ public class ProfileImageStorageService {
     private S3Client pickClient(String regionHint) {
         return isEu(regionHint) ? s3ClientEu : s3ClientUs;
     }
+
     private String detectMime(byte[] bytes) {
-        if (bytes == null || bytes.length < 12) return null;
+        if (bytes == null || bytes.length < 12)
+            return null;
         if ((bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8 && (bytes[2] & 0xFF) == 0xFF) {
             return "image/jpeg";
         }

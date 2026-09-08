@@ -12,15 +12,10 @@ import lombok.Setter;
 import java.math.BigInteger;
 import java.util.Date;
 
-//@Entity
-@Getter
-@Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "user")
 public class User {
 
-    @Id
     @Column(name = "user_id")
     private BigInteger id;
 

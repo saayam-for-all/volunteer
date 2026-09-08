@@ -2,9 +2,10 @@ name: Java CI/CD Pipeline
 
 on:
   push:
-    branches: ["test", "dev", "main"]
+    branches: ["dev", "test", "main"]
   pull_request:
-    branches: ["test", "dev", "main"]
+    branches: ["dev", "test", "main"]
+  workflow_dispatch:
 
 env:
   APP_NAME: volunteer-app
@@ -12,65 +13,77 @@ env:
   S3_BUCKET: saayam-virginia-private
 
 jobs:
-  build-and-test:
+  dev-stage-pipeline:
+    name: Build, Test & QA (Test Stage)
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      # 1. CODE (Checkout source repository)
+      - name: CODE (Checkout Repository)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 1. Setup Env
-      - name: Setup Env
+      # 2. BUILD / PACKAGE
+      - name: BUILD / PACKAGE (Setup Java 17 & Maven Build)
         uses: actions/setup-java@v4
         with:
           java-version: "17"
           distribution: "temurin"
           cache: "maven"
 
-      - name: Cache SonarQube packages
+      - name: Execute Package Build
+        run: mvn clean package -DskipTests
+
+      # 3. SETUP ENV
+      - name: SETUP ENV (Configure Sonar Cache & Environment)
         uses: actions/cache@v4
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      # 2. Build Package
-      - name: Build Package
-        run: mvn clean package -DskipTests
-
-      # 3. Test
-      - name: Test
+      # 4. TEST [SAST] (Unit Tests & SonarQube SAST Scan)
+      - name: TEST [SAST] (Execute Unit Tests)
         run: mvn test
 
-      # 4. Code Coverage
-      - name: Code Coverage
-        if: |
-          github.base_ref == 'dev' || github.base_ref == 'main' || 
-          github.ref_name == 'dev' || github.ref_name == 'main'
-        run: |
-          echo "Checking Jacoco coverage metrics..."
-
-      # SonarQube Scan Integration
-      - name: SonarQube Scan
+      - name: TEST [SAST] (SonarQube Security Scan)
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         run: |
           if [ -n "$SONAR_TOKEN" ]; then
-            mvn sonar:sonar -Dsonar.projectKey=saayam-volunteer-service
+            mvn sonar:sonar \
+              -Dsonar.projectKey=saayam-volunteer-service \
+              -Dsonar.branch.name=${{ github.ref_name }}
           else
-            echo "SonarQube token not found. Skipping scan."
+            echo "SONAR_TOKEN secret is not set. Skipping SonarQube SAST scan."
           fi
 
-      # 5. Build Docker Image and Push
-      - name: Build Docker Image and Push
+      # 5. CODE COVERAGE (Warning Only with Dynamic Percentage Check)
+      - name: CODE COVERAGE (Verify 90% Jacoco Gate - Warning Only)
+        shell: bash
         run: |
-          echo "Building and pushing Docker image..."
-          # docker build -t my-app .
-          # docker push my-app
+          echo "Checking Jacoco Code Coverage..."
+          mvn jacoco:report || true
 
-      # Upload the compiled JAR/WAR archive so the CD deploy job can download it
+          CSV_REPORT="target/site/jacoco/jacoco.csv"
+          if [ -f "$CSV_REPORT" ]; then
+            STATS=$(awk -F, 'NR>1 {missed+=$4; covered+=$5} END { if (missed+covered > 0) printf "%.2f", (covered/(missed+covered))*100; else print "0" }' "$CSV_REPORT")
+            echo "📊 Current Code Coverage is: ${STATS}%"
+          else
+            echo "⚠️ Jacoco CSV report not found at $CSV_REPORT. Running standard check..."
+          fi
+
+          mvn jacoco:check || echo "⚠️ Warning: Coverage is below the target threshold, but proceeding with the pipeline."
+
+      # 6. BUILD DOCKER IMAGE
+      - name: BUILD DOCKER IMAGE
+        run: |
+          echo "Building Docker Image: ${{ env.APP_NAME }}:${{ github.sha }}"
+          # docker build -t ${{ env.APP_NAME }}:${{ github.sha }} .
+
+      # 7. Upload Build Artifact for Deployment Job
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -78,101 +91,56 @@ jobs:
           path: target/*.jar
 
   deploy:
-    needs: build-and-test
-    if: github.event_name == 'push'
+    name: Deploy to AWS S3
+    needs: dev-stage-pipeline
+    if: github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'test' || github.ref_name == 'main')
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Download the jar built in the build-and-test job
       - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
           name: compiled-build-archive
           path: target/
 
-      - name: Extract version from pom.xml
-        id: ver
-        shell: bash
-        run: |
-          VERSION_RAW=$(grep -E '<version>.*</version>' pom.xml | grep -v '<modelVersion>' | head -n1 | sed -E 's/.*<version>([^<]+)<\/version>.*/\1/')
-          VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
-          DATE_UTC=$(date -u +%Y%m%d-%H%M)
-          VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
-
-          JAR_FILE=$(basename $(ls target/*.jar | head -n 1))
-
-          echo "version=${VERSION_TAG}" >> $GITHUB_OUTPUT
-          echo "jar_name=${JAR_FILE}" >> $GITHUB_OUTPUT
-          echo "archive_name=${{ env.APP_NAME }}-${VERSION_TAG}.jar" >> $GITHUB_OUTPUT
-
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ env.AWS_REGION }}
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_VOLUNTEER }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_VOLUNTEER }}
 
-      # --- BRANCH STRATEGY 1: TEST BRANCH DEPLOYMENT ---
-      - name: Deploy to Test Environment
-        if: github.ref_name == 'test'
+      - name: Extract Metadata & Push to AWS S3 Private Bucket
+        shell: bash
         run: |
-          echo "Deploying application archive to test environment..."
-          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/test/archives/${{ steps.ver.outputs.archive_name }}"
+          set -euo pipefail
+          VERSION_RAW=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
+          DATE_UTC=$(date -u +%Y%m%d-%H%M)
+          VERSION_TAG="v${VERSION_STRIPPED}-${DATE_UTC}"
 
-      # --- BRANCH STRATEGY 2: DEV BRANCH DEPLOYMENT ---
-      - name: Deploy to Dev Environment
-        if: github.ref_name == 'dev'
-        run: |
-          echo "Deploying application archive to dev environment..."
-          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/dev/archives/${{ steps.ver.outputs.archive_name }}"
+          JAR_PATH=$(find target/ -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+          JAR_FILE=$(basename "$JAR_PATH")
+          ARCHIVE_NAME="${{ env.APP_NAME }}-${VERSION_TAG}.jar"
 
-      # --- BRANCH STRATEGY 3: MAIN/PRODUCTION DEPLOYMENT ---
-      - name: Deploy to Production Environment (AWS S3 staging/prod)
-        if: github.ref_name == 'main'
-        run: |
-          echo "Deploying application archive to Production AWS S3..."
-          aws s3 cp "target/${{ steps.ver.outputs.jar_name }}" "s3://${{ env.S3_BUCKET }}/prod/archives/${{ env.APP_NAME }}-prod-latest.jar"
+          echo "Uploading $ARCHIVE_NAME to AWS S3 Private Bucket..."
+          aws s3 cp "target/$JAR_FILE" "s3://${{ env.S3_BUCKET }}/code/${{ github.ref_name }}/volunteer/v1.0.0/$ARCHIVE_NAME"
 
-      # --- POST-DEPLOYMENT QA: PLAYWRIGHT INTEGRATION ---
+      # --- POST-DEPLOYMENT QA: PLAYWRIGHT INTEGRATION FOR TEST BRANCH ---
       - name: Install Node.js for Playwright E2E Tests
+        if: github.ref_name == 'test'
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
 
-      - name: Install Playwright Dependencies
+      - name: Install Playwright Dependencies & Run Tests
+        if: github.ref_name == 'test'
         run: |
           npm init -y
           npm install @playwright/test
           npx playwright install --with-deps
-
-      - name: Run Playwright Tests against Environment
-        run: |
-          if [ "${{ github.ref_name }}" = "test" ]; then
-            TARGET_URL="https://test-saayam.netlify.app"
-          elif [ "${{ github.ref_name }}" = "dev" ]; then
-            TARGET_URL="https://dev-saayam.netlify.app"
-          else
-            TARGET_URL="https://test.help-for-everyone.org/"
-          fi
-          echo "Running E2E validation tests against $TARGET_URL"
-
-      # Safe cleanup mechanism for old archives
-      - name: Keep only last 3 versioned archives
-        if: github.ref_name == 'dev'
-        shell: bash
-        run: |
-          set -euo pipefail
-          BUCKET="${{ env.S3_BUCKET }}"
-          PREFIX="dev/archives/"
-          KEYS=$(aws s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIX" --query 'reverse(sort_by(Contents[?ends_with(Key, `.jar`)], &LastModified))[].Key' --output text)
-          if [ -z "$KEYS" ] || [ "$KEYS" = "None" ]; then exit 0; fi
-          KEYS_NL=$(echo "$KEYS" | tr '\t' '\n')
-          TO_DELETE=$(echo "$KEYS_NL" | tail -n +4)
-          if [ -n "$TO_DELETE" ]; then
-            while IFS= read -r key; do 
-              [ -z "$key" ] && continue
-              aws s3 rm "s3://$BUCKET/$key" || true
-            done <<< "$TO_DELETE"
-          fi
+          echo "Running E2E validation tests against https://test-saayam.netlify.app"
+          # npx playwright test
