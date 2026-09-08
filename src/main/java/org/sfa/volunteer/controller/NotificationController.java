@@ -40,36 +40,20 @@ public class NotificationController {
 
         }
 
-        @GetMapping("/{userId}/counts")
+        @PostMapping("/counts")
         public SaayamResponse<GetNotificationsResponse> getNotificationCounts(
-                        @PathVariable String userId) throws Exception {
+                        @Valid @RequestBody GetNotificationsRequest request) throws Exception {
 
-                if (userId == null || userId.isBlank()) {
-                        throw new NotificationException(
-                                        SaayamStatusCode.USER_NOT_FOUND.toString(),
-                                        userId);
-                }
-
-                GetNotificationsRequest request = GetNotificationsRequest.builder().userId(userId).build();
                 GetNotificationsResponse response = notificationService.getNotificationCounts(request);
                 return responseBuilder.buildSuccessResponse(
                                 SaayamStatusCode.SUCCESS,
                                 response);
         }
 
-        @GetMapping("/{userId}")
+        @PostMapping("/details")
         public SaayamResponse<GetNotificationsResponse> getNotifications(
-                        @PathVariable String userId, @RequestParam Integer rowStart, @RequestParam Integer rowEnd)
+                        @Valid @RequestBody GetNotificationsRequest request)
                         throws Exception {
-
-                if (userId == null || userId.isBlank()) {
-                        throw new NotificationException(
-                                        SaayamStatusCode.USER_NOT_FOUND.toString(),
-                                        userId);
-                }
-
-                GetNotificationsRequest request = GetNotificationsRequest.builder().userId(userId).rowStart(rowStart)
-                                .rowEnd(rowEnd).build();
 
                 validateRequestParameters(request);
                 GetNotificationsResponse response = notificationService.getNotifications(request);
