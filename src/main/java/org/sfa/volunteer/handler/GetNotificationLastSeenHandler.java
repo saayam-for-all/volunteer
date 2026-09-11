@@ -16,8 +16,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.context.ApplicationContext;
 import org.sfa.volunteer.dto.request.GetNotificationsRequest;
 import org.sfa.volunteer.dto.request.UpsertLastSeenRequest;
-import org.sfa.volunteer.dto.request.VolunteerRequest;
-import org.sfa.volunteer.dto.response.GetNotificationsResponse;
 import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
 
 import java.util.Locale;
@@ -65,36 +63,26 @@ public class GetNotificationLastSeenHandler
 
             String responseBody = objectMapper.writeValueAsString(successResponse);
             response.setBody(responseBody);
-            response.setStatusCode(201); // Created
+            response.setStatusCode(200); // Created
         } catch (Exception e) {
-            String lang = Optional.ofNullable(requestEvent.getHeaders())
-                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
-                    .orElse("en");
 
-            Locale locale = Locale.forLanguageTag(lang);
+            SaayamStatusCode code = SaayamStatusCode.INTERNAL_SERVER_ERROR;
+            String msg = messageSourceUtil.getMessage(code.getCode(), null);
 
-            String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
-            int errorCode = 500;
-            SaayamStatusCode saayamErrorMsg = SaayamStatusCode.INTERNAL_SERVER_ERROR;
-
-            if (e.getMessage() != null) {
-                saayamErrorMsg = SaayamStatusCode.valueOf(e.getMessage());
-                errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.valueOf(e.getMessage()).getCode(), null);
-            }
-
-            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
-                    errorCode,
-                    saayamErrorMsg,
-                    errorMessage);
+            SaayamResponse<Void> error = responseBuilder.buildErrorResponse(
+                    500,
+                    code,
+                    msg);
 
             try {
-                String responseBody = objectMapper.writeValueAsString(errorResponse);
-                response.setBody(responseBody);
-            } catch (Exception jsonException) {
+                response.setBody(objectMapper.writeValueAsString(error));
+            } catch (Exception ignored) {
                 response.setBody("{\"message\":\"Failed to serialize error response\"}");
             }
-            response.setStatusCode(500); // Internal Server Error
+
+            response.setStatusCode(500);
         }
+
         return response;
     }
 
