@@ -1,15 +1,24 @@
 cors:
-  allowed-origin: <application-url>
-  allowed-headers: Authorization
+  allowed-origin: http://localhost:5173
+  allowed-headers: "*"
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS
   credentials: true
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/saayam
-    username: <username>
-    password: <password>
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: welcome1
   jpa:
     hibernate:
       ddl-auto: none
     open-in-view: false
+
+saayam:
+  s3:
+    buckets:
+      euPrivate: eu-west-1
+      usPrivate: us-east-1
+    maxBytes: 2097152
+    allowedMime: image/jpeg,image/png,image/webp
+    keyPattern: users/%s/profile

@@ -4,7 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.TestPropertySource;
 
-@SpringBootTest
+//@SpringBootTest
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL",
     "spring.datasource.driver-class-name=org.h2.Driver",
@@ -26,9 +26,15 @@ import org.springframework.test.context.TestPropertySource;
     "cors.allowed-methods=GET,POST,PUT,DELETE,OPTIONS",
     "cors.allowed-headers=Authorization,Content-Type",
     "cors.allowed-credentials=true",
-    "cors.allow-credentials=true"
+    "cors.allow-credentials=true",
+
+    // S3 configuration for profileImageStorageService (dummy values for context load)
+    "saayam.s3.buckets.euPrivate=test-bucket-eu",
+    "saayam.s3.buckets.usPrivate=test-bucket-us",
+    "saayam.s3.region=us-east-1"
+
 })
-class VolunteerApplicationTests {
+public class VolunteerApplicationTests {
 
     @Test
     void contextLoads() {
