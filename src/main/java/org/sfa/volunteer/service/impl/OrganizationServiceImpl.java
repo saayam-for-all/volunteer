@@ -119,14 +119,14 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
     @Override
     public void linkOrganization(String userId, String orgId) {
-
+       private static final String DEFAULT_USER_ROLE = "VOLUNTEER";
        Organization organization = organizationRepository.findById(orgId)
         .orElseThrow(() -> new OrganizationNotFoundException(orgId));
 
     UserOrgMap userOrgMap = UserOrgMap.builder()
             .userId(userId)
             .orgId(organization.getOrgId())
-            .userRole("VOLUNTEER")
+            .userRole(DEFAULT_USER_ROLE)
             .build();
 
     userOrgMapRepository.save(userOrgMap);
