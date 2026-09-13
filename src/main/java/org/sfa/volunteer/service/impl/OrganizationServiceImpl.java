@@ -27,6 +27,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final UserOrgMapRepository userOrgMapRepository;
     private final OrgSkillRepository orgSkillRepository;
+    private static final String DEFAULT_USER_ROLE = "VOLUNTEER";
 
     @Autowired
     public OrganizationServiceImpl(OrganizationRepository organizationRepository,
@@ -119,7 +120,6 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
     @Override
     public void linkOrganization(String userId, String orgId) {
-       private static final String DEFAULT_USER_ROLE = "VOLUNTEER";
        Organization organization = organizationRepository.findById(orgId)
         .orElseThrow(() -> new OrganizationNotFoundException(orgId));
 
