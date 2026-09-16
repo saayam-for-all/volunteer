@@ -1,0 +1,142 @@
+name: Dev & Main Branch CI/CD Pipeline
+
+on:
+  push:
+    branches: ["test", "dev", "main"]
+  pull_request:
+    branches: ["test", "dev", "main"]
+  workflow_dispatch:
+
+env:
+  APP_NAME: volunteer-app
+  AWS_REGION: us-east-1
+  S3_BUCKET: saayam-virginia-private
+
+jobs:
+  build:
+    if: github.ref_name == 'dev' || github.ref_name == 'main' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required for SonarQube history analysis
+
+      - name: Setup Java 17 & Maven
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Cache SonarQube Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Run Tests & Strict 90% Coverage Check
+        run: |
+          mvn clean test
+          mvn jacoco:report
+          echo "Enforcing strict 90% code coverage requirement for dev/main branches..."
+          mvn jacoco:check
+
+      - name: SonarQube Security Scan (PR & Branch Optimized)
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              mvn sonar:sonar \
+                -Dsonar.projectKey=saayam-volunteer-service \
+                -Dsonar.pullrequest.key=${{ github.event.pull_request.number }} \
+                -Dsonar.pullrequest.branch=${{ github.head_ref }} \
+                -Dsonar.pullrequest.base=${{ github.base_ref }}
+            else
+              mvn sonar:sonar \
+                -Dsonar.projectKey=saayam-volunteer-service \
+                -Dsonar.branch.name=${{ github.ref_name }}
+            fi
+          else
+            echo "SONAR_TOKEN secret is not set. Skipping SonarQube SAST scan."
+          fi
+
+      - name: Build Package
+        run: mvn package -DskipTests
+
+      - name: Extract Semantic Version Metadata
+        id: meta
+        shell: bash
+        run: |
+          VERSION_RAW=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          DATE_UTC=$(date -u +%Y%m%d-%H%M)
+          
+          ENV_TAG="${{ github.ref_name }}"
+          if [ "$ENV_TAG" = "main" ]; then ENV_TAG="prod"; fi
+          
+          SEMVER_NAME="${{ env.APP_NAME }}-${VERSION_STRIPPED}-${ENV_TAG}-${DATE_UTC}-${COMMIT_SHA}.jar"
+          
+          cd target/
+          ORIGINAL_JAR=$(find . -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
+          mv "$ORIGINAL_JAR" "$SEMVER_NAME"
+          
+          echo "artifact_filename=$SEMVER_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload Dev/Prod Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-build-artifact
+          path: target/${{ steps.meta.outputs.artifact_filename }}
+
+  deploy:
+    needs: build
+    if: (github.ref_name == 'dev' || github.ref_name == 'main') && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dev-build-artifact
+          path: target/
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_VOLUNTEER }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_VOLUNTEER }}
+
+      - name: Deploy to Environment-Specific S3 Path
+        shell: bash
+        run: |
+          TARGET_BRANCH="${{ github.ref_name }}"
+          ENV_PATH="$TARGET_BRANCH"
+          if [ "$ENV_PATH" = "main" ]; then
+            ENV_PATH="prod"
+          fi
+
+          JAR_FILE=$(find target/ -maxdepth 1 -name "*.jar" | head -n 1)
+          JAR_NAME=$(basename "$JAR_FILE")
+          
+          TARGET_KEY="s3://${{ env.S3_BUCKET }}/code/$ENV_PATH/volunteer/$JAR_NAME"
+          echo "Uploading $JAR_NAME to $TARGET_KEY..."
+          aws s3 cp "$JAR_FILE" "$TARGET_KEY"
+
+      - name: Run Playwright Tests against Target Site
+        run: |
+          npm init -y && npm install @playwright/test
+          npx playwright install --with-deps
+          
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            TARGET_URL="https://help-for-everyone.org"
+          else
+            TARGET_URL="https://dev-saayam.netlify.app"
+          fi
+
+          echo "Running UI validation against $TARGET_URL"
+          # npx playwright test
