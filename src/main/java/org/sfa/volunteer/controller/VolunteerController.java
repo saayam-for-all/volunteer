@@ -3,6 +3,7 @@ import jakarta.validation.Valid;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.request.VolunteerUserRequest;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.service.VolunteerService;
@@ -79,9 +80,18 @@ public class VolunteerController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, response);
     }
 
-    @GetMapping("/{userId}")
-    public SaayamResponse<VolunteerResponse> getVolunteerDetails(@PathVariable String userId) throws Exception {
+    //@GetMapping("/{userId}")
+    //public SaayamResponse<VolunteerResponse> getVolunteerDetails(@PathVariable String userId) throws Exception {
+      //  VolunteerResponse response = volunteerService.getVolunteerByUserId(userId);
+       // return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    //}
+
+    @PostMapping("/details")
+    public SaayamResponse<VolunteerResponse> getVolunteerDetails(
+        @Valid @RequestBody VolunteerUserRequest request ) throws Exception {
+        String userId = request.userId(); 
         VolunteerResponse response = volunteerService.getVolunteerByUserId(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
+
 }
