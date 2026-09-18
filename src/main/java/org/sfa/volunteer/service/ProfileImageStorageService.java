@@ -22,13 +22,13 @@ public class ProfileImageStorageService {
     private final S3Client s3ClientUs;
     private final S3Client s3ClientEu;
 
-    @Value("${saayam.s3.buckets.euPrivate}")
+    @Value("${saayam.s3.buckets.euPrivate:}")
     private String euBucket;
 
-    @Value("${saayam.s3.buckets.usPrivate}")
+    @Value("${saayam.s3.buckets.usPrivate:}")
     private String usBucket;
 
-    @Value("${saayam.s3.maxBytes:2097152}")
+    @Value("${saayam.s3.maxBytes:5242880}")
     private long maxBytes;
 
     @Value("${saayam.s3.allowedMime:image/jpeg,image/png,image/webp}")

@@ -1,8 +1,17 @@
 cors:
   allowed-origin: <application-url>
-  allowed-headers: Authorization
+  allowed-headers: Authorization,Content-Type,X-Dev-Region,X-Caller-UserId,X-Caller-Groups
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS
   credentials: true
+
+saayam:
+  s3:
+    buckets:
+      euPrivate: ${SAAYAM_S3_BUCKET_EU_PRIVATE:}
+      usPrivate: ${SAAYAM_S3_BUCKET_US_PRIVATE:}
+    maxBytes: ${SAAYAM_S3_MAX_BYTES:5242880}
+    allowedMime: image/jpeg,image/png,image/webp
+    keyPattern: users/%s/profile
 
 spring:
   datasource:
