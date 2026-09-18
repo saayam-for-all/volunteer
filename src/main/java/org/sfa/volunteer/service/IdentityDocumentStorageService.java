@@ -58,7 +58,7 @@ public class IdentityDocumentStorageService {
     // Namespaced under saayam.identity rather than saayam.s3 so these do not
     // collide with the profile image settings, which share the saayam.s3 keys
     // but need different values.
-    @Value("${saayam.identity.maxBytes:2097152}")
+    @Value("${saayam.identity.maxBytes:5242880}")
     private long maxBytes;
 
     @Value("${saayam.identity.allowedMime:image/jpeg,image/png,application/pdf}")
