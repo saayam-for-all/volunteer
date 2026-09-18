@@ -217,7 +217,10 @@ class NotificationServiceImplTest {
                 assertEquals(5, response.newNotificationsCount());
                 assertEquals(1, response.notifications().size());
                 assertEquals("Alert", response.notifications().get(0).typeName());
-                assertEquals("old", response.notifications().get(0).status());
+                // A user with no watermark row has never opened the notifications page, so
+                // every notification is new to them. This previously asserted "old", which
+                // contradicted the newNotificationsCount() of 5 asserted just above.
+                assertEquals("new", response.notifications().get(0).status());
 
                 // CRUD verification
                 verify(userNSRepository, times(1)).getLastSeenTimestamp(userId);
