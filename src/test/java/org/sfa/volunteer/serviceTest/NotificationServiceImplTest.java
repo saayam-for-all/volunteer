@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.ArgumentCaptor;
 import org.sfa.volunteer.dto.request.GetNotificationsRequest;
 import org.sfa.volunteer.dto.request.UpsertLastSeenRequest;
 import org.sfa.volunteer.dto.response.GetNotificationsResponse;
@@ -20,7 +21,10 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Pageable;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -229,6 +233,63 @@ class NotificationServiceImplTest {
                 verify(nRepository, times(1)).countAllNotifications(userId);
                 verify(nRepository, times(1))
                                 .countNewNotifications(eq(userId), any(Timestamp.class));
+        }
+
+        /**
+         * Regression: rowStart/rowEnd are absolute row offsets, not a page index.
+         * PageRequest.of(rowStart, limit) treats rowStart as a page number and skips
+         * rowStart * limit rows instead of rowStart rows.
+         */
+        @Test
+        void testGetNotifications_usesAbsoluteRowOffset() {
+
+                String userId = "U1";
+                GetNotificationsRequest request = new GetNotificationsRequest(userId, 3, 7);
+
+                when(userNSRepository.getLastSeenTimestamp(userId))
+                                .thenReturn(Timestamp.from(Instant.now()));
+                when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
+                                .thenReturn(List.of());
+                when(nRepository.countAllNotifications(userId)).thenReturn(20);
+                when(nRepository.countNewNotifications(eq(userId), any(Timestamp.class))).thenReturn(0);
+
+                notificationService.getNotifications(request);
+
+                ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+                verify(nRepository).findNotifications(eq(userId), pageable.capture());
+
+                assertEquals(3L, pageable.getValue().getOffset(),
+                                "rowStart must be used as an absolute row offset");
+                assertEquals(5, pageable.getValue().getPageSize(),
+                                "window size must be rowEnd - rowStart + 1");
+        }
+
+        /**
+         * Regression: the watermark column is TIMESTAMP WITHOUT TIME ZONE and the spec
+         * requires GMT. Timestamp.from(Instant.now()) renders in the JVM default zone
+         * and PgJDBC writes that rendering verbatim, so on a non-UTC JVM the stored
+         * wall-clock is local time. This asserts the stored wall-clock is UTC.
+         */
+        @Test
+        void upsertLastSeen_shouldStoreWatermarkAsUtcWallClock() {
+
+                String userId = "U1";
+
+                when(userNSRepository.existsByUserId(userId)).thenReturn(0);
+                when(userNSRepository.createLastSeenTimestamp(eq(userId), any(Timestamp.class)))
+                                .thenReturn(1);
+
+                notificationService.upsertLastSeen(new UpsertLastSeenRequest(userId));
+
+                ArgumentCaptor<Timestamp> stored = ArgumentCaptor.forClass(Timestamp.class);
+                verify(userNSRepository).createLastSeenTimestamp(eq(userId), stored.capture());
+
+                LocalDateTime utcNow = LocalDateTime.now(ZoneOffset.UTC);
+                long skewSeconds = Math.abs(
+                                Duration.between(stored.getValue().toLocalDateTime(), utcNow).getSeconds());
+
+                assertTrue(skewSeconds < 60,
+                                "watermark wall-clock must be UTC, was off by " + skewSeconds + "s");
         }
 
         @Test
