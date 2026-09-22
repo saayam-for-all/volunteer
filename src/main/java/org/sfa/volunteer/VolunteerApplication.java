@@ -9,6 +9,7 @@ public class VolunteerApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(VolunteerApplication.class, args);
+        //testing this
     }
 
 }
