@@ -1,8 +1,9 @@
 package org.sfa.volunteer.service.impl;
 
 import java.sql.Timestamp;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -16,12 +17,13 @@ import org.sfa.volunteer.enums.StatusType;
 import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.repository.NotificationsRepository;
+import org.sfa.volunteer.repository.OffsetPageRequest;
 import org.sfa.volunteer.repository.UserNotificationStatusRepository;
 import org.sfa.volunteer.service.NotificationService;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,17 +81,26 @@ public class NotificationServiceImpl implements NotificationService {
                 int rowStart = request.rowStart();
                 int rowEnd = request.rowEnd();
 
-                // // 1. Get watermark timestamp (last seen)
+                // 1. Get watermark timestamp (last seen).
+                // A user with no watermark row has never opened the notifications page,
+                // so every notification is new to them. Defaulting to "now" would mark
+                // them all "old" here while getNotificationCounts() counts them all as
+                // new -- the two endpoints would contradict each other for every
+                // first-time user.
                 Timestamp lastSeen = handleException(userId,
                                 () -> userNtfStatusRepo.getLastSeenTimestamp(userId));
-                final Timestamp watermarkTs = (lastSeen != null) ? lastSeen : Timestamp.from(Instant.now());
+                final Timestamp watermarkTs = (lastSeen != null)
+                                ? lastSeen
+                                : Timestamp.valueOf(LocalDateTime.of(1970, 1, 1, 0, 0));
 
-                // 2. Fetch paginated notifications sorted by createDttm DESC
+                // 2. Fetch paginated notifications sorted by createDttm DESC.
+                // rowStart is an absolute row offset, not a page index, so it needs an
+                // offset-addressed Pageable. PageRequest.of(rowStart / limit, limit)
+                // only lands on the requested row when rowStart is an exact multiple of
+                // limit; for anything else (e.g. rowStart=3, rowEnd=7) it silently
+                // returns the wrong window.
                 int limit = rowEnd - rowStart + 1; // number of records per page
-                int offset = rowStart;
-                Pageable pageable = PageRequest.of(offset / limit, limit);
-                // List<NotificationResponse> notifications = handleException(userId,
-                // () -> notificationsRepo.findNotifications(userId, pageable));
+                Pageable pageable = new OffsetPageRequest(rowStart, limit, Sort.unsorted());
 
                 Page<Object[]> notifications = handleException(userId,
                                 () -> notificationsRepo.findNotifications(userId, pageable));
@@ -138,10 +149,17 @@ public class NotificationServiceImpl implements NotificationService {
                 boolean rowUpdated = false;
                 String userId = request.userId();
 
-                // Always returns UTC/GMT
-                Instant timeGMT = Instant.now();
-                // format it to Timestamp
-                Timestamp watermarkTs = Timestamp.from(timeGMT);
+                if (userId == null || userId.isBlank()) {
+                        throw new UserNotFoundException(userId);
+                }
+
+                // The watermark column is TIMESTAMP WITHOUT TIME ZONE and the spec
+                // requires GMT. Timestamp.from(Instant.now()) renders in the JVM default
+                // zone and PgJDBC writes that local rendering verbatim -- so on a non-UTC
+                // JVM it stores local time, not GMT. Building from LocalDateTime.now(UTC)
+                // makes the stored wall-clock genuinely UTC, matching how
+                // notifications.created_at is written.
+                Timestamp watermarkTs = Timestamp.valueOf(LocalDateTime.now(ZoneOffset.UTC));
 
                 // 3. Check if user exists (wrapped in handleException)
                 int exists = handleException(userId,
