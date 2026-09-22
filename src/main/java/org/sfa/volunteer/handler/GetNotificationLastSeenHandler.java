@@ -7,6 +7,7 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.service.NotificationService;
@@ -33,7 +34,11 @@ public class GetNotificationLastSeenHandler
     private static final MessageSourceUtil messageSourceUtil;
 
     static {
-        ApplicationContext context = SpringApplication.run(NotificationService.class);
+        // Load the real Spring Boot application, not NotificationService.class: booting
+        // from the service interface produces a context without the JPA repositories
+        // the service depends on, so the handler fails on first invocation.
+        // Same fix already applied to GetNotificationCountsHandler.
+        ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
         notificationService = context.getBean(NotificationService.class);
         responseBuilder = context.getBean(ResponseBuilder.class);
         messageSourceUtil = context.getBean(MessageSourceUtil.class);
