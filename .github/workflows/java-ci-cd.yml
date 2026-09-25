@@ -1,4 +1,4 @@
-name: Dev & Main Branch CI/CD Pipeline
+name: Volunteer CI/CD Pipeline
 
 on:
   push:
@@ -75,16 +75,16 @@ jobs:
           VERSION_STRIPPED=$(echo "$VERSION_RAW" | sed 's/-SNAPSHOT$//')
           COMMIT_SHA=$(git rev-parse --short HEAD)
           DATE_UTC=$(date -u +%Y%m%d-%H%M)
-          
+
           ENV_TAG="${{ github.ref_name }}"
           if [ "$ENV_TAG" = "main" ]; then ENV_TAG="prod"; fi
-          
+
           SEMVER_NAME="${{ env.APP_NAME }}-${VERSION_STRIPPED}-${ENV_TAG}-${DATE_UTC}-${COMMIT_SHA}.jar"
-          
+
           cd target/
           ORIGINAL_JAR=$(find . -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" | head -n 1)
           mv "$ORIGINAL_JAR" "$SEMVER_NAME"
-          
+
           echo "artifact_filename=$SEMVER_NAME" >> $GITHUB_OUTPUT
 
       - name: Upload Dev/Prod Artifact
@@ -122,7 +122,7 @@ jobs:
 
           JAR_FILE=$(find target/ -maxdepth 1 -name "*.jar" | head -n 1)
           JAR_NAME=$(basename "$JAR_FILE")
-          
+
           TARGET_KEY="s3://${{ env.S3_BUCKET }}/code/$ENV_PATH/volunteer/$JAR_NAME"
           echo "Uploading $JAR_NAME to $TARGET_KEY..."
           aws s3 cp "$JAR_FILE" "$TARGET_KEY"
@@ -131,7 +131,7 @@ jobs:
         run: |
           npm init -y && npm install @playwright/test
           npx playwright install --with-deps
-          
+
           if [ "${{ github.ref_name }}" = "main" ]; then
             TARGET_URL="https://help-for-everyone.org"
           else
