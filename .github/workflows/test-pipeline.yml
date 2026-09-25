@@ -1,4 +1,4 @@
-name: Test Branch CI/CD Pipeline
+name: Volunteer Test CI/CD Pipeline
 
 on:
   push:
@@ -35,6 +35,31 @@ jobs:
           mvn test
           mvn jacoco:report || true
           mvn jacoco:check || echo "⚠️ Warning: Coverage is below target, but proceeding on test branch."
+
+      - name: Display Code Coverage Performance Metrics
+        shell: bash
+        run: |
+          echo "===================================================="
+          echo "JACOCO CODE COVERAGE PERFORMANCE REPORT"
+          echo "===================================================="
+          REPORT_FILE="target/site/jacoco/jacoco.csv"
+          if [ -f "$REPORT_FILE" ]; then
+            # Parse instructions missed vs covered from CSV (JaCoCo CSV format: GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,...)
+            awk -F',' '{
+              missed += $4; covered += $5;
+              b_missed += $6; b_covered += $7;
+            } END {
+              total_inst = missed + covered;
+              total_branch = b_missed + b_covered;
+              inst_pct = (total_inst > 0) ? (covered / total_inst) * 100 : 0;
+              branch_pct = (total_branch > 0) ? (b_covered / total_branch) * 100 : 0;
+              printf "Instruction Coverage: %.2f%%\n", inst_pct;
+              printf "Branch Coverage:      %.2f%%\n", branch_pct;
+            }' "$REPORT_FILE"
+          else
+            echo "JaCoCo CSV report not found. Ensure unit tests executed successfully."
+          fi
+          echo "===================================================="
 
       - name: Extract Semantic Version Metadata
         id: meta
