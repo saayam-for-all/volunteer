@@ -39,11 +39,11 @@ public class User {
     private String fullName;
 
     @Email
-//    @NotBlank(message = "Email address cannot be null.")
+    // @NotBlank(message = "Email address cannot be null.")
     @Column(name = "primary_email_address")
     private String primaryEmailAddress;
 
-    //    @NotBlank(message = "Phone number cannot be blank")
+    // @NotBlank(message = "Phone number cannot be blank")
     @Column(name = "primary_phone_number")
     private String primaryPhoneNumber;
 
@@ -116,7 +116,8 @@ public class User {
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private UserAdditionalDetail additionalDetail;
 
-    //@OneToOne(mappedBy = "user", fetch = FetchType.LAZY) //, cascade = CascadeType.ALL
+    // @OneToOne(mappedBy = "user", fetch = FetchType.LAZY) //, cascade =
+    // CascadeType.ALL
     @Transient
     private Volunteer volunteer;
 
@@ -149,8 +150,10 @@ public class User {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         User user = (User) o;
         return Objects.equals(id, user.id) &&
                 Objects.equals(firstName, user.firstName) &&
@@ -166,6 +169,7 @@ public class User {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, profilePicturePath, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
+        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, profilePicturePath,
+                primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
     }
 }
