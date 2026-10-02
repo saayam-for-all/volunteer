@@ -262,8 +262,8 @@ public class IdentityDocumentStorageService {
         }
         String name = documentName.trim().replaceAll(".*[/\\\\]", "");
         if (name.isEmpty()) {
-           throw new IdentityDocumentException(SaayamStatusCode.INVALID_DOCUMENT_EXPIRY,
-                    HttpStatus.BAD_REQUEST, "expiresOn is in the past");
+            throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_NAME_REQUIRED,
+                    HttpStatus.BAD_REQUEST, "documentName is required");
         }
         return name.length() > 255 ? name.substring(0, 255) : name;
     }
