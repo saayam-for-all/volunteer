@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 
@@ -37,6 +38,16 @@ public class GlobalExceptionHandler {
                 return responseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(),
                                 SaayamStatusCode.INVALID_USER_STATUS,
                                 errorMessage);
+        }
+	
+        @ExceptionHandler(IllegalArgumentException.class)
+        @ResponseStatus(HttpStatus.BAD_REQUEST)
+        @ResponseBody
+        public <T> SaayamResponse<T> handleIllegalArgumentException(
+                        IllegalArgumentException exception, WebRequest request) {
+                log.error("IllegalArgumentException: {}", exception.getMessage());
+                return responseBuilder.buildErrorResponse(HttpStatus.BAD_REQUEST.value(),
+                                SaayamStatusCode.BAD_REQUEST, exception.getMessage());
         }
 
         @ExceptionHandler(UserCategoryNotFoundException.class)
@@ -100,6 +111,19 @@ public class GlobalExceptionHandler {
                                 SaayamStatusCode.ORGANIZATION_NOT_FOUND,
                                 errorMessage);
         }
+        
+        @ExceptionHandler(OrganizationNotFoundException.class)
+        @ResponseStatus(HttpStatus.NOT_FOUND)
+        @ResponseBody
+        public <T> SaayamResponse<T> handleOrganizationNotFoundException(
+                OrganizationNotFoundException exception, WebRequest request) {
+                    String errorMessage = messageSourceUtil.getMessage(
+                        SaayamStatusCode.ORGANIZATION_NOT_FOUND.getCode(),
+                        new Object[] { exception.getOrgId() });
+        log.error("OrganizationNotFoundException: {}", exception.getOrgId());
+        return responseBuilder.buildErrorResponse(HttpStatus.NOT_FOUND.value(),
+                        SaayamStatusCode.ORGANIZATION_NOT_FOUND, errorMessage);
+        }
 
         @ExceptionHandler(CountryNotFoundException.class)
         @ResponseBody
@@ -120,14 +144,14 @@ public class GlobalExceptionHandler {
         }
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseBody
-    public <T> SaayamResponse<T> handleValidationException(MethodArgumentNotValidException exception, WebRequest request) {
+        @ResponseBody
+        public <T> SaayamResponse<T> handleValidationException(MethodArgumentNotValidException exception, WebRequest request) {
         String errorMessage = exception.getBindingResult().getFieldErrors().stream()
                 .map(fieldError -> fieldError.getDefaultMessage())
                 .collect(Collectors.joining("; "));
         log.error("ValidationException: {}", errorMessage);
         return responseBuilder.buildErrorResponse(HttpStatus.BAD_REQUEST.value(), SaayamStatusCode.BAD_REQUEST, errorMessage);
-    }
+        }
 
         @ExceptionHandler(NotificationException.class)
         @ResponseBody
