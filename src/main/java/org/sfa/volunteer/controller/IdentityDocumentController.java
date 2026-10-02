@@ -47,7 +47,7 @@ public class IdentityDocumentController {
             @RequestHeader("Authorization") String authorization,
             @Valid @RequestBody GetIdentityDocumentRequest request) throws Exception {
 
-        authorizeUser(JwtClaims.parse(authorization), request.userId());
+        authorize(authorization, request.userId());
 
         IdentityDocumentMetadata metadata =
                 volunteerService.getIdentityDocumentMetadata(request.userId(), request.documentSlot());
@@ -62,7 +62,7 @@ public class IdentityDocumentController {
         @RequestHeader("Authorization") String authorization,
         @Valid @RequestBody UploadIdentityDocumentRequest request) {
 
-    	authorizeUser(JwtClaims.parse(authorization), request.userId());
+    	authorize(authorization, request.userId());
 
     	Map<String, Object> result = storage.uploadBase64(
             request.userId(), request.documentSlot(), request.documentName(),
@@ -77,14 +77,13 @@ public class IdentityDocumentController {
         @RequestHeader("Authorization") String authorization,
         @Valid @RequestBody GetIdentityDocumentRequest request) {
 
-    authorizeUser(JwtClaims.parse(authorization), request.userId());
+        authorize(authorization, request.userId());
+        Optional<String> url = storage.presignedUrl(request.userId(), request.documentSlot(), null);
 
-    Optional<String> url = storage.presignedUrl(request.userId(), request.documentSlot(), null);
-
-    return url.isEmpty()
-            ? ResponseEntity.noContent().build()
-            : ResponseEntity.ok(responseBuilder.buildSuccessResponse(
-                    SaayamStatusCode.SUCCESS, Map.of("url", url.get())));
+        return url.isEmpty()
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.ok(responseBuilder.buildSuccessResponse(
+                        SaayamStatusCode.SUCCESS, Map.of("url", url.get())));
     }
 
     private void authorizeUser(JwtClaims claims, String targetUserId) {
@@ -108,6 +107,10 @@ public class IdentityDocumentController {
         }
     }
 
+    private void authorize(String authorization, String targetUserId) {
+        authorizeUser(JwtClaims.parse(authorization), targetUserId);
+    }
+    
     private boolean isAdmin(String groups) {
         if (groups == null || groups.isBlank()) return false;
         for (String g : groups.split(",")) {
