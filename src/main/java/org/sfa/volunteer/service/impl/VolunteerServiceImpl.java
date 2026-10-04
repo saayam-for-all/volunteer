@@ -7,6 +7,7 @@ import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.VolunteerBasedOnSkillsResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
 import org.sfa.volunteer.exception.UserNotFoundException;
@@ -15,6 +16,8 @@ import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.Volunteer;
 import org.sfa.volunteer.model.VolunteerUserAvailability;
 import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.repository.UserSkillRepository;
+import org.sfa.volunteer.repository.UserVolunteerSkillRepository;
 import org.sfa.volunteer.repository.VolunteerRepository;
 import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
 import org.sfa.volunteer.service.VolunteerService;
@@ -36,6 +39,8 @@ public class VolunteerServiceImpl implements VolunteerService {
     private final VolunteerRepository volunteerRepository;
     private final UserRepository userRepository;
     private final VolunteerUserAvailabilityRepository userAvailabilityRepository;
+    private final UserVolunteerSkillRepository userVolunteerSkillRepository;
+    private final UserSkillRepository userSkillRepository;
 
     // private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
 
@@ -46,11 +51,14 @@ public class VolunteerServiceImpl implements VolunteerService {
     @Autowired
     public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository,
                                 VolunteerUserAvailabilityRepository volunteerUserAvailabilityRepository,
-                                VolunteerUserAvailabilityRepository userAvailabilityRepository) {
+                                VolunteerUserAvailabilityRepository userAvailabilityRepository,
+                                UserVolunteerSkillRepository userVolunteerSkillRepository,
+                                UserSkillRepository userSkillRepository) {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
         this.userAvailabilityRepository = userAvailabilityRepository;
-        // this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
+        this.userVolunteerSkillRepository = userVolunteerSkillRepository;
+        this.userSkillRepository=userSkillRepository;
     }
 
     private void updateUser(User user, Integer step) {
@@ -77,6 +85,11 @@ public class VolunteerServiceImpl implements VolunteerService {
 
         volunteer = volunteerRepository.save(volunteer);
         updateUser(user, request.step());
+
+        List<String> skills = Optional.ofNullable(request.skills()).orElse(Collections.emptyList());
+        if (!skills.isEmpty()) {
+            saveUserSkills(user, skills);
+    }
 
         return mapToVolunteerResponse(volunteer);
     }
@@ -113,6 +126,11 @@ public class VolunteerServiceImpl implements VolunteerService {
         volunteer = volunteerRepository.save(volunteer);
         updateUser(user, request.step());
 
+        List<String> skills = Optional.ofNullable(request.skills()).orElse(Collections.emptyList());
+        if (!skills.isEmpty()) {
+            saveUserSkills(user, skills);
+    }
+
         return mapToVolunteerResponse(volunteer);
     }
 
@@ -146,6 +164,10 @@ public class VolunteerServiceImpl implements VolunteerService {
 
         volunteer = volunteerRepository.save(volunteer);
         updateUser(user, request.step());
+        List<String> skills = Optional.ofNullable(request.skills()).orElse(Collections.emptyList());
+        if (!skills.isEmpty()) {
+            saveUserSkills(user, skills);
+    }
 
         return mapToVolunteerResponse(volunteer);
     }
@@ -169,6 +191,10 @@ public class VolunteerServiceImpl implements VolunteerService {
         volunteer.setUser(user);
         volunteer = volunteerRepository.save(volunteer);
         updateUser(user, request.step());
+        List<String> skills = Optional.ofNullable(request.skills()).orElse(Collections.emptyList());
+        if (!skills.isEmpty()) {
+            saveUserSkills(user, skills);
+    }
 
         return mapToVolunteerResponse(volunteer);
     }
@@ -210,6 +236,11 @@ public class VolunteerServiceImpl implements VolunteerService {
 
         volunteer = volunteerRepository.save(volunteer);
         updateUser(user, request.step());
+
+        List<String> skills = Optional.ofNullable(request.skills()).orElse(Collections.emptyList());
+        if (!skills.isEmpty()) {
+            saveUserSkills(user, skills);
+    }
 
         return mapToVolunteerResponse(volunteer);
     }
@@ -392,4 +423,64 @@ public class VolunteerServiceImpl implements VolunteerService {
                 //.lastUpdateDate(request.lastUpdateDate())
                 .build();
     }
-}
+
+    private void saveUserSkills(User user, List<String> skills) {
+        List<org.sfa.volunteer.model.UserVolunteerSkill> entities = skills.stream()
+                .filter(Objects::nonNull)
+                .map(skill -> {
+                    var id = new org.sfa.volunteer.model.UserVolunteerSkillId(user.getId(), skill);
+                    return org.sfa.volunteer.model.UserVolunteerSkill.builder()
+                            .id(id)
+                            .user(user)
+                            .createdAt(ZonedDateTime.now(ZoneId.of("UTC")))
+                            .lastUpdatedAt(ZonedDateTime.now(ZoneId.of("UTC")))
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        if (!entities.isEmpty()) {
+            userVolunteerSkillRepository.saveAll(entities);
+        }
+    }
+
+    private List<String> generateSkillFallbacks(String skill) {
+        List<String> fallbacks = new ArrayList<>();
+        String current = skill;
+
+        while (current.contains(".")) {
+            fallbacks.add(current);
+            current = current.substring(0, current.lastIndexOf('.'));
+        }
+
+        fallbacks.add(current);
+        System.out.println("Generated skill fallbacks: " + current);
+        return fallbacks;
+    }
+
+  
+    public List<VolunteerBasedOnSkillsResponse> getVolunteersBasedOnSkills(String skills) {
+
+        for (String skill : generateSkillFallbacks(skills)) {
+
+            List<String> userIds = userSkillRepository.findByIdCatId(skill).stream()
+                    .map(us -> us.getId().getUserId())
+                    .distinct()
+                    .limit(10)
+                    .toList();
+
+            if (!userIds.isEmpty()) {
+                return userRepository.findByIdIn(userIds).stream()
+                        .map(u -> new VolunteerBasedOnSkillsResponse(
+                                u.getId(),
+                                u.getFullName(),
+                                u.getPrimaryEmailAddress()))
+                        .toList();
+            }
+        }
+
+        return List.of(); 
+    }
+    }
+
+
+
