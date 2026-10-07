@@ -2,14 +2,20 @@ package org.sfa.volunteer.controller;
 
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.GetNotificationPreferencesRequest;
 import org.sfa.volunteer.dto.request.GetNotificationsRequest;
+import org.sfa.volunteer.dto.request.UpdateNotificationPreferencesRequest;
 import org.sfa.volunteer.dto.request.UpsertLastSeenRequest;
+import org.sfa.volunteer.dto.response.GetNotificationPreferencesResponse;
 import org.sfa.volunteer.dto.response.GetNotificationsResponse;
+import org.sfa.volunteer.dto.response.UpdateNotificationPreferencesResponse;
 import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
 import org.sfa.volunteer.exception.NotificationException;
+import org.sfa.volunteer.service.NotificationPreferenceService;
 import org.sfa.volunteer.service.NotificationService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -21,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import jakarta.validation.Valid;
 
@@ -29,33 +36,33 @@ import jakarta.validation.Valid;
 public class NotificationController {
 
         private final NotificationService notificationService;
+        private final NotificationPreferenceService notificationPreferenceService;
         private final ResponseBuilder responseBuilder;
 
         @Autowired
-        public NotificationController(NotificationService notificationService, ResponseBuilder responseBuilder) {
+        public NotificationController(NotificationService notificationService,
+                        NotificationPreferenceService notificationPreferenceService,
+                        ResponseBuilder responseBuilder) {
                 this.notificationService = notificationService;
+                this.notificationPreferenceService = notificationPreferenceService;
                 this.responseBuilder = responseBuilder;
 
         }
 
-        @GetMapping("/{userId}/counts")
+        @PostMapping("/counts")
         public SaayamResponse<GetNotificationsResponse> getNotificationCounts(
-                        @PathVariable String userId) throws Exception {
+                        @Valid @RequestBody GetNotificationsRequest request) throws Exception {
 
-                GetNotificationsRequest request = GetNotificationsRequest.builder().userId(userId).build();
                 GetNotificationsResponse response = notificationService.getNotificationCounts(request);
                 return responseBuilder.buildSuccessResponse(
                                 SaayamStatusCode.SUCCESS,
                                 response);
         }
 
-        @GetMapping("/{userId}")
+        @PostMapping("/details")
         public SaayamResponse<GetNotificationsResponse> getNotifications(
-                        @PathVariable String userId, @RequestParam int rowStart, @RequestParam int rowEnd)
+                        @Valid @RequestBody GetNotificationsRequest request)
                         throws Exception {
-
-                GetNotificationsRequest request = GetNotificationsRequest.builder().userId(userId).rowStart(rowStart)
-                                .rowEnd(rowEnd).build();
 
                 validateRequestParameters(request);
                 GetNotificationsResponse response = notificationService.getNotifications(request);
@@ -67,8 +74,46 @@ public class NotificationController {
         @PostMapping("/lastseen")
         public SaayamResponse<UpsertLastSeenResponse> updateLastSeen(
                         @Valid @RequestBody UpsertLastSeenRequest request) throws Exception {
+                String userId = request.userId();
+                if (userId == null || userId.isBlank()) {
+                        throw new NotificationException(
+                                        SaayamStatusCode.USER_NOT_FOUND.toString(),
+                                        userId);
+                }
 
                 UpsertLastSeenResponse response = notificationService.upsertLastSeen(request);
+                return responseBuilder.buildSuccessResponse(
+                                SaayamStatusCode.SUCCESS,
+                                response);
+        }
+
+        /**
+         * The user's delivery preference for every known notification channel.
+         *
+         * <p>POST rather than GET to match the other read endpoints here, which are
+         * body-driven so they can be fronted by an API Gateway proxy Lambda.
+         */
+        @PostMapping("/preferences")
+        public SaayamResponse<GetNotificationPreferencesResponse> getNotificationPreferences(
+                        @Valid @RequestBody GetNotificationPreferencesRequest request) throws Exception {
+
+                GetNotificationPreferencesResponse response =
+                                notificationPreferenceService.getPreferences(request);
+                return responseBuilder.buildSuccessResponse(
+                                SaayamStatusCode.SUCCESS,
+                                response);
+        }
+
+        /**
+         * Sets the delivery preference for one or more channels. A null or blank
+         * preference clears that channel's setting.
+         */
+        @PostMapping("/preferences/update")
+        public SaayamResponse<UpdateNotificationPreferencesResponse> updateNotificationPreferences(
+                        @Valid @RequestBody UpdateNotificationPreferencesRequest request) throws Exception {
+
+                UpdateNotificationPreferencesResponse response =
+                                notificationPreferenceService.updatePreferences(request);
                 return responseBuilder.buildSuccessResponse(
                                 SaayamStatusCode.SUCCESS,
                                 response);
