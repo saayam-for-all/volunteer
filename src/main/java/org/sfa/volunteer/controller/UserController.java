@@ -36,6 +36,8 @@ public class UserController {
     private final ResponseBuilder responseBuilder;
     private final ProfileImageStorageService profileImageStorageService;
     private static final String HDR_REGION  = "X-Dev-Region";
+    private static final String MSG_SKILLS_UPDATED = "Skills updated successfully";
+    private static final String MSG_SKILLS_DELETED = "Skills deleted successfully";
 
 
     @Autowired
@@ -260,7 +262,7 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(
                 SaayamStatusCode.SUCCESS,
                 new Object[] { request.getUserId() },
-                "Skills updated successfully");
+                MSG_SKILLS_UPDATED);
     }
 
     @DeleteMapping("/profileSkills")
@@ -269,7 +271,7 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(
                 SaayamStatusCode.SUCCESS,
                 new Object[] { request.getUserId() },
-                "Skills deleted successfully");
+                MSG_SKILLS_DELETED);
     }
 
 }
