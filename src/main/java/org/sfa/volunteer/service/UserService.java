@@ -3,9 +3,9 @@ package org.sfa.volunteer.service;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
-import org.sfa.volunteer.dto.response.UserPreferenceResponse;
 import org.sfa.volunteer.dto.response.*;
 import org.springframework.stereotype.Service;
+import java.util.List;
 
 public interface UserService {
 
@@ -43,4 +43,8 @@ public interface UserService {
     String getUserIdByEmailForAuth(String email);
 
     UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception;
+
+    UserSkillsResponse getUserSkills(String userId);
+
+    void updateUserSkills(String userId, List<String> skills);
 }

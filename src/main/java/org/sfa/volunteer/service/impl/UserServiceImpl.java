@@ -5,6 +5,7 @@ import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.*;
+import org.sfa.volunteer.repository.*;
 import org.sfa.volunteer.exception.CountryNotFoundException;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
@@ -14,12 +15,15 @@ import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.UserAdditionalDetail;
 import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserSignOffReason;
+import org.sfa.volunteer.model.UserSkillId;
+import org.sfa.volunteer.model.UserSkills;
 import org.sfa.volunteer.model.UserStatus;
 import org.sfa.volunteer.repository.CountryRepository;
 import org.sfa.volunteer.repository.StateRepository;
 import org.sfa.volunteer.repository.UserCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserSignOffReasonRepository;
+import org.sfa.volunteer.repository.UserSkillRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
 import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
 import org.sfa.volunteer.service.ProfileImageStorageService;
@@ -35,6 +39,8 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -49,6 +55,7 @@ import java.util.stream.Collectors;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
     private final UserAdditionalDetailRepository userAdditionalDetailRepository;
+    private final UserSkillRepository userSkillRepository;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -68,7 +75,8 @@ import java.util.stream.Collectors;
             CountryRepository countryRepository,
             StateRepository stateRepository,
             UserSignOffReasonRepository userSignOffReasonRepository,
-            UserAdditionalDetailRepository userAdditionalDetailRepository) {
+            UserAdditionalDetailRepository userAdditionalDetailRepository,
+            UserSkillRepository userSkillRepository) {
 
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
@@ -77,6 +85,7 @@ import java.util.stream.Collectors;
         this.stateRepository = stateRepository;
         this.userSignOffReasonRepository = userSignOffReasonRepository;
         this.userAdditionalDetailRepository = userAdditionalDetailRepository;
+        this.userSkillRepository = userSkillRepository;
     }
 
     @Override
@@ -408,5 +417,53 @@ import java.util.stream.Collectors;
                     .secondaryPhone1(detail.getSecondaryPhone1())
                     .secondaryPhone2(detail.getSecondaryPhone2())
                     .build();
+    }
+
+    @Override
+    public UserSkillsResponse getUserSkills(String userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new UserNotFoundException(userId);
+        }
+        List<String> skills = userSkillRepository.findByIdUserId(userId)
+                .stream()
+                .map(us -> us.getId().getCatId())
+                .distinct()
+                .toList();
+
+        return new UserSkillsResponse(userId, skills);
+    }
+
+    @Override
+    @Transactional
+    public void updateUserSkills(String userId, List<String> skills) {
+        if (skills == null) {
+            skills = List.of();
+        }
+
+        Set<String> incomingSkills = new HashSet<>(skills);
+
+        List<UserSkills> existingSkills = userSkillRepository.findByIdUserId(userId);
+
+        Set<String> existing = existingSkills.stream()
+                .map(us -> us.getId().getCatId())
+                .collect(Collectors.toSet());
+
+        List<UserSkills> toDelete = existingSkills.stream()
+                .filter(skill -> !incomingSkills.contains(skill.getId().getCatId()))
+                .toList();
+
+        userSkillRepository.deleteAll(toDelete);
+
+        List<UserSkills> toInsert = incomingSkills.stream()
+                .filter(skill -> !existing.contains(skill))
+                .map(skill -> {
+                    UserSkillId id = new UserSkillId(userId, skill);
+                    UserSkills entity = new UserSkills();
+                    entity.setId(id);
+                    return entity;
+                })
+                .toList();
+
+        userSkillRepository.saveAll(toInsert);
     }
 }

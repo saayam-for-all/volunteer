@@ -6,15 +6,11 @@ import jakarta.validation.constraints.NotBlank;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.DeleteUserSkillsRequest;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.UpdateUserSkillsRequest;
 import org.sfa.volunteer.dto.request.SignOffRequest;
-import org.sfa.volunteer.dto.response.AddressStatusResponse;
-import org.sfa.volunteer.dto.response.CreateUserResponse;
-import org.sfa.volunteer.dto.response.PaginationResponse;
-import org.sfa.volunteer.dto.response.SignOffResponse;
-import org.sfa.volunteer.dto.response.UserProfileResponse;
-import org.sfa.volunteer.dto.response.WizardStatusResponse;
 import org.sfa.volunteer.dto.response.*;
 import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
@@ -30,8 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Base64;
 import java.util.Map;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
-import org.sfa.volunteer.dto.response.UserPreferenceResponse;
-import org.sfa.volunteer.dto.response.VolunteerResponse;
+import org.sfa.volunteer.dto.request.UserSkillsRequest;
 
 @RestController
 @RequestMapping("/0.0.1/users")
@@ -41,6 +36,8 @@ public class UserController {
     private final ResponseBuilder responseBuilder;
     private final ProfileImageStorageService profileImageStorageService;
     private static final String HDR_REGION  = "X-Dev-Region";
+    private static final String MSG_SKILLS_UPDATED = "Skills updated successfully";
+    private static final String MSG_SKILLS_DELETED = "Skills deleted successfully";
 
 
     @Autowired
@@ -248,6 +245,33 @@ public class UserController {
     public SaayamResponse<UserPreferenceResponse> updateUserPreferences(@PathVariable String userId, @Valid @RequestBody UserPreferenceRequest request) throws Exception {
         UserPreferenceResponse response = userService.updateUserPreferences(userId,request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+    @PostMapping("/profileSkills")
+    public SaayamResponse<UserSkillsResponse> getUserSkills(@RequestBody UserSkillsRequest request) {
+        UserSkillsResponse response = userService.getUserSkills(request.getUserId());
+        return responseBuilder.buildSuccessResponse(
+                SaayamStatusCode.SUCCESS,
+                new Object[] { request.getUserId() },
+                response);
+}
+
+    @PutMapping("/profileSkills")
+    public SaayamResponse<String> updateUserSkills(@RequestBody UpdateUserSkillsRequest request) {
+        userService.updateUserSkills(request.getUserId(), request.getSkills());
+        return responseBuilder.buildSuccessResponse(
+                SaayamStatusCode.SUCCESS,
+                new Object[] { request.getUserId() },
+                MSG_SKILLS_UPDATED);
+    }
+
+    @DeleteMapping("/profileSkills")
+    public SaayamResponse<String> deleteUserSkills(@RequestBody DeleteUserSkillsRequest request) {
+        userService.updateUserSkills(request.getUserId(), request.getSkills());
+        return responseBuilder.buildSuccessResponse(
+                SaayamStatusCode.SUCCESS,
+                new Object[] { request.getUserId() },
+                MSG_SKILLS_DELETED);
     }
 
 }
