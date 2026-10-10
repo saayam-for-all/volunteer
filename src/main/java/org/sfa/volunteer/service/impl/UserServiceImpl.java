@@ -14,12 +14,15 @@ import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.UserAdditionalDetail;
 import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserSignOffReason;
+import org.sfa.volunteer.model.SkillLevel;
+import org.sfa.volunteer.model.UserSkills;
 import org.sfa.volunteer.model.UserStatus;
 import org.sfa.volunteer.repository.CountryRepository;
 import org.sfa.volunteer.repository.StateRepository;
 import org.sfa.volunteer.repository.UserCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserSignOffReasonRepository;
+import org.sfa.volunteer.repository.UserSkillRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
 import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
 import org.sfa.volunteer.service.ProfileImageStorageService;
@@ -34,7 +37,9 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -49,6 +54,7 @@ import java.util.stream.Collectors;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
     private final UserAdditionalDetailRepository userAdditionalDetailRepository;
+    private final UserSkillRepository userSkillRepository;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -68,7 +74,8 @@ import java.util.stream.Collectors;
             CountryRepository countryRepository,
             StateRepository stateRepository,
             UserSignOffReasonRepository userSignOffReasonRepository,
-            UserAdditionalDetailRepository userAdditionalDetailRepository) {
+            UserAdditionalDetailRepository userAdditionalDetailRepository,
+            UserSkillRepository userSkillRepository) {
 
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
@@ -77,6 +84,7 @@ import java.util.stream.Collectors;
         this.stateRepository = stateRepository;
         this.userSignOffReasonRepository = userSignOffReasonRepository;
         this.userAdditionalDetailRepository = userAdditionalDetailRepository;
+        this.userSkillRepository = userSkillRepository;
     }
 
     @Override
@@ -354,6 +362,25 @@ import java.util.stream.Collectors;
 
         User user = userOpt.orElseThrow(() -> new UserNotFoundException(email));
         return user.getId();
+    }
+
+    @Override
+    public UserSkillsResponse getUserSkills(String userId) {
+        if (userId == null || userId.isBlank() || !userRepository.existsById(userId)) {
+            throw new UserNotFoundException(userId);
+        }
+
+        List<UserSkills> userSkills = userSkillRepository.findByIdUserId(userId);
+
+        List<String> skills = userSkills.stream()
+                .map(us -> us.getId().getCatId())
+                .toList();
+
+        // LinkedHashMap keeps the skills order and allows null levels
+        Map<String, SkillLevel> skillLevels = new LinkedHashMap<>();
+        userSkills.forEach(us -> skillLevels.put(us.getId().getCatId(), us.getSkillLevel()));
+
+        return new UserSkillsResponse(userId, skills, skillLevels);
     }
 
     @Transactional
