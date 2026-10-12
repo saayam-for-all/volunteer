@@ -47,7 +47,7 @@ class UserServiceImplSkillsTest {
     @Test
     void getUserSkillsReturnsIdsAndLevels() {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
-        when(userSkillRepository.findByIdUserId(USER_ID))
+        when(userSkillRepository.findByIdUserIdOrderByIdCatIdAsc(USER_ID))
                 .thenReturn(List.of(skill("4.2", SkillLevel.ADVANCED), skill("0.1", null)));
 
         UserSkillsResponse response = userService.getUserSkills(USER_ID);
@@ -62,7 +62,7 @@ class UserServiceImplSkillsTest {
     @Test
     void getUserSkillsReturnsEmptyListForUserWithoutSkills() {
         when(userRepository.existsById(USER_ID)).thenReturn(true);
-        when(userSkillRepository.findByIdUserId(USER_ID)).thenReturn(List.of());
+        when(userSkillRepository.findByIdUserIdOrderByIdCatIdAsc(USER_ID)).thenReturn(List.of());
 
         UserSkillsResponse response = userService.getUserSkills(USER_ID);
 
@@ -79,9 +79,18 @@ class UserServiceImplSkillsTest {
     }
 
     @Test
-    void blankUserIdIsTreatedAsUnknownUser() {
+    void blankUserIdIsBadRequest() {
         assertThatThrownBy(() -> userService.getUserSkills(" "))
-                .isInstanceOf(UserNotFoundException.class);
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("userId is required");
+        verify(userRepository, never()).existsById(any());
+    }
+
+    @Test
+    void nullUserIdIsBadRequest() {
+        assertThatThrownBy(() -> userService.getUserSkills(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("userId is required");
         verify(userRepository, never()).existsById(any());
     }
 }

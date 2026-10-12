@@ -15,7 +15,6 @@ import org.sfa.volunteer.model.UserAdditionalDetail;
 import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserSignOffReason;
 import org.sfa.volunteer.model.SkillLevel;
-import org.sfa.volunteer.model.UserSkills;
 import org.sfa.volunteer.model.UserStatus;
 import org.sfa.volunteer.repository.CountryRepository;
 import org.sfa.volunteer.repository.StateRepository;
@@ -366,21 +365,19 @@ import java.util.stream.Collectors;
 
     @Override
     public UserSkillsResponse getUserSkills(String userId) {
-        if (userId == null || userId.isBlank() || !userRepository.existsById(userId)) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        if (!userRepository.existsById(userId)) {
             throw new UserNotFoundException(userId);
         }
 
-        List<UserSkills> userSkills = userSkillRepository.findByIdUserId(userId);
-
-        List<String> skills = userSkills.stream()
-                .map(us -> us.getId().getCatId())
-                .toList();
-
-        // LinkedHashMap keeps the skills order and allows null levels
+        // LinkedHashMap keeps the query's cat_id order and allows null levels
         Map<String, SkillLevel> skillLevels = new LinkedHashMap<>();
-        userSkills.forEach(us -> skillLevels.put(us.getId().getCatId(), us.getSkillLevel()));
+        userSkillRepository.findByIdUserIdOrderByIdCatIdAsc(userId)
+                .forEach(us -> skillLevels.put(us.getId().getCatId(), us.getSkillLevel()));
 
-        return new UserSkillsResponse(userId, skills, skillLevels);
+        return new UserSkillsResponse(userId, List.copyOf(skillLevels.keySet()), skillLevels);
     }
 
     @Transactional

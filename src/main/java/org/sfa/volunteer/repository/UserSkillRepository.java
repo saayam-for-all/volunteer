@@ -10,5 +10,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface UserSkillRepository extends JpaRepository<UserSkills, UserSkillId> {
 
-    List<UserSkills> findByIdUserId(String userId);
+    List<UserSkills> findByIdUserIdOrderByIdCatIdAsc(String userId);
 }
