@@ -43,4 +43,6 @@ public interface UserService {
     String getUserIdByEmailForAuth(String email);
 
     UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception;
+
+    UserSkillsResponse getUserSkills(String userId);
 }
