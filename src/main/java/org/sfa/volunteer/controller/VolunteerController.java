@@ -3,8 +3,10 @@ import jakarta.validation.Valid;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/0.0.1/volunteers")
@@ -84,4 +88,21 @@ public class VolunteerController {
         VolunteerResponse response = volunteerService.getVolunteerByUserId(userId);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
+
+
+    @GetMapping("getAvailability")
+    public SaayamResponse<List<VolunteerUserAvailabilityResponse>> getVolunteerAvailability(
+            @RequestParam(value = "userId", required = true) String userId) throws Exception {
+        List<VolunteerUserAvailabilityResponse> response = volunteerService.getVolunteerUserAvailability(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+    @PutMapping("updateAvailability")
+    public SaayamResponse<List<VolunteerUserAvailabilityResponse>> updateVolunteerAvailability(
+            @RequestParam(value = "userId", required = true) String userId,
+            @Valid @RequestBody List<VolunteerUserAvailabilityRequest> request) throws Exception {
+        List<VolunteerUserAvailabilityResponse> response = volunteerService.updateVolunteerUserAvailability(userId, request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
 }
