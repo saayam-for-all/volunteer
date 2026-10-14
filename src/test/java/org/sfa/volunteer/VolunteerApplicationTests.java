@@ -26,7 +26,9 @@ import org.springframework.test.context.TestPropertySource;
     "cors.allowed-methods=GET,POST,PUT,DELETE,OPTIONS",
     "cors.allowed-headers=Authorization,Content-Type",
     "cors.allowed-credentials=true",
-    "cors.allow-credentials=true"
+    "cors.allow-credentials=true",
+    "saayam.s3.buckets.euPrivate=dummy-s3-eu-bucket",
+    "saayam.s3.buckets.usPrivate=dummy-s3-us-bucket"
 })
 class VolunteerApplicationTests {
 
