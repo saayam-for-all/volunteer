@@ -40,7 +40,7 @@ public interface UserService {
 
     boolean userExists(String userId);
 
-    String getUserIdByEmailForAuth(String email);
+    boolean isEmailOwnedByUser(String userId, String email);
 
     UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception;
 

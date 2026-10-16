@@ -87,10 +87,10 @@ public class User {
     @Column(name = "promotion_wizard_stage")
     private Integer volunteerStage;
 
-    @Column(name = "promotion_wizard_last_update_date")
+    @Column(name = "promotion_wizard_last_updated_at")
     private ZonedDateTime volunteerUpdateDate;
 
-    @Column(name = "last_update_date")
+    @Column(name = "last_updated_at")
     private ZonedDateTime lastUpdateDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -108,10 +108,10 @@ public class User {
     @JsonBackReference
     private UserStatus userStatus;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_category_id", nullable = false)
-    @JsonBackReference
-    private UserCategory userCategory;
+    // user_category_id column was removed from the users table; category is now
+    // tracked in a separate mapping table (see saayam-for-all/database wiki).
+    // This association is intentionally dropped to keep User loadable/savable
+    // until that new mapping is wired up. See issue #165 follow-up.
 
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private UserAdditionalDetail additionalDetail;
@@ -142,7 +142,6 @@ public class User {
                 ", state=" + state +
                 ", country=" + country +
                 ", userStatus=" + userStatus +
-                ", userCategory=" + userCategory +
                 ", volunteerStage=" + volunteerStage +
                 ", volunteerUpdateDate=" + volunteerUpdateDate +
                 '}';

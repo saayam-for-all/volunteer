@@ -33,6 +33,7 @@ import static org.mockito.Mockito.when;
 class UserControllerSearchTest {
 
     private static final String HDR_CALLER_USER_ID = "X-Caller-UserId";
+    private static final String HDR_CALLER_GROUPS = "X-Caller-Groups";
 
     @Mock
     private UserService userService;
@@ -77,8 +78,8 @@ class UserControllerSearchTest {
     @Test
     void searchUsers_returnsSuccess_whenCallerIsAdmin() {
         when(httpServletRequest.getHeader(HDR_CALLER_USER_ID)).thenReturn(adminCallerId);
+        when(httpServletRequest.getHeader(HDR_CALLER_GROUPS)).thenReturn("admins");
         when(userService.userExists(adminCallerId)).thenReturn(true);
-        when(userService.isAdminUser(adminCallerId)).thenReturn(true);
         when(userService.searchUsers("alice", 0, 10)).thenReturn(pagination);
         when(responseBuilder.buildSuccessResponse(
                 eq(SaayamStatusCode.SUCCESS),
@@ -104,8 +105,8 @@ class UserControllerSearchTest {
     @Test
     void searchUsers_passesNullPaginationParams_toService() {
         when(httpServletRequest.getHeader(HDR_CALLER_USER_ID)).thenReturn(adminCallerId);
+        when(httpServletRequest.getHeader(HDR_CALLER_GROUPS)).thenReturn("admins");
         when(userService.userExists(adminCallerId)).thenReturn(true);
-        when(userService.isAdminUser(adminCallerId)).thenReturn(true);
         when(userService.searchUsers("bob", null, null)).thenReturn(pagination);
         when(responseBuilder.buildSuccessResponse(
                 eq(SaayamStatusCode.SUCCESS),
@@ -153,15 +154,14 @@ class UserControllerSearchTest {
 
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(ex.getReason()).isEqualTo("User does not exist");
-        verify(userService, never()).isAdminUser(any());
         verify(userService, never()).searchUsers(any(), any(), any());
     }
 
     @Test
     void searchUsers_throwsForbidden_whenCallerIsNotAdmin() {
         when(httpServletRequest.getHeader(HDR_CALLER_USER_ID)).thenReturn(adminCallerId);
+        when(httpServletRequest.getHeader(HDR_CALLER_GROUPS)).thenReturn("beneficiaries");
         when(userService.userExists(adminCallerId)).thenReturn(true);
-        when(userService.isAdminUser(adminCallerId)).thenReturn(false);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> userController.searchUsers("q", 0, 10, httpServletRequest));

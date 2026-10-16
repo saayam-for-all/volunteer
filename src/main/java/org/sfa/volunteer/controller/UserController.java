@@ -130,7 +130,14 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User does not exist");
         }
 
-        if (!userService.isAdminUser(callerUserId)) {
+        // Admin status is determined from the caller's Cognito group membership
+        // (same pattern as authorize() below), not userService.isAdminUser,
+        // which can no longer resolve a category now that user_category_id has
+        // been removed from the schema. See issue #165 follow-up.
+        String groups = req.getHeader(HDR_CALLER_GROUPS);
+        boolean isAdmin = groups != null && groups.toLowerCase().contains("admin");
+
+        if (!isAdmin) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not an admin");
         }
     }
