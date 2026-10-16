@@ -7,6 +7,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.model.DocumentStatus;
 import org.sfa.volunteer.exception.IdentityDocumentException;
 import org.sfa.volunteer.exception.VolunteerException;
 import org.sfa.volunteer.model.Volunteer;
@@ -50,9 +51,16 @@ class VolunteerServiceImplTest {
 
         IdentityDocumentMetadata metadata = service.getIdentityDocumentMetadata(USER_ID, 1);
 
-        assertNotNull(metadata);
+        assertEquals("passport.pdf", metadata.documentName());
+        assertEquals(expiry, metadata.expiresOn());
+        assertEquals(DocumentStatus.VALID, metadata.status());
     }
 
+    /**
+     * A document uploaded during ba #31 onboarding has a stored path but no
+     * expiry date. It must still report as present (FR-21, AC-20), with a null
+     * status rather than a computed one.
+     */
     @Test
     void returnsMetadataWhenDocumentStoredWithoutExpiry() throws Exception {
         when(volunteerRepository.findById(USER_ID))
@@ -60,7 +68,9 @@ class VolunteerServiceImplTest {
 
         IdentityDocumentMetadata metadata = service.getIdentityDocumentMetadata(USER_ID, 1);
 
-        assertNotNull(metadata);
+        assertEquals("passport.pdf", metadata.documentName());
+        assertNull(metadata.expiresOn());
+        assertNull(metadata.status());
     }
 
     @Test
