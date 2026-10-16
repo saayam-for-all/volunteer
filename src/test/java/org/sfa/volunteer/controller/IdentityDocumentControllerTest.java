@@ -141,12 +141,14 @@ class IdentityDocumentControllerTest {
     // ---------- validation ----------
 
     @Test
-    void rejectsSlotOutsideOneOrTwo() throws Exception {
+    void rejectsMalformedBodyBeforeAuthorization() throws Exception {
         mockMvc.perform(post(METADATA_URL)
                         .header("Authorization", volunteerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OWNER, 5)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
+
+        verifyNoInteractions(volunteerService);
     }
 
     // ---------- metadata behavior ----------
@@ -219,6 +221,8 @@ class IdentityDocumentControllerTest {
                         .header("Authorization", volunteerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OWNER, 1)))
+                .andExpect(jsonPath("$.data.url").value("https://example.s3.amazonaws.com/signed"))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.url").value("https://example.s3.amazonaws.com/signed"));
     }
 
