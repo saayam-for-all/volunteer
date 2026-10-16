@@ -1,6 +1,8 @@
 package org.sfa.volunteer.controller;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Import;
+import org.sfa.volunteer.config.MessageSourceConfig;
 import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.service.IdentityDocumentStorageService;
 import org.sfa.volunteer.service.UserService;
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @WebMvcTest(IdentityDocumentController.class)
+@Import({ResponseBuilder.class, MessageSourceUtil.class, MessageSourceConfig.class})
 class IdentityDocumentControllerTest {
 
     private static final String METADATA_URL = "/0.0.1/volunteers/identity-document/metadata";
@@ -46,8 +49,7 @@ class IdentityDocumentControllerTest {
     @MockBean private IdentityDocumentStorageService storage;
     @MockBean private UserService userService;
     @MockBean private VolunteerService volunteerService;
-    @MockBean private ResponseBuilder responseBuilder;
-    @MockBean private MessageSourceUtil messageSourceUtil;
+
 
     /** Token whose payload carries the given claims, base64url encoded as Cognito emits it. */
     private static String token(String payloadJson) {
@@ -130,7 +132,9 @@ class IdentityDocumentControllerTest {
                         .header("Authorization", adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OTHER, 1)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.documentName").value("passport.pdf"))
+                .andExpect(jsonPath("$.data.status").value("VALID"));
         verify(volunteerService).getIdentityDocumentMetadata(OTHER, 1);
     }
 
@@ -145,19 +149,22 @@ class IdentityDocumentControllerTest {
                 .andExpect(status().isBadRequest());
     }
 
-    // ---------- metadata behaviour ----------
+    // ---------- metadata behavior ----------
 
     @Test
     void metadataReturns200WhenDocumentPresent() throws Exception {
+        LocalDate expiry = LocalDate.now().plusDays(90);
         when(userService.getUserIdByEmailForAuth(EMAIL)).thenReturn(OWNER);
         when(volunteerService.getIdentityDocumentMetadata(OWNER, 1))
-                .thenReturn(new IdentityDocumentMetadata(null, null, null));
+                .thenReturn(new IdentityDocumentMetadata("passport.pdf", expiry, DocumentStatus.VALID));
 
         mockMvc.perform(post(METADATA_URL)
                         .header("Authorization", volunteerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OWNER, 1)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.documentName").value("passport.pdf"))
+                .andExpect(jsonPath("$.data.status").value("VALID"));
     }
 
     @Test
@@ -212,7 +219,7 @@ class IdentityDocumentControllerTest {
                         .header("Authorization", volunteerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OWNER, 1)))
-                .andExpect(status().isOk());
+                .andExpect(jsonPath("$.data.url").value("https://example.s3.amazonaws.com/signed"));
     }
 
     @Test
