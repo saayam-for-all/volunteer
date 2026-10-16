@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.core.ResponseBytes;
@@ -20,6 +21,7 @@ import java.net.URL;
 import java.time.LocalDate;
 import java.util.Base64;
 import java.util.Optional;
+import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -189,6 +191,23 @@ class IdentityDocumentStorageServiceTest {
         verify(s3ClientEu).getObjectAsBytes(any(GetObjectRequest.class));
     }
 
+    @Test
+    void downloadRequestsTheStoredBucketAndKey() throws Exception {
+        when(volunteerService.getGovtIdPath(USER_ID, 1)).thenReturn(US_PATH);
+
+        ResponseBytes<GetObjectResponse> response = ResponseBytes.fromByteArray(
+                GetObjectResponse.builder().contentType("application/pdf").build(),
+                new byte[]{1});
+
+        ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
+        when(s3ClientUs.getObjectAsBytes(captor.capture())).thenReturn(response);
+
+        service.download(USER_ID, 1, "us-east-1");
+
+        assertEquals("test-bucket-us", captor.getValue().bucket());
+        assertEquals("users/SID-001/identity/slot1", captor.getValue().key());
+    }
+
     // ---------- presignedUrl ----------
 
     @Test
@@ -225,5 +244,39 @@ class IdentityDocumentStorageServiceTest {
         service.presignedUrl(USER_ID, 1, null);
 
         verify(s3PresignerEu).presignGetObject(any(GetObjectPresignRequest.class));
+    }
+
+    @Test
+    void presignedUrlUsesConfiguredTtl() throws Exception {
+        when(volunteerService.getGovtIdPath(USER_ID, 1)).thenReturn(US_PATH);
+
+        PresignedGetObjectRequest presigned = mock(PresignedGetObjectRequest.class);
+        when(presigned.url()).thenReturn(new URL("https://example.com/signed"));
+
+        ArgumentCaptor<GetObjectPresignRequest> captor =
+                ArgumentCaptor.forClass(GetObjectPresignRequest.class);
+        when(s3PresignerUs.presignGetObject(captor.capture())).thenReturn(presigned);
+
+        service.presignedUrl(USER_ID, 1, "us-east-1");
+
+        assertEquals(Duration.ofMinutes(5), captor.getValue().signatureDuration());
+    }
+
+    @Test
+    void presignedUrlSignsTheStoredBucketAndKey() throws Exception {
+        when(volunteerService.getGovtIdPath(USER_ID, 1)).thenReturn(US_PATH);
+
+        PresignedGetObjectRequest presigned = mock(PresignedGetObjectRequest.class);
+        when(presigned.url()).thenReturn(new URL("https://example.com/signed"));
+
+        ArgumentCaptor<GetObjectPresignRequest> captor =
+                ArgumentCaptor.forClass(GetObjectPresignRequest.class);
+        when(s3PresignerUs.presignGetObject(captor.capture())).thenReturn(presigned);
+
+        service.presignedUrl(USER_ID, 1, "us-east-1");
+
+        GetObjectRequest signed = captor.getValue().getObjectRequest();
+        assertEquals("test-bucket-us", signed.bucket());
+        assertEquals("users/SID-001/identity/slot1", signed.key());
     }
 }
