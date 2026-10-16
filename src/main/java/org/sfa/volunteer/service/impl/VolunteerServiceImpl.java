@@ -1,6 +1,5 @@
 package org.sfa.volunteer.service.impl;
 
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -156,6 +155,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         return mapToVolunteerResponse(volunteer);
     }
     
+    @Override
     public IdentityDocumentMetadata getIdentityDocumentMetadata(String userId, int documentSlot) throws Exception {
         validateSlot(documentSlot);
 
@@ -360,18 +360,15 @@ public class VolunteerServiceImpl implements VolunteerService {
      */
     @Override
     public String getGovtIdPath(String userId, int documentSlot) throws Exception {
-        if (documentSlot != 1 && documentSlot != 2) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document slot must be 1 or 2");
-        }
+        validateSlot(documentSlot);
 
-        Volunteer volunteer = volunteerRepository.findById(userId).orElse(null);
-        if (volunteer == null) {
-            throw VolunteerException.volunteerNotFound(userId);
-        }
+        Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
 
         return documentSlot == 1 ? volunteer.getGovtIdPath1() : volunteer.getGovtIdPath2();
     }
-    
+
+    @Override
     public void updateGovtIdMetadata(String userId, int documentSlot, String documentName, LocalDate expiresOn) throws Exception {
         validateSlot(documentSlot);
 
