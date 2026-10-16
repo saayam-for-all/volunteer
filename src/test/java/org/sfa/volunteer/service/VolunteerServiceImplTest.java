@@ -6,6 +6,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
+import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.exception.IdentityDocumentException;
+import org.sfa.volunteer.exception.VolunteerException;
 import org.sfa.volunteer.model.Volunteer;
 import org.sfa.volunteer.repository.VolunteerRepository;
 import org.sfa.volunteer.service.impl.VolunteerServiceImpl;
@@ -50,10 +53,6 @@ class VolunteerServiceImplTest {
         assertNotNull(metadata);
     }
 
-    /**
-     * A document uploaded during ba #31 onboarding has a stored path but no
-     * expiry date. It must still report as present (FR-21, AC-20).
-     */
     @Test
     void returnsMetadataWhenDocumentStoredWithoutExpiry() throws Exception {
         when(volunteerRepository.findById(USER_ID))
@@ -82,21 +81,24 @@ class VolunteerServiceImplTest {
 
     @Test
     void rejectsSlotBelowRange() {
-        assertThrows(ResponseStatusException.class,
+        IdentityDocumentException ex = assertThrows(IdentityDocumentException.class,
                 () -> service.getIdentityDocumentMetadata(USER_ID, 0));
+        assertEquals(SaayamStatusCode.INVALID_DOCUMENT_SLOT, ex.getStatusCode());
     }
 
     @Test
     void rejectsSlotAboveRange() {
-        assertThrows(ResponseStatusException.class,
+        IdentityDocumentException ex = assertThrows(IdentityDocumentException.class,
                 () -> service.getIdentityDocumentMetadata(USER_ID, 3));
+        assertEquals(SaayamStatusCode.INVALID_DOCUMENT_SLOT, ex.getStatusCode());
     }
 
     @Test
     void throwsWhenVolunteerNotFound() {
         when(volunteerRepository.findById(USER_ID)).thenReturn(Optional.empty());
 
-        assertThrows(Exception.class,
+        assertThrows(VolunteerException.class,
                 () -> service.getIdentityDocumentMetadata(USER_ID, 1));
     }
+
 }

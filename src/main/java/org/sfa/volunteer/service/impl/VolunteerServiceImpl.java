@@ -11,8 +11,10 @@ import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
+import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.exception.VolunteerException;
+import org.sfa.volunteer.exception.IdentityDocumentException;
 import org.sfa.volunteer.model.DocumentStatus;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.Volunteer;
@@ -155,24 +157,20 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
     
     public IdentityDocumentMetadata getIdentityDocumentMetadata(String userId, int documentSlot) throws Exception {
-       if (documentSlot != 1 && documentSlot != 2) {
-          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document slot must be 1 or 2");
-       }
+        validateSlot(documentSlot);
 
-      Volunteer volunteer = volunteerRepository.findById(userId).orElse(null);
-      if (volunteer == null) {
-         throw VolunteerException.volunteerNotFound(userId);
-      }
-
-      String name = (documentSlot == 1) ? volunteer.getGovtIdName1() : volunteer.getGovtIdName2();
-      LocalDate expiry = (documentSlot == 1) ? volunteer.getGovtIdExpiry1() : volunteer.getGovtIdExpiry2();
-
-       String path = (documentSlot == 1) ? volunteer.getGovtIdPath1() : volunteer.getGovtIdPath2();
-       if (path == null || path.isBlank()) {
+        Volunteer volunteer = volunteerRepository.findById(userId)
+            .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
+       
+        
+        String path = (documentSlot == 1) ? volunteer.getGovtIdPath1() : volunteer.getGovtIdPath2();
+        if (path == null || path.isBlank()) {
            return null;   // no document stored in this slot
-       }
+        }
 
-       DocumentStatus status = (expiry == null) ? null : DocumentStatus.from(expiry);
+       String name = (documentSlot == 1) ? volunteer.getGovtIdName1() : volunteer.getGovtIdName2();
+        LocalDate expiry = (documentSlot == 1) ? volunteer.getGovtIdExpiry1() : volunteer.getGovtIdExpiry2();
+        DocumentStatus status = (expiry == null) ? null : DocumentStatus.from(expiry);
 
        return new IdentityDocumentMetadata(name, expiry, status);
     }
@@ -337,15 +335,10 @@ public class VolunteerServiceImpl implements VolunteerService {
     
    @Override
     public void updateGovtIdPath(String userId, int documentSlot, String s3Path) throws Exception {
-        // Validate before the lookup - an invalid slot shouldn't cost a query.
-        if (documentSlot != 1 && documentSlot != 2) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document slot must be 1 or 2");
-        }
+        validateSlot(documentSlot);
 
-        Volunteer volunteer = volunteerRepository.findById(userId).orElse(null);
-        if (volunteer == null) {
-            throw VolunteerException.volunteerNotFound(userId);
-        }
+        Volunteer volunteer = volunteerRepository.findById(userId)
+            .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
 
         LocalDateTime now = LocalDateTime.now(ZoneId.of("UTC"));
 
@@ -380,14 +373,10 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
     
     public void updateGovtIdMetadata(String userId, int documentSlot, String documentName, LocalDate expiresOn) throws Exception {
-        if (documentSlot != 1 && documentSlot != 2) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document slot must be 1 or 2");
-        }
+        validateSlot(documentSlot);
 
-       Volunteer volunteer = volunteerRepository.findById(userId).orElse(null);
-       if (volunteer == null) {
-           throw VolunteerException.volunteerNotFound(userId);
-       }
+       Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
 
        if (documentSlot == 1) {
            volunteer.setGovtIdName1(documentName);
@@ -440,6 +429,13 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .createdAt(volunteer.getCreatedAt())
                 .lastUpdatedAt(volunteer.getLastUpdatedAt())
                 .build();
+    }
+
+    private void validateSlot(int documentSlot) {
+        if (documentSlot != 1 && documentSlot != 2) {
+            throw new IdentityDocumentException(SaayamStatusCode.INVALID_DOCUMENT_SLOT,
+                    HttpStatus.BAD_REQUEST, "Document slot must be 1 or 2");
+        }
     }
 
     private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,

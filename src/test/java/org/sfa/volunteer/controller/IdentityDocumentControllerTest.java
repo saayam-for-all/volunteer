@@ -7,6 +7,7 @@ import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
+import org.sfa.volunteer.model.DocumentStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -24,6 +25,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
 @WebMvcTest(IdentityDocumentController.class)
 class IdentityDocumentControllerTest {
@@ -81,6 +85,7 @@ class IdentityDocumentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OWNER, 1)))
                 .andExpect(status().isForbidden());
+        verifyNoInteractions(volunteerService);
     }
 
     @Test
@@ -100,6 +105,7 @@ class IdentityDocumentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OTHER, 1)))
                 .andExpect(status().isForbidden());
+        verifyNoInteractions(volunteerService);
     }
 
     @Test
@@ -111,18 +117,21 @@ class IdentityDocumentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OWNER, 1)))
                 .andExpect(status().isForbidden());
+        verifyNoInteractions(volunteerService);
     }
 
     @Test
     void adminMayReadAnotherUsersMetadata() throws Exception {
+        LocalDate expiry = LocalDate.now().plusDays(90);
         when(volunteerService.getIdentityDocumentMetadata(OTHER, 1))
-                .thenReturn(new IdentityDocumentMetadata(null, null, null));
+                .thenReturn(new IdentityDocumentMetadata("passport.pdf", expiry, DocumentStatus.VALID));
 
         mockMvc.perform(post(METADATA_URL)
                         .header("Authorization", adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OTHER, 1)))
                 .andExpect(status().isOk());
+        verify(volunteerService).getIdentityDocumentMetadata(OTHER, 1);
     }
 
     // ---------- validation ----------
@@ -187,7 +196,9 @@ class IdentityDocumentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(uploadBody(OTHER)))
                 .andExpect(status().isForbidden());
+        verifyNoInteractions(storage);
     }
+
 
     // ---------- view file ----------
 
@@ -225,5 +236,7 @@ class IdentityDocumentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OTHER, 1)))
                 .andExpect(status().isForbidden());
+        verifyNoInteractions(storage);
     }
+    
 }
