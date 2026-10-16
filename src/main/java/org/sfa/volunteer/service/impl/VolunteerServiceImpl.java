@@ -101,13 +101,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         if (request.step() != 1) throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -127,13 +121,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         if (request.step() != 2) throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -181,13 +169,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         if (request.step() != 3) throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -204,13 +186,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         if (request.step() != 4) throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -262,13 +238,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     @Override
     public List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) {
         Volunteer volunteer = volunteerRepository.findById(userId)
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(userId);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
 
         return toAvailabilityResponses((JsonNode) volunteer.getAvailabilityTimes(), userId);
     }
@@ -306,13 +276,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         Integer step = request.step() != null ? request.step() : 4;
         updateUser(user, step);
@@ -323,13 +287,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     @Override
     public VolunteerResponse getVolunteerByUserId(String userId) throws Exception {
         Volunteer volunteer = volunteerRepository.findById(userId)
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(userId);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
         return mapToVolunteerResponse(volunteer);
     }
     
