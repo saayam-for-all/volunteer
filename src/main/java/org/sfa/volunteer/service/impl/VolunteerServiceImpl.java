@@ -1,5 +1,6 @@
 package org.sfa.volunteer.service.impl;
 
+import org.springframework.http.HttpStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -9,21 +10,25 @@ import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
+import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.exception.VolunteerException;
+import org.sfa.volunteer.exception.IdentityDocumentException;
+import org.sfa.volunteer.model.DocumentStatus;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.Volunteer;
 import org.sfa.volunteer.model.VolunteerUserAvailability;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.VolunteerRepository;
 import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
+import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.service.VolunteerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -96,13 +101,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         if (request.step() != 1) throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -122,13 +121,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         if (request.step() != 2) throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -149,6 +142,26 @@ public class VolunteerServiceImpl implements VolunteerService {
 
         return mapToVolunteerResponse(volunteer);
     }
+    
+    @Override
+    public IdentityDocumentMetadata getIdentityDocumentMetadata(String userId, int documentSlot) throws Exception {
+        validateSlot(documentSlot);
+
+        Volunteer volunteer = volunteerRepository.findById(userId)
+            .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
+       
+        
+        String path = (documentSlot == 1) ? volunteer.getGovtIdPath1() : volunteer.getGovtIdPath2();
+        if (path == null || path.isBlank()) {
+           return null;   // no document stored in this slot
+        }
+
+       String name = (documentSlot == 1) ? volunteer.getGovtIdName1() : volunteer.getGovtIdName2();
+        LocalDate expiry = (documentSlot == 1) ? volunteer.getGovtIdExpiry1() : volunteer.getGovtIdExpiry2();
+        DocumentStatus status = (expiry == null) ? null : DocumentStatus.from(expiry);
+
+       return new IdentityDocumentMetadata(name, expiry, status);
+    }
 
     @Override
     public VolunteerResponse updateVolunteerStep3(VolunteerRequest request) throws Exception {
@@ -156,13 +169,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         if (request.step() != 3) throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -179,13 +186,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         if (request.step() != 4) throw VolunteerException.volunteerInvalidStep(request.userId());
 
@@ -237,13 +238,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     @Override
     public List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) {
         Volunteer volunteer = volunteerRepository.findById(userId)
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(userId);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
 
         return toAvailabilityResponses((JsonNode) volunteer.getAvailabilityTimes(), userId);
     }
@@ -281,13 +276,7 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 
         Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(request.userId());
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
 
         Integer step = request.step() != null ? request.step() : 4;
         updateUser(user, step);
@@ -298,14 +287,61 @@ public class VolunteerServiceImpl implements VolunteerService {
     @Override
     public VolunteerResponse getVolunteerByUserId(String userId) throws Exception {
         Volunteer volunteer = volunteerRepository.findById(userId)
-                .orElseThrow(() -> {
-                    try {
-                        return VolunteerException.volunteerNotFound(userId);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
         return mapToVolunteerResponse(volunteer);
+    }
+    
+   @Override
+    public void updateGovtIdPath(String userId, int documentSlot, String s3Path) throws Exception {
+        validateSlot(documentSlot);
+
+        Volunteer volunteer = volunteerRepository.findById(userId)
+            .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
+
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("UTC"));
+
+        if (documentSlot == 1) {
+            volunteer.setGovtIdPath1(s3Path);
+            volunteer.setPath1UpdatedAt(now);
+        } else {
+            volunteer.setGovtIdPath2(s3Path);
+            volunteer.setPath2UpdatedAt(now);
+        }
+
+        volunteerRepository.save(volunteer);
+    }
+
+    /**
+     * Returns the stored s3:// path for a slot, or null if nothing has been
+     * uploaded there yet. Callers rely on the null - it distinguishes an empty
+     * slot from a missing volunteer, which throws instead.
+     */
+    @Override
+    public String getGovtIdPath(String userId, int documentSlot) throws Exception {
+        validateSlot(documentSlot);
+
+        Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
+
+        return documentSlot == 1 ? volunteer.getGovtIdPath1() : volunteer.getGovtIdPath2();
+    }
+
+    @Override
+    public void updateGovtIdMetadata(String userId, int documentSlot, String documentName, LocalDate expiresOn) throws Exception {
+        validateSlot(documentSlot);
+
+       Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
+
+       if (documentSlot == 1) {
+           volunteer.setGovtIdName1(documentName);
+           volunteer.setGovtIdExpiry1(expiresOn);
+       } else {
+           volunteer.setGovtIdName2(documentName);
+           volunteer.setGovtIdExpiry2(expiresOn);
+       }
+
+       volunteerRepository.save(volunteer);
     }
 
     @Override
@@ -348,6 +384,13 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .createdAt(volunteer.getCreatedAt())
                 .lastUpdatedAt(volunteer.getLastUpdatedAt())
                 .build();
+    }
+
+    private void validateSlot(int documentSlot) {
+        if (documentSlot != 1 && documentSlot != 2) {
+            throw new IdentityDocumentException(SaayamStatusCode.INVALID_DOCUMENT_SLOT,
+                    HttpStatus.BAD_REQUEST, "Document slot must be 1 or 2");
+        }
     }
 
     private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,
