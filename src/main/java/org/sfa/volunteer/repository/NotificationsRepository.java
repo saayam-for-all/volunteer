@@ -7,8 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import org.sfa.volunteer.dto.response.NotificationResponse;
 import org.sfa.volunteer.entities.Notifications;
 
 @Repository
@@ -26,21 +26,39 @@ public interface NotificationsRepository
             """)
     int countNewNotifications(String userId, Timestamp watermarkTimestamp);
 
-    @Query(value = """
-                SELECT n.notification_id,
+    /*@Query(value = """
+                SELECT n.notificationId,
                 n.status,
-                nt.type_name,
+                nt.typeName,
                 n.message,
-                n.created_at
-                FROM notifications n
-                JOIN notification_types nt ON n.type_id = nt.type_id
-                WHERE n.user_id = :userId
-                ORDER BY n.created_at DESC
+                n.createDttm
+                FROM Notifications n
+                JOIN NotificationTypes nt ON n.typeId = nt.typeId
+                WHERE n.userId = :userId
+                ORDER BY n.createDttm DESC
             """, countQuery = """
             SELECT COUNT(*)
-            FROM notifications n
-            WHERE n.user_id = :userId
+            FROM Notifications n
+            WHERE n.userId = :userId
             """, nativeQuery = true)
     Page<Object[]> findNotifications(String userId, Pageable pageable);
-
+   */
+    @Query(
+           value = """
+           SELECT n.notificationId,
+           n.status,
+           nt.typeName,
+           n.message,
+           n.createDttm
+           FROM Notifications n
+           JOIN NotificationTypes nt ON n.typeId = nt.typeId
+           WHERE n.userId = :userId
+           ORDER BY n.createDttm DESC
+        """, countQuery = """
+        SELECT COUNT(n.notificationId)
+        FROM Notifications n
+        WHERE n.userId = :userId
+        """
+        )
+   Page<Object[]> findNotifications(@Param("userId") String userId,Pageable pageable);
 }

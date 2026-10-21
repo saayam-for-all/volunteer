@@ -16,7 +16,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "user_notification_status")
+@Table(name = "user_notification_statuses")
 public class UserNotificationStatus {
 
     @Id

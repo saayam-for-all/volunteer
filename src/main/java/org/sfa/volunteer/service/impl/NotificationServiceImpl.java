@@ -2,7 +2,9 @@ package org.sfa.volunteer.service.impl;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -12,30 +14,37 @@ import org.sfa.volunteer.dto.request.UpsertLastSeenRequest;
 import org.sfa.volunteer.dto.response.GetNotificationsResponse;
 import org.sfa.volunteer.dto.response.NotificationResponse;
 import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
-import org.sfa.volunteer.enums.StatusType;
 import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.repository.NotificationsRepository;
+import org.sfa.volunteer.repository.OffsetPageRequest;
 import org.sfa.volunteer.repository.UserNotificationStatusRepository;
 import org.sfa.volunteer.service.NotificationService;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.repository.UserRepository;
 
 @Service
 @Transactional
 public class NotificationServiceImpl implements NotificationService {
 
+        private final UserService userService;
         private final NotificationsRepository notificationsRepo;
         private final UserNotificationStatusRepository userNtfStatusRepo;
 
         public NotificationServiceImpl(
+                        UserService userService,
                         NotificationsRepository notificationsRepo,
                         UserNotificationStatusRepository userNtfStatusRepo) {
 
+                this.userService = userService;
                 this.notificationsRepo = notificationsRepo;
                 this.userNtfStatusRepo = userNtfStatusRepo;
         }
@@ -44,7 +53,11 @@ public class NotificationServiceImpl implements NotificationService {
         public GetNotificationsResponse getNotificationCounts(GetNotificationsRequest request) {
 
                 String userId = request.userId();
-                int totalNewNotificationsCount = 0;
+                validateUser(userId);     
+                
+                return handleException(userId, () -> {
+
+                 int totalNewNotificationsCount = 0;
 
                 // 1. Count total notifications
                 int totalNotificationsCount = handleException(userId,
@@ -69,7 +82,7 @@ public class NotificationServiceImpl implements NotificationService {
                                 .totalCount(totalNotificationsCount)
                                 .newNotificationsCount(totalNewNotificationsCount)
                                 .build();
-
+        });
         }
 
         @Override
@@ -78,19 +91,29 @@ public class NotificationServiceImpl implements NotificationService {
                 String userId = request.userId();
                 int rowStart = request.rowStart();
                 int rowEnd = request.rowEnd();
-
+                validateUser(userId);   
                 // // 1. Get watermark timestamp (last seen)
+
+                // 1. Get watermark timestamp (last seen).
+                // A user with no watermark row has never opened the notifications page, so
+                // every notification is new to them. Defaulting to "now" would mark them all
+                // "old" here while getNotificationCounts() counts them all as new -- the two
+                // endpoints would contradict each other for every first-time user.
+
+                return handleException(userId, () -> {
+
                 Timestamp lastSeen = handleException(userId,
                                 () -> userNtfStatusRepo.getLastSeenTimestamp(userId));
-                final Timestamp watermarkTs = (lastSeen != null) ? lastSeen : Timestamp.from(Instant.now());
+              
+                final Timestamp watermarkTs = (lastSeen != null) ? lastSeen
+                                : Timestamp.valueOf(LocalDateTime.of(1970, 1, 1, 0, 0));
+                // rowStart is an absolute row offset, not a page index, so it needs an
+                // offset-addressed Pageable; PageRequest.of(rowStart, limit) would skip
+                // rowStart * limit rows.
+                int limit = rowEnd - rowStart + 1;
+                Pageable pageable = new OffsetPageRequest(rowStart, limit, Sort.unsorted());
 
                 // 2. Fetch paginated notifications sorted by createDttm DESC
-                int limit = rowEnd - rowStart + 1; // number of records per page
-                int offset = rowStart;
-                Pageable pageable = PageRequest.of(offset / limit, limit);
-                // List<NotificationResponse> notifications = handleException(userId,
-                // () -> notificationsRepo.findNotifications(userId, pageable));
-
                 Page<Object[]> notifications = handleException(userId,
                                 () -> notificationsRepo.findNotifications(userId, pageable));
 
@@ -128,20 +151,26 @@ public class NotificationServiceImpl implements NotificationService {
                                 .totalCount(totalCount)
                                 .newNotificationsCount(newNotificationsCount)
                                 .build();
+
+                        });
         }
 
         @Transactional
         @Override
         public UpsertLastSeenResponse upsertLastSeen(UpsertLastSeenRequest request) {
 
+                String userId = request.userId();
+                validateUser(userId);   
+
+                return handleException(userId, () -> {
+
                 boolean rowCreated = false;
                 boolean rowUpdated = false;
-                String userId = request.userId();
 
                 // Always returns UTC/GMT
                 Instant timeGMT = Instant.now();
-                // format it to Timestamp
-                Timestamp watermarkTs = Timestamp.from(timeGMT);
+                // format it to Timestamp and saving it as UTC format in database table
+                Timestamp watermarkTs = Timestamp.valueOf(LocalDateTime.now(ZoneOffset.UTC));
 
                 // 3. Check if user exists (wrapped in handleException)
                 int exists = handleException(userId,
@@ -161,6 +190,8 @@ public class NotificationServiceImpl implements NotificationService {
                                 .updated(rowUpdated)
                                 .message(rowCreated ? "Created" : rowUpdated ? "Updated" : "failed")
                                 .build();
+
+        });
         }
 
         private <T> T handleException(String userId, Supplier<T> action) {
@@ -177,4 +208,20 @@ public class NotificationServiceImpl implements NotificationService {
                 }
         }
 
-}
+
+        private void validateUser(String userId) {
+              if (userId == null || userId.isBlank()) {
+                 throw new NotificationException(
+                                        SaayamStatusCode.BAD_REQUEST.toString(),
+                                        userId);
+                        
+                        }
+
+              if (!userService.userExists(userId)) {
+                        throw new NotificationException(
+                                        SaayamStatusCode.USER_NOT_FOUND.toString(),
+                                        userId);
+                        }
+        }
+
+}       
