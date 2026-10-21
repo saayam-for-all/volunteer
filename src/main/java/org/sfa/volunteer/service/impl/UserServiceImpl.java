@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.sfa.volunteer.dto.request.UpdateProfilePageRequest;
+import org.sfa.volunteer.dto.response.ProfilePageResponse;
 
 @Service
 @Transactional
@@ -364,6 +366,34 @@ import java.util.stream.Collectors;
 
         User user = userOpt.orElseThrow(() -> new UserNotFoundException(email));
         return user.getId();
+    }
+
+
+    @Override
+    public ProfilePageResponse getProfilePage(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        return ProfilePageResponse.builder()
+                .userId(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .emailAddress(user.getPrimaryEmailAddress())
+                .phoneNumber(user.getPrimaryPhoneNumber())
+                .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
+                .build();
+    }
+
+    @Transactional
+    @Override
+    public ProfilePageResponse updateProfilePage(String userId, UpdateProfilePageRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        if (request.firstName() != null) user.setFirstName(request.firstName());
+        if (request.lastName() != null) user.setLastName(request.lastName());
+        if (request.phoneNumber() != null) user.setPrimaryPhoneNumber(request.phoneNumber());
+        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
+        userRepository.save(user);
+        return getProfilePage(userId);
     }
 
     @Transactional
