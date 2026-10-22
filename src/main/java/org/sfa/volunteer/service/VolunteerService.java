@@ -5,8 +5,6 @@ import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
-import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
-import java.time.LocalDate;
 
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
 //import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
@@ -17,9 +15,6 @@ import java.util.List;
 public interface VolunteerService {
 
     PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize);
-    
-
-    String getGovtIdPath(String userId, int documentSlot) throws Exception;
 
     VolunteerResponse createVolunteer(VolunteerRequest volunteerRequest) throws Exception;
 
@@ -36,8 +31,6 @@ public interface VolunteerService {
     VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
-    
-    IdentityDocumentMetadata getIdentityDocumentMetadata(String userId, int documentSlot) throws Exception;
 
     List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
 
@@ -46,8 +39,4 @@ public interface VolunteerService {
 //    UserVolunteerSkillsResponse updateSkills(UserVolunteerSkillsRequest request) throws Exception;
 
 //    UserVolunteerSkillsResponse findSkillsList() throws Exception;
-
-    void updateGovtIdPath(String userId, int documentSlot, String s3Path) throws Exception;
-    
-   void updateGovtIdMetadata(String userId, int documentSlot, String documentName, LocalDate expiresOn) throws Exception;
 }
