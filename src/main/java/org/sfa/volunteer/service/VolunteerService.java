@@ -1,16 +1,13 @@
 package org.sfa.volunteer.service;
 
 import org.sfa.volunteer.dto.request.VolunteerRequest;
-import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
-import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
 
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
 //import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
 //import org.sfa.volunteer.model.UserVolunteerSkills;
 
-import java.util.List;
 
 public interface VolunteerService {
 
@@ -32,9 +29,12 @@ public interface VolunteerService {
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
 
-    List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
+    // NOTE (#214): replaced by UserService.getAvailability / updateAvailability. These were never exposed as an
+    // endpoint, were broken, and no longer compile against the user_availability mapping fixed for DB wiki #32.
+    // See the NOTE in VolunteerServiceImpl.
+    // List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
 
-    List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
+    // List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
 
 //    UserVolunteerSkillsResponse updateSkills(UserVolunteerSkillsRequest request) throws Exception;
 
