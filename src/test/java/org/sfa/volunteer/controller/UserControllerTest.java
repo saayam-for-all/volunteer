@@ -3,6 +3,9 @@ package org.sfa.volunteer.controller;
 import org.junit.jupiter.api.Test;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
+import org.sfa.volunteer.dto.response.AvailabilityResponse;
+import org.sfa.volunteer.dto.response.AvailabilitySlotResponse;
 import org.sfa.volunteer.dto.response.UserSkillsResponse;
 import org.sfa.volunteer.model.SkillLevel;
 import org.sfa.volunteer.service.ProfileImageStorageService;
@@ -19,8 +22,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -97,5 +102,72 @@ class UserControllerTest {
         verify(responseBuilder).buildErrorResponse(
                 eq(HttpStatus.BAD_REQUEST.value()), eq(SaayamStatusCode.BAD_REQUEST), anyString());
         verify(userService, never()).getUserSkills(any());
+    }
+
+    @Test
+    void shouldReturnAvailability() throws Exception {
+
+        AvailabilityResponse serviceResponse = new AvailabilityResponse("123", "America/Chicago",
+                List.of(new AvailabilitySlotResponse(1, "Weekdays", "09:00", "17:00")), null);
+
+        when(userService.getAvailability("123")).thenReturn(serviceResponse);
+        when(responseBuilder.buildSuccessResponse(any(), any(), any()))
+                .thenReturn(SaayamResponse.success(SaayamStatusCode.SUCCESS, "Success", serviceResponse));
+
+        mockMvc.perform(post("/0.0.1/users/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\": \"123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.timezone").value("America/Chicago"))
+                .andExpect(jsonPath("$.data.slots[0].frequency").value("Weekdays"));
+
+        verify(userService).getAvailability("123");
+    }
+
+    @Test
+    void shouldFailGetAvailabilityWhenUserIdMissing() throws Exception {
+
+        mockMvc.perform(post("/0.0.1/users/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk());
+
+        verify(responseBuilder).buildErrorResponse(
+                eq(HttpStatus.BAD_REQUEST.value()), eq(SaayamStatusCode.BAD_REQUEST), anyString());
+        verify(userService, never()).getAvailability(any());
+    }
+
+    @Test
+    void shouldUpdateAvailability() throws Exception {
+
+        String requestJson = """
+        {
+          "userId": "123",
+          "timezone": "America/Chicago",
+          "slots": [{ "frequency": "Weekdays", "startTime": "09:00", "endTime": "17:00" }],
+          "vacationMode": false,
+          "vacationStartDate": "",
+          "vacationEndDate": ""
+        }
+        """;
+
+        AvailabilityResponse serviceResponse = new AvailabilityResponse("123", "America/Chicago",
+                List.of(new AvailabilitySlotResponse(1, "Weekdays", "09:00", "17:00")), null);
+
+        when(userService.updateAvailability(any())).thenReturn(serviceResponse);
+        when(responseBuilder.buildSuccessResponse(any(), any(), any()))
+                .thenReturn(SaayamResponse.success(SaayamStatusCode.SUCCESS, "Success", serviceResponse));
+
+        mockMvc.perform(put("/0.0.1/users/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.slots[0].startTime").value("09:00"));
+
+        verify(userService).updateAvailability(argThat((UpdateAvailabilityRequest r) ->
+                r.getUserId().equals("123")
+                        && r.getTimezone().equals("America/Chicago")
+                        && r.getSlots().size() == 1
+                        && r.getSlots().get(0).getFrequency().equals("Weekdays")));
     }
 }
