@@ -66,6 +66,67 @@ class AvailabilityTimeConverterTest {
     }
 
     @Test
+    void savingJustBeforeDstEndsAnchorsEachDayOnItsOwnOffset() {
+        // Saturday 2026-10-31 is still CDT (UTC-5); daylight saving ends on Sunday 2026-11-01
+        LocalDate dayBeforeDstEnds = LocalDate.of(2026, 10, 31);
+
+        UtcSlot saturday = AvailabilityTimeConverter.toUtc(SATURDAY, t("09:00"), t("10:00"), CHICAGO, dayBeforeDstEnds);
+        UtcSlot monday = AvailabilityTimeConverter.toUtc(MONDAY, t("09:00"), t("10:00"), CHICAGO, dayBeforeDstEnds);
+
+        assertThat(saturday.start()).isEqualTo(LocalDateTime.of(2026, 10, 31, 14, 0));
+        // next Monday is 2026-11-02, already CST (UTC-6)
+        assertThat(monday.start()).isEqualTo(LocalDateTime.of(2026, 11, 2, 15, 0));
+        // both read back as the 09:00 the user saved
+        assertThat(AvailabilityTimeConverter.toLocal(saturday.start(), saturday.end(), CHICAGO))
+                .isEqualTo(new LocalSlot(SATURDAY, t("09:00"), t("10:00")));
+        assertThat(AvailabilityTimeConverter.toLocal(monday.start(), monday.end(), CHICAGO))
+                .isEqualTo(new LocalSlot(MONDAY, t("09:00"), t("10:00")));
+    }
+
+    @Test
+    void overlapsOnTheSameDay() {
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(MONDAY, t("10:00"), t("14:00")),
+                new LocalSlot(MONDAY, t("12:00"), t("16:00")))).isTrue();
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(MONDAY, t("09:00"), t("17:00")),
+                new LocalSlot(MONDAY, t("12:00"), t("13:00")))).isTrue();
+    }
+
+    @Test
+    void separateAndTouchingSlotsDoNotOverlap() {
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(MONDAY, t("10:00"), t("14:00")),
+                new LocalSlot(MONDAY, t("16:00"), t("18:00")))).isFalse();
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(MONDAY, t("10:00"), t("14:00")),
+                new LocalSlot(MONDAY, t("14:00"), t("16:00")))).isFalse();
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(MONDAY, t("10:00"), t("14:00")),
+                new LocalSlot(TUESDAY, t("10:00"), t("14:00")))).isFalse();
+    }
+
+    @Test
+    void overnightSlotOverlapsTheNextMorning() {
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(MONDAY, t("22:00"), t("02:00")),
+                new LocalSlot(TUESDAY, t("01:00"), t("03:00")))).isTrue();
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(MONDAY, t("22:00"), t("02:00")),
+                new LocalSlot(TUESDAY, t("02:00"), t("03:00")))).isFalse();
+    }
+
+    @Test
+    void sundayOvernightWrapsIntoMonday() {
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(SUNDAY, t("23:00"), t("01:00")),
+                new LocalSlot(MONDAY, t("00:30"), t("02:00")))).isTrue();
+        assertThat(AvailabilityTimeConverter.overlaps(
+                new LocalSlot(MONDAY, t("00:30"), t("02:00")),
+                new LocalSlot(SUNDAY, t("23:00"), t("01:00")))).isTrue();
+    }
+
+    @Test
     void laterDayInWeekAnchorsOnUpcomingDate() {
         UtcSlot utc = AvailabilityTimeConverter.toUtc(FRIDAY, t("09:00"), t("10:00"), CHICAGO, SUMMER);
 

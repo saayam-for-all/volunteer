@@ -3,6 +3,7 @@ package org.sfa.volunteer.util;
 import org.sfa.volunteer.model.AvailabilityFrequency;
 
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -29,6 +30,9 @@ public final class AvailabilityTimeConverter {
 
     public record LocalSlot(DayOfWeek day, LocalTime start, LocalTime end) {}
 
+    private static final int MINUTES_PER_DAY = 24 * 60;
+    private static final int MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY;
+
     private AvailabilityTimeConverter() {
     }
 
@@ -47,6 +51,23 @@ public final class AvailabilityTimeConverter {
         ZonedDateTime start = startUtc.atZone(ZoneOffset.UTC).withZoneSameInstant(zone);
         ZonedDateTime end = endUtc.atZone(ZoneOffset.UTC).withZoneSameInstant(zone);
         return new LocalSlot(start.getDayOfWeek(), start.toLocalTime(), end.toLocalTime());
+    }
+
+    /**
+     * Whether two local slots share any time in the week. Slots that only touch (10:00-14:00 and
+     * 14:00-16:00) do not overlap. Overnight slots run into the next day, and Sunday night wraps into Monday.
+     */
+    public static boolean overlaps(LocalSlot a, LocalSlot b) {
+        int aStart = minuteOfWeek(a.day(), a.start());
+        int bStart = minuteOfWeek(b.day(), b.start());
+        int aEnd = aStart + durationMinutes(a);
+        int bEnd = bStart + durationMinutes(b);
+        for (int shift : new int[]{-MINUTES_PER_WEEK, 0, MINUTES_PER_WEEK}) {
+            if (aStart < bEnd + shift && bStart + shift < aEnd) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -77,5 +98,14 @@ public final class AvailabilityTimeConverter {
 
     private static LocalDateTime toUtc(ZonedDateTime local) {
         return local.withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
+    }
+
+    private static int minuteOfWeek(DayOfWeek day, LocalTime time) {
+        return (day.getValue() - 1) * MINUTES_PER_DAY + time.getHour() * 60 + time.getMinute();
+    }
+
+    private static int durationMinutes(LocalSlot slot) {
+        int minutes = (int) Duration.between(slot.start(), slot.end()).toMinutes();
+        return minutes > 0 ? minutes : minutes + MINUTES_PER_DAY;
     }
 }

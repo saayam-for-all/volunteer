@@ -25,6 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -127,14 +128,81 @@ class UserControllerTest {
     @Test
     void shouldFailGetAvailabilityWhenUserIdMissing() throws Exception {
 
+        buildErrorResponsesForReal();
+
+        // GlobalExceptionHandler.handleValidationException has no @ResponseStatus, so the HTTP status stays 200
         mockMvc.perform(post("/0.0.1/users/availability")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.statusCode").value(400))
+                .andExpect(jsonPath("$.saayamCode").value(SaayamStatusCode.BAD_REQUEST.getCode()))
+                .andExpect(jsonPath("$.message").value("must not be blank"));
 
         verify(responseBuilder).buildErrorResponse(
-                eq(HttpStatus.BAD_REQUEST.value()), eq(SaayamStatusCode.BAD_REQUEST), anyString());
+                HttpStatus.BAD_REQUEST.value(), SaayamStatusCode.BAD_REQUEST, "must not be blank");
         verify(userService, never()).getAvailability(any());
+    }
+
+    @Test
+    void shouldReturn400ForInvalidTimezone() throws Exception {
+
+        String message = "timezone must be a valid IANA zone: Mars/Base";
+        buildErrorResponsesForReal();
+        when(userService.updateAvailability(any())).thenThrow(new IllegalArgumentException(message));
+
+        mockMvc.perform(put("/0.0.1/users/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\": \"123\", \"timezone\": \"Mars/Base\", \"slots\": []}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.saayamCode").value(SaayamStatusCode.BAD_REQUEST.getCode()))
+                .andExpect(jsonPath("$.message").value(message));
+
+        verify(responseBuilder).buildErrorResponse(HttpStatus.BAD_REQUEST.value(), SaayamStatusCode.BAD_REQUEST, message);
+    }
+
+    @Test
+    void shouldReturn400ForInvalidTimeFormat() throws Exception {
+
+        String message = "slots[0].startTime must be HH:mm: 9am";
+        buildErrorResponsesForReal();
+        when(userService.updateAvailability(any())).thenThrow(new IllegalArgumentException(message));
+
+        mockMvc.perform(put("/0.0.1/users/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\": \"123\", \"timezone\": \"UTC\", "
+                                + "\"slots\": [{\"frequency\": \"Monday\", \"startTime\": \"9am\", \"endTime\": \"10:00\"}]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.saayamCode").value(SaayamStatusCode.BAD_REQUEST.getCode()))
+                .andExpect(jsonPath("$.message").value(message));
+
+        verify(responseBuilder).buildErrorResponse(HttpStatus.BAD_REQUEST.value(), SaayamStatusCode.BAD_REQUEST, message);
+    }
+
+    @Test
+    void shouldAcceptEmptySlots() throws Exception {
+
+        AvailabilityResponse serviceResponse = new AvailabilityResponse("123", "UTC", List.of(), null);
+        when(userService.updateAvailability(any())).thenReturn(serviceResponse);
+        when(responseBuilder.buildSuccessResponse(any(), any(), any()))
+                .thenReturn(SaayamResponse.success(SaayamStatusCode.SUCCESS, "Success", serviceResponse));
+
+        mockMvc.perform(put("/0.0.1/users/availability")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\": \"123\", \"timezone\": \"UTC\", \"slots\": []}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.slots").isEmpty());
+
+        verify(userService).updateAvailability(argThat((UpdateAvailabilityRequest r) -> r.getSlots().isEmpty()));
+    }
+
+    // ResponseBuilder is a mock here; build the real error envelope so the body can be asserted
+    private void buildErrorResponsesForReal() {
+        when(responseBuilder.buildErrorResponse(anyInt(), any(), anyString()))
+                .thenAnswer(inv -> SaayamResponse.error(inv.getArgument(0), inv.getArgument(1), inv.getArgument(2)));
     }
 
     @Test

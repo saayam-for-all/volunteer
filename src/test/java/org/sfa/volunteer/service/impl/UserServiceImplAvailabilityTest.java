@@ -230,6 +230,90 @@ class UserServiceImplAvailabilityTest {
     }
 
     @Test
+    void updateAllowsSeveralSlotsOnTheSameDay() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        saveAllAssignsIds();
+
+        AvailabilityResponse response = userService.updateAvailability(update("America/Chicago", List.of(
+                slot("Monday", "16:00", "18:00"),
+                slot("Monday", "10:00", "14:00"))));
+
+        assertThat(savedRows()).hasSize(2);
+        assertThat(response.getSlots()).extracting(AvailabilitySlotResponse::getFrequency,
+                        AvailabilitySlotResponse::getStartTime, AvailabilitySlotResponse::getEndTime)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Monday", "10:00", "14:00"),
+                        org.assertj.core.groups.Tuple.tuple("Monday", "16:00", "18:00"));
+    }
+
+    @Test
+    void updateAllowsAnExtraSlotOnADayAlreadyCoveredByWeekdays() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        saveAllAssignsIds();
+
+        AvailabilityResponse response = userService.updateAvailability(update("America/Chicago", List.of(
+                slot("Weekdays", "10:00", "14:00"),
+                slot("Monday", "16:00", "18:00"))));
+
+        assertThat(savedRows()).hasSize(6);
+        assertThat(response.getSlots()).extracting(AvailabilitySlotResponse::getFrequency,
+                        AvailabilitySlotResponse::getStartTime)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("Weekdays", "10:00"),
+                        org.assertj.core.groups.Tuple.tuple("Monday", "16:00"));
+    }
+
+    @Test
+    void updateAllowsTouchingSlots() {
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        saveAllAssignsIds();
+
+        userService.updateAvailability(update("UTC", List.of(
+                slot("Monday", "10:00", "14:00"),
+                slot("Monday", "14:00", "16:00"))));
+
+        assertThat(savedRows()).hasSize(2);
+    }
+
+    @Test
+    void updateRejectsOverlappingSlotsOnTheSameDay() {
+        assertThatThrownBy(() -> userService.updateAvailability(update("UTC", List.of(
+                slot("Monday", "10:00", "14:00"),
+                slot("Tuesday", "10:00", "14:00"),
+                slot("Monday", "12:00", "16:00")))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("slots[0] and slots[2] overlap on Monday");
+        verifyNoInteractions(userRepository, userAvailabilityRepository);
+    }
+
+    @Test
+    void updateRejectsSlotOverlappingAGroupedFrequency() {
+        assertThatThrownBy(() -> userService.updateAvailability(update("UTC", List.of(
+                slot("Weekdays", "09:00", "17:00"),
+                slot("Wednesday", "12:00", "13:00")))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("slots[0] and slots[1] overlap on Wednesday");
+    }
+
+    @Test
+    void updateRejectsOvernightSlotRunningIntoTheNextDaysSlot() {
+        assertThatThrownBy(() -> userService.updateAvailability(update("UTC", List.of(
+                slot("Monday", "22:00", "02:00"),
+                slot("Tuesday", "01:00", "03:00")))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("slots[0] and slots[1] overlap on Monday");
+    }
+
+    @Test
+    void updateRejectsSundayNightWrappingIntoMonday() {
+        assertThatThrownBy(() -> userService.updateAvailability(update("UTC", List.of(
+                slot("Monday", "00:30", "02:00"),
+                slot("Sunday", "23:00", "01:00")))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("slots[0] and slots[1] overlap on Monday");
+    }
+
+    @Test
     void updateWithNoSlotsClearsAvailability() {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
         saveAllAssignsIds();
@@ -271,7 +355,7 @@ class UserServiceImplAvailabilityTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"", "Mars/Base", "CST", "+05:30"})
+    @ValueSource(strings = {"", "Mars/Base", "CST", "+05:30", "UTC+5", "GMT-3", "Z"})
     void updateRejectsInvalidTimezone(String timezone) {
         assertThatThrownBy(() -> userService.updateAvailability(update(timezone, List.of())))
                 .isInstanceOf(IllegalArgumentException.class)

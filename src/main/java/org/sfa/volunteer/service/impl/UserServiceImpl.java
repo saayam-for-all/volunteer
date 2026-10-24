@@ -56,7 +56,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -445,6 +444,9 @@ import java.util.stream.Collectors;
         return toAvailabilityResponse(user, saved);
     }
 
+    // Checked against the IANA list rather than relying on ZoneId.of() throwing: ZoneId.of() also accepts
+    // fixed offsets such as "+05:30", "UTC+5", "GMT-3" and "Z". Those never follow daylight saving, so slots
+    // saved with one would be an hour off for half the year (BRD NFR-07 asks for an IANA zone).
     private static ZoneId parseTimezone(String timezone) {
         if (timezone == null || !ZoneId.getAvailableZoneIds().contains(timezone)) {
             throw new IllegalArgumentException("timezone must be a valid IANA zone: " + timezone);
@@ -452,7 +454,8 @@ import java.util.stream.Collectors;
         return ZoneId.of(timezone);
     }
 
-    // One local slot per (day, start, end); exact duplicates are dropped
+    // One local slot per (day, start, end). Several slots on the same day are fine, but they must not overlap;
+    // exact duplicates (e.g. Weekdays 9-17 plus Monday 9-17) are dropped rather than rejected.
     private static List<LocalSlot> parseSlots(List<AvailabilitySlotRequest> slots) {
         if (slots == null) {
             throw new IllegalArgumentException("slots is required");
@@ -461,7 +464,8 @@ import java.util.stream.Collectors;
             throw new IllegalArgumentException("slots cannot have more than " + MAX_AVAILABILITY_SLOTS + " entries");
         }
 
-        LinkedHashSet<LocalSlot> localSlots = new LinkedHashSet<>();
+        // local slot -> index of the first request entry that produced it
+        Map<LocalSlot, Integer> localSlots = new LinkedHashMap<>();
         for (int i = 0; i < slots.size(); i++) {
             AvailabilitySlotRequest slot = slots.get(i);
             String field = "slots[" + i + "]";
@@ -479,9 +483,33 @@ import java.util.stream.Collectors;
             if (start.equals(end)) {
                 throw new IllegalArgumentException(field + ": startTime and endTime must differ");
             }
-            frequency.getDays().forEach(day -> localSlots.add(new LocalSlot(day, start, end)));
+            int index = i;
+            frequency.getDays().forEach(day -> localSlots.putIfAbsent(new LocalSlot(day, start, end), index));
         }
-        return List.copyOf(localSlots);
+        rejectOverlaps(localSlots);
+        return List.copyOf(localSlots.keySet());
+    }
+
+    private static void rejectOverlaps(Map<LocalSlot, Integer> localSlots) {
+        List<Map.Entry<LocalSlot, Integer>> entries = List.copyOf(localSlots.entrySet());
+        for (int a = 0; a < entries.size(); a++) {
+            for (int b = a + 1; b < entries.size(); b++) {
+                Map.Entry<LocalSlot, Integer> first = entries.get(a);
+                Map.Entry<LocalSlot, Integer> second = entries.get(b);
+                // one request entry has a single time range, so it cannot overlap itself
+                if (first.getValue().equals(second.getValue())
+                        || !AvailabilityTimeConverter.overlaps(first.getKey(), second.getKey())) {
+                    continue;
+                }
+                if (second.getValue() < first.getValue()) {
+                    Map.Entry<LocalSlot, Integer> swap = first;
+                    first = second;
+                    second = swap;
+                }
+                throw new IllegalArgumentException("slots[" + first.getValue() + "] and slots[" + second.getValue()
+                        + "] overlap on " + dayName(first.getKey().day()));
+            }
+        }
     }
 
     private static LocalTime parseTime(String value, String field) {

@@ -50,13 +50,18 @@ Headers: `Content-Type: application/json`, `Authorization: <Cognito idToken>`.
 | Field | Rule |
 |---|---|
 | `userId` | required |
-| `timezone` | must be an IANA zone from `ZoneId.getAvailableZoneIds()`, e.g. `America/Chicago`; `CST` and `+05:30` are rejected |
+| `timezone` | must be an IANA zone from `ZoneId.getAvailableZoneIds()`, e.g. `America/Chicago`. `CST`, `+05:30`, `UTC+5`, `GMT-3` and `Z` are rejected. `ZoneId.of()` would accept the fixed offsets, but they never follow daylight saving. |
 | `slots` | required (may be empty), at most 20 entries |
 | `slots[i].frequency` | `Everyday`, `Weekdays`, `Weekends`, or `Monday` to `Sunday` |
 | `slots[i].startTime` / `endTime` | strict `HH:mm`, 24-hour (`9:00` and `24:00` are rejected); start ≠ end |
 
 - An end before the start is an overnight slot.
-- Overlapping slots are allowed, as they are in the UI.
+- A day can have several slots, e.g. Monday 10:00–14:00 and Monday 16:00–18:00.
+- **Overlapping slots are rejected** with `slots[i] and slots[j] overlap on <Day>`:
+  - This also covers a single day overlapping a grouped frequency (Weekdays 09–17 with Wednesday 12–13).
+  - It also covers an overnight slot running into the next day's slot, including Sunday night into Monday.
+  - Slots that only touch (10–14 and 14–16) are allowed.
+  - Exact duplicates are dropped, not rejected (see Storage).
 
 ### Other errors
 - 404: unknown user.
@@ -91,7 +96,7 @@ Headers: `Content-Type: application/json`, `Authorization: <Cognito idToken>`.
 | `service/UserService`, `impl/UserServiceImpl` | `getAvailability`, `updateAvailability`, and the validation |
 | `handler/AvailabilityHandler` | One Lambda handler for API Gateway (proxy integration): POST → get, PUT → update, OPTIONS → 204, any other method → 405. Handles CORS, base64 bodies, and maps errors to status codes |
 | `controller/UserController` | The same endpoints for Spring: `POST` and `PUT /0.0.1/users/availability` |
-| `service/VolunteerService`, `impl/VolunteerServiceImpl` | Commented out, not deleted, with a NOTE explaining why: the unused, broken `get/updateVolunteerUserAvailability` and their helpers. They no longer compile against the fixed entity. `VolunteerUserAvailabilityResponse` is kept for them. |
+| `service/VolunteerService`, `impl/VolunteerServiceImpl`, `dto/response/VolunteerUserAvailabilityResponse` | Removed the unused, broken `get/updateVolunteerUserAvailability`, their helpers, and the DTO that only they used. They no longer compiled against the fixed entity. |
 | Tests | `AvailabilityTimeConverterTest`, `UserServiceImplAvailabilityTest`, `AvailabilityHandlerTest`, `UserControllerTest` |
 | `ProfileImageSchemaIntegrationTest` | Its `UserServiceImpl` constructor call now passes the right number of arguments. `test` didn't compile its tests, because #209 used 7 arguments after #207 had added an 8th. |
 
@@ -111,8 +116,8 @@ Headers: `Content-Type: application/json`, `Authorization: <Cognito idToken>`.
   - In `Availability.jsx`, replace the localStorage save with `api.post(AVAILABILITY, { userId })` and `api.put(AVAILABILITY, payload)`.
 
 ## Verification
-- `mvn verify` on this branch: 175 tests, 0 failures.
-- **End-to-end:** the real handlers, created through their no-arg constructors as Lambda does, ran against Postgres 16 with the wiki #32 DDL loaded verbatim. All 20 checks passed:
+- `mvn verify` on this branch: 194 tests, 0 failures.
+- **End-to-end:** the real handlers, created through their no-arg constructors as Lambda does, ran against Postgres 16 with the wiki #32 DDL loaded verbatim. All 24 checks passed:
   - preflight;
   - new user → `[]` with timezone UTC;
   - saving Weekdays 09–17 plus Saturday 22–02 in Chicago writes 6 UTC rows (weekday rows at 14:00–22:00 UTC; Saturday at Sunday 03:00–07:00) and updates `users.time_zone`;
@@ -121,6 +126,8 @@ Headers: `Content-Type: application/json`, `Authorization: <Cognito idToken>`.
   - a bad timezone, a bad frequency, `24:00`, or start = end → 400, and the DB is unchanged;
   - a missing `userId` or bad JSON → 400;
   - an unknown user → 404;
+  - two Monday slots (10–14 and 16–18) → 2 rows, returned in start order;
+  - overlapping Monday slots → 400, and the DB is unchanged;
   - `slots: []` clears everything.
 
 ## Follow-ups

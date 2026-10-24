@@ -29,13 +29,6 @@ public interface VolunteerService {
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
 
-    // NOTE (#214): replaced by UserService.getAvailability / updateAvailability. These were never exposed as an
-    // endpoint, were broken, and no longer compile against the user_availability mapping fixed for DB wiki #32.
-    // See the NOTE in VolunteerServiceImpl.
-    // List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
-
-    // List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
-
 //    UserVolunteerSkillsResponse updateSkills(UserVolunteerSkillsRequest request) throws Exception;
 
 //    UserVolunteerSkillsResponse findSkillsList() throws Exception;

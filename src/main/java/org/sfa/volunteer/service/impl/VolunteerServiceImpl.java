@@ -32,8 +32,6 @@ import java.util.stream.Collectors;
 public class VolunteerServiceImpl implements VolunteerService {
     private final VolunteerRepository volunteerRepository;
     private final UserRepository userRepository;
-    // See the NOTE (#214) above updateVolunteerUserAvailability: only the old availability methods used this
-    // private final VolunteerUserAvailabilityRepository userAvailabilityRepository;
 
     // private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
 
@@ -41,12 +39,10 @@ public class VolunteerServiceImpl implements VolunteerService {
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
 
-    // VolunteerUserAvailabilityRepository was injected twice here, only for the commented-out availability methods
     @Autowired
     public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository) {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
-        // this.userAvailabilityRepository = userAvailabilityRepository;
         // this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
     }
 
@@ -211,70 +207,6 @@ public class VolunteerServiceImpl implements VolunteerService {
         return mapToVolunteerResponse(volunteer);
     }
 
-    // NOTE (#214): the old availability methods below are commented out, not deleted, for reference.
-    // They are replaced by UserService.getAvailability / updateAvailability (POST/PUT /availability), because:
-    //  - nothing calls them (no controller or handler exposes them on test);
-    //  - they were broken: get read volunteer_details.availability_times (the wizard's JSONB) instead of
-    //    user_availability, and update inserted rows without removing the old ones, duplicating slots on every save;
-    //  - they no longer compile against the user_availability mapping fixed for DB wiki #32
-    //    (start/end are UTC LocalDateTime, last_update_date -> last_updated_at).
-    // Unmerged branches Availability-API-endpoints-Feature-88 and sai-kunduri-volunteer-availability-33 still call them.
-    // @Override
-    // public List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId,
-    //                                                                                List<VolunteerUserAvailabilityRequest> request) throws Exception {
-    //     User user = userRepository.findById(userId)
-    //             .orElseThrow(() -> new UserNotFoundException(userId));
-    //
-    //     Volunteer volunteer = volunteerRepository.findVolunteerByUserId(userId);
-    //     if (Objects.isNull(volunteer)) {
-    //         throw VolunteerException.volunteerNotFound(userId);
-    //     }
-    //
-    //     List<VolunteerUserAvailability> userAvailabilityList = request.stream()
-    //             .map(req -> mapToVolunteerUserAvailability(req, user)).collect(Collectors.toList());
-    //
-    //     List<VolunteerUserAvailability> savedAvailabilityList = userAvailabilityRepository
-    //             .saveAll(userAvailabilityList);
-    //     return savedAvailabilityList.stream().map(this::mapToVolunteerUserAvailabilityResponse)
-    //             .collect(Collectors.toList());
-    // }
-    //
-    // @Override
-    // public List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) {
-    //     Volunteer volunteer = volunteerRepository.findById(userId)
-    //             .orElseThrow(() -> {
-    //                 try {
-    //                     return VolunteerException.volunteerNotFound(userId);
-    //                 } catch (Exception e) {
-    //                     throw new RuntimeException(e);
-    //                 }
-    //             });
-    //
-    //     return toAvailabilityResponses((JsonNode) volunteer.getAvailabilityTimes(), userId);
-    // }
-    //
-    // private List<VolunteerUserAvailabilityResponse> toAvailabilityResponses(JsonNode availabilityTimes, String userId) {
-    //     if (availabilityTimes == null || !availabilityTimes.isArray()) return List.of();
-    //
-    //     List<VolunteerUserAvailabilityRequest> reqs = new ArrayList<>();
-    //     for (JsonNode node : availabilityTimes) {
-    //         reqs.add(MAPPER.convertValue(node, VolunteerUserAvailabilityRequest.class));
-    //     }
-    //
-    //     // Map request -> response
-    //     return reqs.stream()
-    //             .map(r -> VolunteerUserAvailabilityResponse.builder()
-    //                     .id(r.id())
-    //                     .userId(userId)
-    //                     .dayOfWeek(r.dayOfWeek())
-    //                     .startTime(r.startTime() == null ? null : r.startTime().atZone(ZoneId.of("UTC")))
-    //                     .endTime(r.endTime() == null ? null : r.endTime().atZone(ZoneId.of("UTC")))
-    //                     .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
-    //                     .build()
-    //             )
-    //             .collect(Collectors.toList());
-    // }
-
     // @Override
     // public UserVolunteerSkillsResponse findSkillsList() throws Exception {
     // return null;
@@ -354,48 +286,4 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .lastUpdatedAt(volunteer.getLastUpdatedAt())
                 .build();
     }
-
-    // See the NOTE (#214) above updateVolunteerUserAvailability
-    // private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer,
-    //                                                  List<VolunteerUserAvailability> availabilityList) {
-    //     String uid = volunteer.getUser() != null ? volunteer.getUser().getId() : volunteer.getId();
-    //
-    //     return VolunteerResponse.builder()
-    //             .id(uid)
-    //             .userId(uid)
-    //             .termsAndConditions(volunteer.getTermsAndConditions())
-    //             .termsAcceptedAt(volunteer.getTermsAcceptedAt())
-    //             .govtIdPath1(volunteer.getGovtIdPath1())
-    //             .govtIdPath2(volunteer.getGovtIdPath2())
-    //             .path1UpdatedAt(volunteer.getPath1UpdatedAt())
-    //             .path2UpdatedAt(volunteer.getPath2UpdatedAt())
-    //             .availabilityDays((JsonNode) volunteer.getAvailabilityDays())
-    //             .availabilityTimes((JsonNode) volunteer.getAvailabilityTimes())
-    //             .createdAt(volunteer.getCreatedAt())
-    //             .lastUpdatedAt(volunteer.getLastUpdatedAt())
-    //             .build();
-    // }
-    //
-    // private VolunteerUserAvailabilityResponse mapToVolunteerUserAvailabilityResponse(
-    //         VolunteerUserAvailability availability) {
-    //     return VolunteerUserAvailabilityResponse.builder()
-    //             .id(availability.getId())
-    //             .userId(availability.getUser().getId())
-    //             .dayOfWeek(availability.getDayOfWeek())
-    //             .startTime(availability.getStartTime())
-    //             .endTime(availability.getEndTime())
-    //             .lastUpdateDate(availability.getLastUpdateDate())
-    //             .build();
-    // }
-    //
-    // private VolunteerUserAvailability mapToVolunteerUserAvailability(VolunteerUserAvailabilityRequest request,
-    //                                                                  User user) {
-    //     return VolunteerUserAvailability.builder()
-    //             .user(user)
-    //             .dayOfWeek(request.dayOfWeek())
-    //             .startTime(ZonedDateTime.from(request.startTime()))
-    //             .endTime(ZonedDateTime.from(request.endTime()))
-    //             //.lastUpdateDate(request.lastUpdateDate())
-    //             .build();
-    // }
 }
