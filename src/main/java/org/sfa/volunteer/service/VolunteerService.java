@@ -1,16 +1,13 @@
 package org.sfa.volunteer.service;
 
 import org.sfa.volunteer.dto.request.VolunteerRequest;
-import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
-import org.sfa.volunteer.dto.response.VolunteerUserAvailabilityResponse;
 
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
 //import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
 //import org.sfa.volunteer.model.UserVolunteerSkills;
 
-import java.util.List;
 
 public interface VolunteerService {
 
@@ -31,10 +28,6 @@ public interface VolunteerService {
     VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
-
-    List<VolunteerUserAvailabilityResponse> updateVolunteerUserAvailability(String userId, List<VolunteerUserAvailabilityRequest> request) throws Exception;
-
-    List<VolunteerUserAvailabilityResponse> getVolunteerUserAvailability(String userId) throws Exception;
 
 //    UserVolunteerSkillsResponse updateSkills(UserVolunteerSkillsRequest request) throws Exception;
 

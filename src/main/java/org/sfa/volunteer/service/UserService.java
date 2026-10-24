@@ -1,6 +1,7 @@
 package org.sfa.volunteer.service;
 
 import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.UserPreferenceResponse;
@@ -45,4 +46,8 @@ public interface UserService {
     UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception;
 
     UserSkillsResponse getUserSkills(String userId);
+
+    AvailabilityResponse getAvailability(String userId);
+
+    AvailabilityResponse updateAvailability(UpdateAvailabilityRequest request);
 }

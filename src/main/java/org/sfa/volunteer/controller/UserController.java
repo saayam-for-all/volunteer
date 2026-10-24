@@ -5,7 +5,9 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.AvailabilityUserRequest;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.SignOffRequest;
@@ -228,6 +230,19 @@ public class UserController {
     @PostMapping("/profileSkills")
     public SaayamResponse<UserSkillsResponse> getUserSkills(@Valid @RequestBody UserSkillsRequest request) {
         UserSkillsResponse response = userService.getUserSkills(request.getUserId());
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.getUserId()}, response);
+    }
+
+    // userId goes in the JSON body, never the path or query string
+    @PostMapping("/availability")
+    public SaayamResponse<AvailabilityResponse> getAvailability(@Valid @RequestBody AvailabilityUserRequest request) {
+        AvailabilityResponse response = userService.getAvailability(request.getUserId());
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.getUserId()}, response);
+    }
+
+    @PutMapping("/availability")
+    public SaayamResponse<AvailabilityResponse> updateAvailability(@Valid @RequestBody UpdateAvailabilityRequest request) {
+        AvailabilityResponse response = userService.updateAvailability(request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.getUserId()}, response);
     }
 
