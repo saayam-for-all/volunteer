@@ -12,6 +12,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.sfa.volunteer.enums.ActionStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -51,6 +52,13 @@ public class Notifications {
 
     @Column(name = "last_update_date")
     private Timestamp lastUpdateDate;
+
+    @Column(name = "action_status")
+    @Enumerated(EnumType.STRING)
+    private ActionStatus actionStatus;
+
+    @Column(name = "request_id")
+    private String requestId;
 
     public Integer getNotificationId() {
         return notificationId;

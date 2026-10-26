@@ -169,7 +169,23 @@ public class GlobalExceptionHandler {
                         log.error("NotificationBadRequestException: {}", errorMessage);
                         status = SaayamStatusCode.BAD_REQUEST;
                 }
-                // 4. Unknown Notification error
+                // 5. Notification not found
+                else if (exception.getMessage().contains(SaayamStatusCode.NOTIFICATION_NOT_FOUND.toString())) {
+                        errorMessage = messageSourceUtil.getMessage(
+                                        SaayamStatusCode.NOTIFICATION_NOT_FOUND.getCode(),
+                                        new Object[] { exception.getUserId() });
+                        log.error("NotificationNotFoundException: {}", errorMessage);
+                        status = SaayamStatusCode.NOTIFICATION_NOT_FOUND;
+                }
+                // 6. Notification already actioned
+                else if (exception.getMessage().contains(SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.toString())) {
+                        errorMessage = messageSourceUtil.getMessage(
+                                        SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.getCode(),
+                                        new Object[] { exception.getUserId() });
+                        log.error("NotificationAlreadyActionedException: {}", errorMessage);
+                        status = SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED;
+                }
+                // 7. Unknown Notification error
                 else {
                         errorMessage = "Notification error";
                         log.error("NotificationException: {}", errorMessage);

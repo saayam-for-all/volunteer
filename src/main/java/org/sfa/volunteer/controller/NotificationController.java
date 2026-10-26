@@ -5,6 +5,7 @@ import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.GetNotificationsRequest;
 import org.sfa.volunteer.dto.request.UpsertLastSeenRequest;
 import org.sfa.volunteer.dto.response.GetNotificationsResponse;
+import org.sfa.volunteer.dto.response.NotificationActionResponse;
 import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
 import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.service.NotificationService;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -71,6 +73,17 @@ public class NotificationController {
                 UpsertLastSeenResponse response = notificationService.upsertLastSeen(request);
                 return responseBuilder.buildSuccessResponse(
                                 SaayamStatusCode.SUCCESS,
+                                response);
+        }
+
+        @PostMapping("/{notificationId}/deny")
+        public SaayamResponse<NotificationActionResponse> denyNotification(
+                        @PathVariable Integer notificationId,
+                        @RequestHeader("X-User-Id") String userId) throws Exception {
+
+                NotificationActionResponse response = notificationService.denyNotification(notificationId, userId);
+                return responseBuilder.buildSuccessResponse(
+                                SaayamStatusCode.NOTIFICATION_DENIED,
                                 response);
         }
 

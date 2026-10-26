@@ -10,8 +10,11 @@ import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.GetNotificationsRequest;
 import org.sfa.volunteer.dto.request.UpsertLastSeenRequest;
 import org.sfa.volunteer.dto.response.GetNotificationsResponse;
+import org.sfa.volunteer.dto.response.NotificationActionResponse;
 import org.sfa.volunteer.dto.response.NotificationResponse;
 import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
+import org.sfa.volunteer.entities.Notifications;
+import org.sfa.volunteer.enums.ActionStatus;
 import org.sfa.volunteer.enums.StatusType;
 import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.exception.UserNotFoundException;
@@ -162,6 +165,47 @@ public class NotificationServiceImpl implements NotificationService {
                 .created(rowCreated)
                 .updated(rowUpdated)
                 .message(rowCreated ? "Created" : rowUpdated ? "Updated" : "failed")
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public NotificationActionResponse denyNotification(Integer notificationId, String userId) {
+        if (notificationId == null || userId == null || userId.isBlank()) {
+            throw new NotificationException(SaayamStatusCode.BAD_REQUEST.toString(), userId);
+        }
+
+        Notifications notification = notificationsRepo
+                .findByNotificationIdAndUserId(notificationId, userId)
+                .orElseThrow(() -> new NotificationException(
+                        SaayamStatusCode.NOTIFICATION_NOT_FOUND.toString(), userId));
+
+        ActionStatus current = notification.getActionStatus();
+
+        // NULL means this notification type does not support Accept/Deny
+        if (current == null) {
+            throw new NotificationException(
+                    SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.toString(), userId);
+        }
+
+        if (current != ActionStatus.PENDING) {
+            throw new NotificationException(
+                    SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.toString(), userId);
+        }
+
+        int updated = notificationsRepo.updateActionStatusConditionally(
+                notificationId, userId, ActionStatus.PENDING, ActionStatus.DENIED);
+
+        if (updated == 0) {
+            // Another request updated it between our read and this write
+            throw new NotificationException(
+                    SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.toString(), userId);
+        }
+
+        return NotificationActionResponse.builder()
+                .notificationId(notificationId)
+                .userId(userId)
+                .actionStatus(ActionStatus.DENIED)
                 .build();
     }
 
