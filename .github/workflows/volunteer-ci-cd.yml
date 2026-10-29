@@ -36,11 +36,28 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      - name: Run Tests & Coverage Report
+      - name: Run Tests & Generate Coverage Report
         run: |
           mvn clean test
-          mvn jacoco:report
-          mvn jacoco:check || echo "⚠️ Coverage below 90% target, proceeding."
+          test -s target/site/jacoco/jacoco.xml
+
+      - name: Setup Python
+        if: github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Diff Cover
+        if: github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')
+        run: python -m pip install diff-cover
+
+      - name: Enforce 90% Coverage on Changed Lines
+        if: github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')
+        run: |
+          git fetch origin "${{ github.base_ref }}"
+          diff-cover target/site/jacoco/jacoco.xml \
+            --compare-branch="origin/${{ github.base_ref }}" \
+            --fail-under=90
 
       - name: SonarQube Security Scan (PR & Branch Optimized)
         env:
