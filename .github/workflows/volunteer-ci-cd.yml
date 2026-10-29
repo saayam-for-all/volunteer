@@ -112,7 +112,7 @@ jobs:
 
   deploy:
     needs: build
-    if: (github.ref_name == 'dev' || github.ref_name == 'main') && github.event_name == 'push'
+    if: (github.ref_name == 'test' || github.ref_name == 'dev' || github.ref_name == 'main') && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifact
@@ -151,8 +151,13 @@ jobs:
 
           if [ "${{ github.ref_name }}" = "main" ]; then
             TARGET_URL="https://help-for-everyone.org"
-          else
+          elif [ "${{ github.ref_name }}" = "dev" ]; then
             TARGET_URL="https://dev-saayam.netlify.app"
+          elif [ "${{ github.ref_name }}" = "test" ]; then
+            TARGET_URL="https://test-saayam.netlify.app"
+          else
+            echo "Unsupported deployment branch"
+            exit 1
           fi
 
           echo "Running UI validation against $TARGET_URL"
