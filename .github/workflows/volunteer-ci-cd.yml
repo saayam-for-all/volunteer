@@ -93,6 +93,7 @@ jobs:
           DATE_UTC=$(date -u +%Y%m%d-%H%M)
 
           ENV_TAG="${{ github.ref_name }}"
+          ENV_TAG="${ENV_TAG//\//-}"
           if [ "$ENV_TAG" = "main" ]; then ENV_TAG="prod"; fi
 
           SEMVER_NAME="${{ env.APP_NAME }}-${VERSION_STRIPPED}-${ENV_TAG}-${DATE_UTC}-${COMMIT_SHA}.jar"
