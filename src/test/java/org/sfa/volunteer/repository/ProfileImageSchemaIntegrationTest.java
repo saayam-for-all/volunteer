@@ -49,7 +49,7 @@ class ProfileImageSchemaIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserServiceImpl(userRepository, null, null, null, null, null, null);
+        userService = new UserServiceImpl(userRepository, null, null, null, null, null, null, null);
 
         jdbcTemplate.execute("drop table if exists users");
         jdbcTemplate.execute("""
