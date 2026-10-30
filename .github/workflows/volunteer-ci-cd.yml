@@ -36,12 +36,28 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      - name: Run Tests & Strict 90% Coverage Check
+      - name: Run Tests & Generate Coverage Report
         run: |
           mvn clean test
-          mvn jacoco:report
-          echo "Enforcing strict 90% code coverage requirement for dev/main branches..."
-          mvn jacoco:check
+          test -s target/site/jacoco/jacoco.xml
+
+      - name: Setup Python
+        if: github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Diff Cover
+        if: github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')
+        run: python -m pip install diff-cover
+
+      - name: Enforce 90% Coverage on Changed Lines
+        if: github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')
+        run: |
+          git fetch origin "${{ github.base_ref }}"
+          diff-cover target/site/jacoco/jacoco.xml \
+            --compare-branch="origin/${{ github.base_ref }}" \
+            --fail-under=90
 
       - name: SonarQube Security Scan (PR & Branch Optimized)
         env:
@@ -77,6 +93,7 @@ jobs:
           DATE_UTC=$(date -u +%Y%m%d-%H%M)
 
           ENV_TAG="${{ github.ref_name }}"
+          ENV_TAG="${ENV_TAG//\//-}"
           if [ "$ENV_TAG" = "main" ]; then ENV_TAG="prod"; fi
 
           SEMVER_NAME="${{ env.APP_NAME }}-${VERSION_STRIPPED}-${ENV_TAG}-${DATE_UTC}-${COMMIT_SHA}.jar"
@@ -95,7 +112,7 @@ jobs:
 
   deploy:
     needs: build
-    if: (github.ref_name == 'dev' || github.ref_name == 'main') && github.event_name == 'push'
+    if: (github.ref_name == 'test' || github.ref_name == 'dev' || github.ref_name == 'main') && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Download Artifact
@@ -134,8 +151,13 @@ jobs:
 
           if [ "${{ github.ref_name }}" = "main" ]; then
             TARGET_URL="https://help-for-everyone.org"
-          else
+          elif [ "${{ github.ref_name }}" = "dev" ]; then
             TARGET_URL="https://dev-saayam.netlify.app"
+          elif [ "${{ github.ref_name }}" = "test" ]; then
+            TARGET_URL="https://test-saayam.netlify.app"
+          else
+            echo "Unsupported deployment branch"
+            exit 1
           fi
 
           echo "Running UI validation against $TARGET_URL"
