@@ -368,8 +368,7 @@ class NotificationServiceImplTest {
         }
 
         @Test
-        void getNotifications_shouldHandle
-          List() {
+        void getNotifications_shouldHandleEmptyList() {
 
                 String userId = "U1";
                 GetNotificationsRequest req = new GetNotificationsRequest(userId, 0, 10);
