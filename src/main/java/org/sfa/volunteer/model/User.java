@@ -40,11 +40,11 @@ public class User {
     private String fullName;
 
     @Email
-//    @NotBlank(message = "Email address cannot be null.")
+    // @NotBlank(message = "Email address cannot be null.")
     @Column(name = "primary_email_address")
     private String primaryEmailAddress;
 
-    //    @NotBlank(message = "Phone number cannot be blank")
+    // @NotBlank(message = "Phone number cannot be blank")
     @Column(name = "primary_phone_number")
     private String primaryPhoneNumber;
 
@@ -88,10 +88,10 @@ public class User {
     @Column(name = "promotion_wizard_stage")
     private Integer volunteerStage;
 
-    @Column(name = "promotion_wizard_last_update_date")
+    @Column(name = "promotion_wizard_last_updated_at")
     private ZonedDateTime volunteerUpdateDate;
 
-    @Column(name = "last_update_date")
+    @Column(name = "last_updated_at")
     private ZonedDateTime lastUpdateDate;
 
     @Column(name = "dob")
@@ -115,15 +115,16 @@ public class User {
     @JsonBackReference
     private UserStatus userStatus;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_category_id", nullable = false)
-    @JsonBackReference
-    private UserCategory userCategory;
+    // user_category_id column was removed from the users table; category is now
+    // tracked in a separate mapping table (see saayam-for-all/database wiki).
+    // This association is intentionally dropped to keep User loadable/savable
+    // until that new mapping is wired up. See issue #165 follow-up.
 
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private UserAdditionalDetail additionalDetail;
 
-    //@OneToOne(mappedBy = "user", fetch = FetchType.LAZY) //, cascade = CascadeType.ALL
+    // @OneToOne(mappedBy = "user", fetch = FetchType.LAZY) //, cascade =
+    // CascadeType.ALL
     @Transient
     private Volunteer volunteer;
 
@@ -148,7 +149,6 @@ public class User {
                 ", state=" + state +
                 ", country=" + country +
                 ", userStatus=" + userStatus +
-                ", userCategory=" + userCategory +
                 ", volunteerStage=" + volunteerStage +
                 ", volunteerUpdateDate=" + volunteerUpdateDate +
                 '}';
@@ -156,8 +156,10 @@ public class User {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
         User user = (User) o;
         return Objects.equals(id, user.id) &&
                 Objects.equals(firstName, user.firstName) &&
@@ -173,6 +175,7 @@ public class User {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, profilePicturePath, primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
+        return Objects.hash(id, firstName, middleName, lastName, fullName, primaryEmailAddress, profilePicturePath,
+                primaryPhoneNumber, volunteerStage, volunteerUpdateDate);
     }
 }
