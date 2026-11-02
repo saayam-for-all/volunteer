@@ -18,6 +18,7 @@ import org.sfa.volunteer.dto.response.AvailabilityResponse;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.Cors;
+import org.sfa.volunteer.util.AvailabilityAuthorization;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.boot.SpringApplication;
@@ -25,6 +26,8 @@ import org.springframework.context.ApplicationContext;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Map;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * /availability, one Lambda for both operations; the user is always identified by the JSON body.
@@ -87,15 +90,19 @@ public class AvailabilityHandler implements RequestHandler<APIGatewayProxyReques
             if (isUpdate) {
                 UpdateAvailabilityRequest request = OBJECT_MAPPER.readValue(body, UpdateAvailabilityRequest.class);
                 userId = requireUserId(request.getUserId());
+                AvailabilityAuthorization.requireOwner(userService, userId, callerEmail(requestEvent));
                 availability = userService.updateAvailability(request);
             } else {
                 AvailabilityUserRequest request = OBJECT_MAPPER.readValue(body, AvailabilityUserRequest.class);
                 userId = requireUserId(request.getUserId());
+                AvailabilityAuthorization.requireOwner(userService, userId, callerEmail(requestEvent));
                 availability = userService.getAvailability(userId);
             }
             SaayamResponse<AvailabilityResponse> success =
                     responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{ userId }, availability);
             return response.withStatusCode(200).withBody(OBJECT_MAPPER.writeValueAsString(success));
+        } catch (ResponseStatusException e) {
+            return error(response, e.getStatusCode().value(), SaayamStatusCode.BAD_REQUEST, e.getReason());
         } catch (IllegalArgumentException e) {
             return error(response, 400, SaayamStatusCode.BAD_REQUEST, e.getMessage());
         } catch (JsonProcessingException e) {
@@ -117,6 +124,15 @@ public class AvailabilityHandler implements RequestHandler<APIGatewayProxyReques
             throw new IllegalArgumentException("userId is required");
         }
         return userId;
+    }
+
+    private static String callerEmail(APIGatewayProxyRequestEvent event) {
+        Map<String, Object> authorizer = event.getRequestContext() == null ? null
+                : event.getRequestContext().getAuthorizer();
+        if (authorizer == null) return null;
+        Object claims = authorizer.get("claims");
+        if (claims instanceof Map<?, ?> map && map.get("email") instanceof String email) return email;
+        return null;
     }
 
     private static <T> T bean(Class<T> type) {

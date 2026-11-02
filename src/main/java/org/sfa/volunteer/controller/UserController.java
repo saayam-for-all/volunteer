@@ -22,6 +22,9 @@ import org.sfa.volunteer.dto.response.*;
 import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
+import org.sfa.volunteer.util.AvailabilityAuthorization;
+import java.security.Principal;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -235,15 +238,31 @@ public class UserController {
 
     // userId goes in the JSON body, never the path or query string
     @PostMapping("/availability")
-    public SaayamResponse<AvailabilityResponse> getAvailability(@Valid @RequestBody AvailabilityUserRequest request) {
-        AvailabilityResponse response = userService.getAvailability(request.getUserId());
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.getUserId()}, response);
+    public ResponseEntity<SaayamResponse<AvailabilityResponse>> getAvailability(@RequestBody AvailabilityUserRequest request, Principal principal) {
+        return availabilityResult(request.getUserId(), principal, () -> userService.getAvailability(request.getUserId()));
     }
 
     @PutMapping("/availability")
-    public SaayamResponse<AvailabilityResponse> updateAvailability(@Valid @RequestBody UpdateAvailabilityRequest request) {
-        AvailabilityResponse response = userService.updateAvailability(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.getUserId()}, response);
+    public ResponseEntity<SaayamResponse<AvailabilityResponse>> updateAvailability(@RequestBody UpdateAvailabilityRequest request, Principal principal) {
+        return availabilityResult(request.getUserId(), principal, () -> userService.updateAvailability(request));
+    }
+
+    private ResponseEntity<SaayamResponse<AvailabilityResponse>> availabilityResult(
+            String userId, Principal principal, Supplier<AvailabilityResponse> operation) {
+        try {
+            AvailabilityAuthorization.requireOwner(userService, userId, principal == null ? null : principal.getName());
+            return ResponseEntity.ok(responseBuilder.buildSuccessResponse(
+                    SaayamStatusCode.SUCCESS, new Object[]{userId}, operation.get()));
+        } catch (org.sfa.volunteer.exception.UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseBuilder.buildErrorResponse(
+                    404, SaayamStatusCode.USER_NOT_FOUND, "User not found"));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(responseBuilder.buildErrorResponse(
+                    e.getStatusCode().value(), SaayamStatusCode.BAD_REQUEST, e.getReason()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(responseBuilder.buildErrorResponse(
+                    400, SaayamStatusCode.BAD_REQUEST, e.getMessage()));
+        }
     }
 
     @DeleteMapping("/profile/signoff")

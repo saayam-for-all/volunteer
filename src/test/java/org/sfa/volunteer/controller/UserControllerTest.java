@@ -1,6 +1,7 @@
 package org.sfa.volunteer.controller;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
@@ -37,6 +38,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(UserController.class)
 class UserControllerTest {
+
+    @BeforeEach
+    void allowAvailabilityOwner() {
+        when(userService.userExists(anyString())).thenReturn(true);
+        when(userService.isEmailOwnedByUser(anyString(), anyString())).thenReturn(true);
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -116,6 +123,7 @@ class UserControllerTest {
                 .thenReturn(SaayamResponse.success(SaayamStatusCode.SUCCESS, "Success", serviceResponse));
 
         mockMvc.perform(post("/0.0.1/users/availability")
+                        .principal(() -> "owner@example.org")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\": \"123\"}"))
                 .andExpect(status().isOk())
@@ -130,18 +138,18 @@ class UserControllerTest {
 
         buildErrorResponsesForReal();
 
-        // GlobalExceptionHandler.handleValidationException has no @ResponseStatus, so the HTTP status stays 200
         mockMvc.perform(post("/0.0.1/users/availability")
+                        .principal(() -> "owner@example.org")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isOk())
+                .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.statusCode").value(400))
                 .andExpect(jsonPath("$.saayamCode").value(SaayamStatusCode.BAD_REQUEST.getCode()))
-                .andExpect(jsonPath("$.message").value("must not be blank"));
+                .andExpect(jsonPath("$.message").value("userId must not be blank"));
 
         verify(responseBuilder).buildErrorResponse(
-                HttpStatus.BAD_REQUEST.value(), SaayamStatusCode.BAD_REQUEST, "must not be blank");
+                HttpStatus.BAD_REQUEST.value(), SaayamStatusCode.BAD_REQUEST, "userId must not be blank");
         verify(userService, never()).getAvailability(any());
     }
 
@@ -153,6 +161,7 @@ class UserControllerTest {
         when(userService.updateAvailability(any())).thenThrow(new IllegalArgumentException(message));
 
         mockMvc.perform(put("/0.0.1/users/availability")
+                        .principal(() -> "owner@example.org")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\": \"123\", \"timezone\": \"Mars/Base\", \"slots\": []}"))
                 .andExpect(status().isBadRequest())
@@ -171,6 +180,7 @@ class UserControllerTest {
         when(userService.updateAvailability(any())).thenThrow(new IllegalArgumentException(message));
 
         mockMvc.perform(put("/0.0.1/users/availability")
+                        .principal(() -> "owner@example.org")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\": \"123\", \"timezone\": \"UTC\", "
                                 + "\"slots\": [{\"frequency\": \"Monday\", \"startTime\": \"9am\", \"endTime\": \"10:00\"}]}"))
@@ -190,6 +200,7 @@ class UserControllerTest {
                 .thenReturn(SaayamResponse.success(SaayamStatusCode.SUCCESS, "Success", serviceResponse));
 
         mockMvc.perform(put("/0.0.1/users/availability")
+                        .principal(() -> "owner@example.org")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"userId\": \"123\", \"timezone\": \"UTC\", \"slots\": []}"))
                 .andExpect(status().isOk())
@@ -200,6 +211,34 @@ class UserControllerTest {
     }
 
     // ResponseBuilder is a mock here; build the real error envelope so the body can be asserted
+
+    @Test
+    void availabilityRequiresVerifiedPrincipal() throws Exception {
+        buildErrorResponsesForReal();
+        mockMvc.perform(post("/0.0.1/users/availability").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"123\"}"))
+                .andExpect(status().isUnauthorized());
+        verify(userService, never()).getAvailability(any());
+    }
+
+    @Test
+    void availabilityRejectsAnotherUsersId() throws Exception {
+        buildErrorResponsesForReal();
+        when(userService.isEmailOwnedByUser(anyString(), anyString())).thenReturn(false);
+        mockMvc.perform(put("/0.0.1/users/availability").principal(() -> "other@example.org")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":\"123\"}"))
+                .andExpect(status().isForbidden());
+        verify(userService, never()).updateAvailability(any());
+    }
+
+    @Test
+    void availabilityUnknownUserIsHttp404() throws Exception {
+        buildErrorResponsesForReal();
+        when(userService.userExists("unknown")).thenReturn(false);
+        mockMvc.perform(post("/0.0.1/users/availability").principal(() -> "owner@example.org")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":\"unknown\"}"))
+                .andExpect(status().isNotFound());
+    }
     private void buildErrorResponsesForReal() {
         when(responseBuilder.buildErrorResponse(anyInt(), any(), anyString()))
                 .thenAnswer(inv -> SaayamResponse.error(inv.getArgument(0), inv.getArgument(1), inv.getArgument(2)));
@@ -227,6 +266,7 @@ class UserControllerTest {
                 .thenReturn(SaayamResponse.success(SaayamStatusCode.SUCCESS, "Success", serviceResponse));
 
         mockMvc.perform(put("/0.0.1/users/availability")
+                        .principal(() -> "owner@example.org")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isOk())

@@ -418,8 +418,7 @@ import java.util.stream.Collectors;
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-        user.setTimeZone(zone.getId());
-        userRepository.save(user);
+        userRepository.updateAvailabilityTimezone(userId, zone.getId());
 
         // Vacation fields are accepted but not stored: user_availability has no columns for them yet
         LocalDate today = LocalDate.now(zone);
@@ -441,7 +440,7 @@ import java.util.stream.Collectors;
         userAvailabilityRepository.flush();
         List<VolunteerUserAvailability> saved = userAvailabilityRepository.saveAll(rows);
 
-        return toAvailabilityResponse(user, saved);
+        return toAvailabilityResponse(userId, zone.getId(), saved);
     }
 
     // Checked against the IANA list rather than relying on ZoneId.of() throwing: ZoneId.of() also accepts
@@ -529,7 +528,11 @@ import java.util.stream.Collectors;
 
     // Rows are UTC, one per day; convert to the user's zone and group back into Everyday / Weekdays / Weekends
     private static AvailabilityResponse toAvailabilityResponse(User user, List<VolunteerUserAvailability> rows) {
-        ZoneId zone = zoneOrUtc(user.getTimeZone());
+        return toAvailabilityResponse(user.getId(), user.getTimeZone(), rows);
+    }
+
+    private static AvailabilityResponse toAvailabilityResponse(String userId, String timezone, List<VolunteerUserAvailability> rows) {
+        ZoneId zone = zoneOrUtc(timezone);
 
         // time range -> local day -> smallest row id
         Map<TimeRange, Map<DayOfWeek, Integer>> byRange = new LinkedHashMap<>();
@@ -563,7 +566,7 @@ import java.util.stream.Collectors;
                 .map(c -> new AvailabilitySlotResponse(c.id(), c.frequency().getLabel(),
                         c.range().start().format(AVAILABILITY_TIME), c.range().end().format(AVAILABILITY_TIME)))
                 .toList();
-        return new AvailabilityResponse(user.getId(), zone.getId(), slots, lastUpdatedAt);
+        return new AvailabilityResponse(userId, zone.getId(), slots, lastUpdatedAt);
     }
 
     private static ZoneId zoneOrUtc(String timezone) {

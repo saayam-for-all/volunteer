@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,10 +63,14 @@ class AvailabilityHandlerTest {
     void setUp() {
         lenient().when(messageSourceUtil.getMessage(anyString(), any())).thenReturn("message");
         handler = new AvailabilityHandler(userService, new ResponseBuilder(messageSourceUtil), messageSourceUtil);
+        lenient().when(userService.userExists(anyString())).thenReturn(true);
+        lenient().when(userService.isEmailOwnedByUser(anyString(), anyString())).thenReturn(true);
     }
 
     private static APIGatewayProxyRequestEvent request(String method, String body) {
-        return new APIGatewayProxyRequestEvent().withHttpMethod(method).withBody(body);
+        var context = new APIGatewayProxyRequestEvent.ProxyRequestContext();
+        context.setAuthorizer(Map.of("claims", Map.of("email", "owner@example.org")));
+        return new APIGatewayProxyRequestEvent().withHttpMethod(method).withBody(body).withRequestContext(context);
     }
 
     private static JsonNode json(APIGatewayProxyResponseEvent response) throws Exception {
@@ -159,6 +164,30 @@ class AvailabilityHandlerTest {
     }
 
     // shared
+
+    @Test
+    void missingClaimsCannotBeReplacedByCallerHeaders() {
+        var event = new APIGatewayProxyRequestEvent().withHttpMethod("PUT").withBody(PUT_BODY)
+                .withHeaders(Map.of("email", "owner@example.org", "X-Caller-UserId", USER_ID));
+        assertThat(handler.handleRequest(event, null).getStatusCode()).isEqualTo(401);
+        verify(userService, never()).updateAvailability(any());
+    }
+
+    @Test
+    void anotherUsersAvailabilityCannotBeReadOrChanged() {
+        when(userService.isEmailOwnedByUser(USER_ID, "owner@example.org")).thenReturn(false);
+        assertThat(handler.handleRequest(request("POST", GET_BODY), null).getStatusCode()).isEqualTo(403);
+        assertThat(handler.handleRequest(request("PUT", PUT_BODY), null).getStatusCode()).isEqualTo(403);
+        verify(userService, never()).getAvailability(any());
+        verify(userService, never()).updateAvailability(any());
+    }
+
+    @Test
+    void authenticatedUnknownUserReturns404BeforeMutation() {
+        when(userService.userExists(USER_ID)).thenReturn(false);
+        assertThat(handler.handleRequest(request("PUT", PUT_BODY), null).getStatusCode()).isEqualTo(404);
+        verify(userService, never()).updateAvailability(any());
+    }
 
     @Test
     void answersPreflightWithoutCallingService() {

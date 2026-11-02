@@ -177,8 +177,8 @@ class UserServiceImplAvailabilityTest {
 
         AvailabilityResponse response = userService.updateAvailability(request);
 
-        assertThat(user.getTimeZone()).isEqualTo("America/Chicago");
-        verify(userRepository).save(user);
+        verify(userRepository).updateAvailabilityTimezone(USER_ID, "America/Chicago");
+        verify(userRepository, never()).save(any());
 
         InOrder order = inOrder(userAvailabilityRepository);
         order.verify(userAvailabilityRepository).deleteByUser_Id(USER_ID);
