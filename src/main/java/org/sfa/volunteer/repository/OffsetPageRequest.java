@@ -3,6 +3,13 @@ package org.sfa.volunteer.repository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
+/**
+ * A {@link Pageable} addressed by absolute row offset rather than page index.
+ *
+ * <p>The notification API's contract is rowStart/rowEnd, which is an offset and a
+ * count, not a page number. {@code PageRequest.of(rowStart, limit)} would interpret
+ * rowStart as a page index and skip {@code rowStart * limit} rows.
+ */
 public class OffsetPageRequest implements Pageable {
 
     private final long offset;

@@ -27,6 +27,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final UserOrgMapRepository userOrgMapRepository;
     private final OrgSkillRepository orgSkillRepository;
+    private static final String DEFAULT_USER_ROLE = "VOLUNTEER";
 
     @Autowired
     public OrganizationServiceImpl(OrganizationRepository organizationRepository,
@@ -81,8 +82,10 @@ public class OrganizationServiceImpl implements OrganizationService {
     public OrganizationResponse createOrganization(CreateOrganizationRequest request) {
         Organization organization = Organization.builder()
                 .orgName(request.orgName())
-                .orgType(request.orgType())
-                .orgSize(request.orgSize())
+                .orgType(request.orgType() == null ? null
+                        : OrgType.fromString(request.orgType()).getDbValue())
+                .orgSize(request.orgSize() == null ? null
+                        : OrgSize.fromString(request.orgSize()).getDbValue())
                 .street(request.street())
                 .cityName(request.cityName())
                 .stateId(request.stateId())
@@ -117,14 +120,13 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
     @Override
     public void linkOrganization(String userId, String orgId) {
-
        Organization organization = organizationRepository.findById(orgId)
         .orElseThrow(() -> new OrganizationNotFoundException(orgId));
 
     UserOrgMap userOrgMap = UserOrgMap.builder()
             .userId(userId)
             .orgId(organization.getOrgId())
-            .userRole("VOLUNTEER")
+            .userRole(DEFAULT_USER_ROLE)
             .build();
 
     userOrgMapRepository.save(userOrgMap);

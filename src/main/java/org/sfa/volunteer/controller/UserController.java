@@ -9,6 +9,7 @@ import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.SignOffRequest;
+import org.sfa.volunteer.dto.request.UserSkillsRequest;
 import org.sfa.volunteer.dto.response.AddressStatusResponse;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
@@ -129,7 +130,14 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User does not exist");
         }
 
-        if (!userService.isAdminUser(callerUserId)) {
+        // Admin status is determined from the caller's Cognito group membership
+        // (same pattern as authorize() below), not userService.isAdminUser,
+        // which can no longer resolve a category now that user_category_id has
+        // been removed from the schema. See issue #165 follow-up.
+        String groups = req.getHeader(HDR_CALLER_GROUPS);
+        boolean isAdmin = groups != null && groups.toLowerCase().contains("admin");
+
+        if (!isAdmin) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not an admin");
         }
     }
@@ -215,6 +223,12 @@ public class UserController {
                 SaayamStatusCode.SUCCESS,
                 Map.of("userId", userId, "message", "Profile image deleted")
         );
+    }
+
+    @PostMapping("/profileSkills")
+    public SaayamResponse<UserSkillsResponse> getUserSkills(@Valid @RequestBody UserSkillsRequest request) {
+        UserSkillsResponse response = userService.getUserSkills(request.getUserId());
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.getUserId()}, response);
     }
 
     @DeleteMapping("/profile/signoff")

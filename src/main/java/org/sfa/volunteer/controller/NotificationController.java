@@ -2,11 +2,16 @@ package org.sfa.volunteer.controller;
 
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.GetNotificationPreferencesRequest;
 import org.sfa.volunteer.dto.request.GetNotificationsRequest;
+import org.sfa.volunteer.dto.request.UpdateNotificationPreferencesRequest;
 import org.sfa.volunteer.dto.request.UpsertLastSeenRequest;
+import org.sfa.volunteer.dto.response.GetNotificationPreferencesResponse;
 import org.sfa.volunteer.dto.response.GetNotificationsResponse;
+import org.sfa.volunteer.dto.response.UpdateNotificationPreferencesResponse;
 import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
 import org.sfa.volunteer.exception.NotificationException;
+import org.sfa.volunteer.service.NotificationPreferenceService;
 import org.sfa.volunteer.service.NotificationService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,11 +36,15 @@ import jakarta.validation.Valid;
 public class NotificationController {
 
         private final NotificationService notificationService;
+        private final NotificationPreferenceService notificationPreferenceService;
         private final ResponseBuilder responseBuilder;
 
         @Autowired
-        public NotificationController(NotificationService notificationService, ResponseBuilder responseBuilder) {
+        public NotificationController(NotificationService notificationService,
+                        NotificationPreferenceService notificationPreferenceService,
+                        ResponseBuilder responseBuilder) {
                 this.notificationService = notificationService;
+                this.notificationPreferenceService = notificationPreferenceService;
                 this.responseBuilder = responseBuilder;
 
         }
@@ -73,6 +82,38 @@ public class NotificationController {
                 }
 
                 UpsertLastSeenResponse response = notificationService.upsertLastSeen(request);
+                return responseBuilder.buildSuccessResponse(
+                                SaayamStatusCode.SUCCESS,
+                                response);
+        }
+
+        /**
+         * The user's delivery preference for every known notification channel.
+         *
+         * <p>POST rather than GET to match the other read endpoints here, which are
+         * body-driven so they can be fronted by an API Gateway proxy Lambda.
+         */
+        @PostMapping("/preferences")
+        public SaayamResponse<GetNotificationPreferencesResponse> getNotificationPreferences(
+                        @Valid @RequestBody GetNotificationPreferencesRequest request) throws Exception {
+
+                GetNotificationPreferencesResponse response =
+                                notificationPreferenceService.getPreferences(request);
+                return responseBuilder.buildSuccessResponse(
+                                SaayamStatusCode.SUCCESS,
+                                response);
+        }
+
+        /**
+         * Sets the delivery preference for one or more channels. A null or blank
+         * preference clears that channel's setting.
+         */
+        @PostMapping("/preferences/update")
+        public SaayamResponse<UpdateNotificationPreferencesResponse> updateNotificationPreferences(
+                        @Valid @RequestBody UpdateNotificationPreferencesRequest request) throws Exception {
+
+                UpdateNotificationPreferencesResponse response =
+                                notificationPreferenceService.updatePreferences(request);
                 return responseBuilder.buildSuccessResponse(
                                 SaayamStatusCode.SUCCESS,
                                 response);
