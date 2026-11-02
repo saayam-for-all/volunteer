@@ -295,6 +295,8 @@ class NotificationServiceImplTest {
 
                 Page<Object[]> mockPage = new PageImpl<Object[]>(Arrays.<Object[]>asList(row));
 
+                when(userService.userExists(userId)).thenReturn(true);
+
                 when(userNSRepository.getLastSeenTimestamp(userId)).thenReturn(null);
                 when(nRepository.findNotifications(eq(userId), any(Pageable.class)))
                                 .thenReturn(mockPage);
@@ -320,6 +322,8 @@ class NotificationServiceImplTest {
 
                 String userId = "U1";
                 GetNotificationsRequest request = new GetNotificationsRequest(userId, 3, 7);
+
+                when(userService.userExists(userId)).thenReturn(true);
 
                 when(userNSRepository.getLastSeenTimestamp(userId))
                                 .thenReturn(Timestamp.from(Instant.now()));
@@ -349,6 +353,8 @@ class NotificationServiceImplTest {
         void upsertLastSeen_shouldStoreWatermarkAsUtcWallClock() {
 
                 String userId = "U1";
+
+                when(userService.userExists(userId)).thenReturn(true);
 
                 when(userNSRepository.existsByUserId(userId)).thenReturn(0);
                 when(userNSRepository.createLastSeenTimestamp(eq(userId), any(Timestamp.class)))
