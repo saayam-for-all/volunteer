@@ -9,6 +9,7 @@ import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -131,7 +132,7 @@ public class GlobalExceptionHandler {
 
         @ExceptionHandler(NotificationException.class)
         @ResponseBody
-        public <T> SaayamResponse<T> handleNotificationException(NotificationException exception, WebRequest request) {
+        public <T> ResponseEntity<SaayamResponse<T>> handleNotificationException(NotificationException exception, WebRequest request) {
 
                 String errorMessage;
                 SaayamStatusCode status;
@@ -192,11 +193,26 @@ public class GlobalExceptionHandler {
                         status = SaayamStatusCode.UNEXPECTED_ERROR;
                 }
 
-                return responseBuilder.buildErrorResponse(
-                                HttpStatus.BAD_REQUEST.value(), // All domain errors → 400
-                                status,
-                                errorMessage);
+                HttpStatus httpStatus = switch (status) {
+                        case USER_NOT_FOUND, NOTIFICATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+                        case NOTIFICATION_ALREADY_ACTIONED -> HttpStatus.CONFLICT;
+                        case DATABASE_ERROR, UNEXPECTED_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+                        default -> HttpStatus.BAD_REQUEST;
+                };
+                return ResponseEntity.status(httpStatus).body(responseBuilder.buildErrorResponse(
+                                httpStatus.value(), status, errorMessage));
 
+        }
+
+        @ExceptionHandler(NotificationAcceptException.class)
+        @ResponseBody
+        public ResponseEntity<SaayamResponse<Object>> handleNotificationAcceptException(
+                        NotificationAcceptException exception) {
+                String message = messageSourceUtil.getMessage(exception.getStatusCode().getCode(),
+                                new Object[] { exception.getDetail() });
+                return ResponseEntity.status(exception.getHttpStatus())
+                                .body(responseBuilder.buildErrorResponse(exception.getHttpStatus().value(),
+                                                exception.getStatusCode(), message));
         }
 
 }

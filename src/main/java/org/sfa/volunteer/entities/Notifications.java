@@ -57,7 +57,7 @@ public class Notifications {
     @Enumerated(EnumType.STRING)
     private ActionStatus actionStatus;
 
-    @Column(name = "request_id")
+    @Column(name = "req_id")
     private String requestId;
 
     public Integer getNotificationId() {

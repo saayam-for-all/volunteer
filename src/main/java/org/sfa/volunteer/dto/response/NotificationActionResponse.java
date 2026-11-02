@@ -7,5 +7,10 @@ import org.sfa.volunteer.enums.ActionStatus;
 public record NotificationActionResponse(
         Integer notificationId,
         String userId,
-        ActionStatus actionStatus
-) {}
+        ActionStatus actionStatus,
+        String requestId
+) {
+    public NotificationActionResponse(Integer notificationId, String userId, ActionStatus actionStatus) {
+        this(notificationId, userId, actionStatus, null);
+    }
+}

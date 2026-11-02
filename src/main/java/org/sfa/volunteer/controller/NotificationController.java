@@ -10,6 +10,9 @@ import org.sfa.volunteer.dto.response.UpsertLastSeenResponse;
 import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.service.NotificationService;
 import org.sfa.volunteer.util.ResponseBuilder;
+import org.sfa.volunteer.enums.ActionStatus;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -87,26 +90,28 @@ public class NotificationController {
                                 response);
         }
 
+        @PostMapping("/{notificationId}/accept")
+        public ResponseEntity<SaayamResponse<NotificationActionResponse>> acceptNotification(
+                        @PathVariable Integer notificationId,
+                        @RequestHeader("X-User-Id") String userId) {
+                NotificationActionResponse response = notificationService.acceptNotification(notificationId, userId);
+                if (response.actionStatus() == ActionStatus.REQUEST_TAKEN) {
+                        // Return a conflict after the service transaction has committed.
+                        SaayamResponse<NotificationActionResponse> body = responseBuilder.buildErrorResponse(
+                                        HttpStatus.CONFLICT.value(), SaayamStatusCode.NOTIFICATION_REQUEST_TAKEN,
+                                        null, response);
+                        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+                }
+                return ResponseEntity.ok(responseBuilder.buildSuccessResponse(
+                                SaayamStatusCode.NOTIFICATION_ACCEPTED, response));
+        }
+
         private void validateRequestParameters(GetNotificationsRequest request) {
 
                 String userId = request.userId();
 
-                // Null check
-                if (request.rowStart() == null || request.rowEnd() == null) {
-                        throw new NotificationException(
-                                        SaayamStatusCode.BAD_REQUEST.toString(),
-                                        userId);
-                }
-                // Non-numeric or blank check
-                try {
-                        Integer.parseInt(String.valueOf(request.rowStart()));
-                        Integer.parseInt(String.valueOf(request.rowEnd()));
-                } catch (NumberFormatException ex) {
-                        throw new NotificationException(
-                                        SaayamStatusCode.BAD_REQUEST.toString(),
-                                        userId);
-                }
-
+                // Spring binds required int request parameters before entering this
+                // controller, rejecting missing and nonnumeric values with HTTP 400.
                 int rowStart = request.rowStart();
                 int rowEnd = request.rowEnd();
                 if (rowStart < 0 || rowEnd < 0 || rowStart > rowEnd) {

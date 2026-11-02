@@ -16,4 +16,6 @@ public interface NotificationService {
 
     NotificationActionResponse denyNotification(Integer notificationId, String userId);
 
+    NotificationActionResponse acceptNotification(Integer notificationId, String userId);
+
 }

@@ -35,7 +35,9 @@ public interface NotificationsRepository
                             n.status,
                             nt.typeName,
                             n.message,
-                            n.createDttm
+                            n.createDttm,
+                            n.requestId,
+                            n.actionStatus
                         )
                         FROM Notifications n
                         JOIN NotificationTypes nt on n.typeId = nt.typeId
@@ -45,6 +47,37 @@ public interface NotificationsRepository
         List<NotificationResponse> findNotifications(String userId, Pageable pageable);
 
         Optional<Notifications> findByNotificationIdAndUserId(Integer notificationId, String userId);
+
+        // Scalar projections read the locked database state rather than an entity
+        // already cached by the ownership lookup in the same transaction.
+        @Query(value = """
+                        SELECT notification_id AS notificationId, user_id AS userId,
+                               action_status AS actionStatus
+                        FROM notifications
+                        WHERE req_id = :requestId
+                        ORDER BY notification_id
+                        FOR UPDATE
+                        """, nativeQuery = true)
+        List<RequestNotificationState> lockByRequestId(@Param("requestId") String requestId);
+
+        interface RequestNotificationState {
+                Integer getNotificationId();
+                String getUserId();
+                String getActionStatus();
+        }
+
+        @Modifying
+        @Query("""
+                        UPDATE Notifications n SET n.actionStatus = :takenStatus
+                        WHERE n.requestId = :requestId
+                        AND n.notificationId <> :acceptedNotificationId
+                        AND n.actionStatus = :pendingStatus
+                        """)
+        int markOtherPendingNotificationsTaken(
+                        @Param("requestId") String requestId,
+                        @Param("acceptedNotificationId") Integer acceptedNotificationId,
+                        @Param("pendingStatus") ActionStatus pendingStatus,
+                        @Param("takenStatus") ActionStatus takenStatus);
 
         @Modifying
         @Query("""
