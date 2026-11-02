@@ -8,6 +8,15 @@ This adds `getAvailability` and `updateAvailability`, which store a volunteer's 
 ## Branch
 `vishaakr98_feature/profile-availability_214`, cut from `test`. **PR target: `test`.**
 
+### November 2 takeover
+Continued from PR #215 on local branch `issue-214-takeover`, merged with the latest `test`. The frontend integration is on `issue-214-frontend-integration` in the webapp checkout. The earlier #88 proposal for a new availability table is superseded; this implementation uses the existing schema below.
+
+Added owner authorization: Lambda reads only the verified REST API Gateway authorizer's `claims.email`; Spring requires a trusted Principal with email as its name. Missing authentication returns 401 and a mismatched user returns 403. Configure Cognito authorization on POST/PUT; never trust a caller-provided email header. The timezone write updates only `users.time_zone`, avoiding writes to unrelated schema-sensitive user columns.
+
+The webapp now loads and saves through the #214 contract, preserves failed edits, restores saved values on Cancel, protects against stale responses after account changes, and visibly disables unsupported vacation persistence. AWS deployment and live account acceptance remain team steps; no deployed endpoint was verified locally.
+
+Local verification after merging current `test`: 261 backend tests passed and the shaded Java 17 package built successfully. Added `AvailabilityFlowIntegrationTest` verifies the real handler/service/repositories with disposable H2 or local PostgreSQL, including transaction rollback and preserving BIGINT language columns. To use a disposable PostgreSQL database, set `-Dtest=AvailabilityFlowIntegrationTest -Davailability.test.jdbcUrl=jdbc:postgresql://127.0.0.1:55488/postgres -Davailability.test.username=availability_test`. This test replaces fixture tables: never point it at a shared database; remote PostgreSQL URLs are rejected.
+
 ## API
 Both endpoints take their parameters in the JSON body only. `userId` is never in the path or the query string.
 
@@ -116,6 +125,7 @@ Headers: `Content-Type: application/json`, `Authorization: <Cognito idToken>`.
   - In `Availability.jsx`, replace the localStorage save with `api.post(AVAILABILITY, { userId })` and `api.put(AVAILABILITY, payload)`.
 
 ## Verification
+The following 194-test/24-check results are the original PR author's report, preserved for context; the takeover checks above were run independently.
 - `mvn verify` on this branch: 194 tests, 0 failures.
 - **End-to-end:** the real handlers, created through their no-arg constructors as Lambda does, ran against Postgres 16 with the wiki #32 DDL loaded verbatim. All 24 checks passed:
   - preflight;
