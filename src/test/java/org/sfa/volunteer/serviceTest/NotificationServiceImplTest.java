@@ -109,7 +109,7 @@ class NotificationServiceImplTest {
                 assertEquals(5, response.newNotificationsCount());
                 assertNull(response.notifications());
 
-               // Verify user validation
+                // Verify user validation
                 verify(userService, times(1)).userExists(anyString());
                 // Verify CRUD interactions
                 verify(userNSRepository, times(1)).getLastSeenTimestamp(userId);
@@ -158,7 +158,7 @@ class NotificationServiceImplTest {
                 assertEquals("Help", response.notifications().get(0).typeName());
                 assertEquals("old", response.notifications().get(0).status());
 
-               // Verify user validation
+                // Verify user validation
                 verify(userService, times(1)).userExists(anyString());
                 // Verify CRUD interactions
                 verify(userNSRepository).getLastSeenTimestamp(userId);
@@ -238,7 +238,6 @@ class NotificationServiceImplTest {
 
                 List<Object[]> rows = Arrays.<Object[]>asList(row);
                 Page<Object[]> mockPage = new PageImpl<Object[]>(rows);
-
 
                 when(userService.userExists(userId)).thenReturn(true);
 
@@ -411,7 +410,6 @@ class NotificationServiceImplTest {
                 UpsertLastSeenRequest req = UpsertLastSeenRequest.builder()
                                 .userId(userId)
                                 .build();
-                
 
                 when(userService.userExists(userId)).thenReturn(true);
 
@@ -453,7 +451,7 @@ class NotificationServiceImplTest {
                 assertTrue(response.updated());
                 assertEquals("Updated", response.message());
 
-                 // Verify user validation
+                // Verify user validation
                 verify(userService, times(1)).userExists(anyString());
                 // CRUD verification
                 verify(userNSRepository, times(1)).existsByUserId(userId); // READ
@@ -475,14 +473,14 @@ class NotificationServiceImplTest {
 
                 when(userNSRepository.existsByUserId(userId)).thenReturn(1);
                 when(userNSRepository.updateLastSeenTimestamp(eq(userId), any(Timestamp.class)))
-                                .thenReturn(0); // update failed
+                                .thenReturn(0);// update failed
 
                 UpsertLastSeenResponse response = notificationService.upsertLastSeen(request);
 
                 assertFalse(response.updated());
                 assertEquals("failed", response.message());
 
-                  // Verify user validation
+                // Verify user validation
                 verify(userService, times(1)).userExists(anyString());
                 // CRUD verification
                 verify(userNSRepository, times(1)).existsByUserId(userId); // READ
@@ -509,7 +507,7 @@ class NotificationServiceImplTest {
 
                 assertThrows(RuntimeException.class, () -> notificationService.upsertLastSeen(req));
 
-                  // Verify user validation
+                // Verify user validation
                 verify(userService, times(1)).userExists(anyString());
                 // CRUD verification
                 verify(userNSRepository, times(1)).existsByUserId(userId); // READ
