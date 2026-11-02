@@ -1,4 +1,5 @@
 package org.sfa.volunteer.controller;
+
 import jakarta.validation.Valid;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
@@ -30,45 +31,58 @@ public class VolunteerController {
     }
 
     @PostMapping("/createvolunteer")
-    public SaayamResponse<VolunteerResponse> createVolunteer(@Valid @RequestBody VolunteerRequest request) throws Exception {
+    public SaayamResponse<VolunteerResponse> createVolunteer(@Valid @RequestBody VolunteerRequest request)
+            throws Exception {
         VolunteerResponse response = volunteerService.createVolunteer(request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_CREATED, response);
     }
 
     @PutMapping("/updatevolunteer")
-    public SaayamResponse<VolunteerResponse> updateVolunteer(@Valid @RequestBody VolunteerRequest request) throws Exception {
+    public SaayamResponse<VolunteerResponse> updateVolunteer(@Valid @RequestBody VolunteerRequest request)
+            throws Exception {
         VolunteerResponse response = volunteerService.updateVolunteer(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED,
+                new Object[] { request.userId() }, response);
     }
 
     @PutMapping("/updatestep1")
-    public SaayamResponse<VolunteerResponse> updateVolunteerStep1(@Valid @RequestBody VolunteerRequest request) throws Exception {
+    public SaayamResponse<VolunteerResponse> updateVolunteerStep1(@Valid @RequestBody VolunteerRequest request)
+            throws Exception {
         VolunteerResponse response = volunteerService.updateVolunteerStep1(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED,
+                new Object[] { request.userId() }, response);
     }
 
     @PutMapping("/updatestep2")
-    public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@Valid @RequestBody VolunteerRequest request) throws Exception {
+    public SaayamResponse<VolunteerResponse> updateVolunteerStep2(@Valid @RequestBody VolunteerRequest request)
+            throws Exception {
         VolunteerResponse response = volunteerService.updateVolunteerStep2(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED,
+                new Object[] { request.userId() }, response);
     }
 
     @PutMapping("/updatestep3")
-    public SaayamResponse<VolunteerResponse> updateVolunteerStep3(@Valid @RequestBody VolunteerRequest request) throws Exception {
+    public SaayamResponse<VolunteerResponse> updateVolunteerStep3(@Valid @RequestBody VolunteerRequest request)
+            throws Exception {
         VolunteerResponse response = volunteerService.updateVolunteerStep3(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED,
+                new Object[] { request.userId() }, response);
     }
 
     @PutMapping("/updatestep4")
-    public SaayamResponse<VolunteerResponse> updateVolunteerStep4(@Valid @RequestBody VolunteerRequest request) throws Exception {
+    public SaayamResponse<VolunteerResponse> updateVolunteerStep4(@Valid @RequestBody VolunteerRequest request)
+            throws Exception {
         VolunteerResponse response = volunteerService.updateVolunteerStep4(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[] { request.userId() }, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED,
+                new Object[] { request.userId() }, response);
     }
 
     @PutMapping("/updatecompletion")
-    public SaayamResponse<VolunteerResponse> updateVolunteerCompletion(@Valid @RequestBody VolunteerRequest request) throws Exception {
+    public SaayamResponse<VolunteerResponse> updateVolunteerCompletion(@Valid @RequestBody VolunteerRequest request)
+            throws Exception {
         VolunteerResponse response = volunteerService.updateVolunteerCompletion(request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED, new Object[]{request.userId()}, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED,
+                new Object[] { request.userId() }, response);
     }
 
     @GetMapping("/all")
@@ -82,6 +96,6 @@ public class VolunteerController {
     @GetMapping("/{userId}")
     public SaayamResponse<VolunteerResponse> getVolunteerDetails(@PathVariable String userId) throws Exception {
         VolunteerResponse response = volunteerService.getVolunteerByUserId(userId);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[] { userId }, response);
     }
 }

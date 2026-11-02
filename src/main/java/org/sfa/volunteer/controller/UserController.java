@@ -7,12 +7,11 @@ import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
-import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.SignOffRequest;
+import org.sfa.volunteer.dto.request.UserSkillsRequest;
 import org.sfa.volunteer.dto.response.AddressStatusResponse;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
-import org.sfa.volunteer.dto.response.OrganizationResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.SignOffResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
@@ -31,6 +30,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Base64;
 import java.util.Map;
+import org.sfa.volunteer.dto.request.UserPreferenceRequest;
+import org.sfa.volunteer.dto.response.UserPreferenceResponse;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
 
 @RestController
 @RequestMapping("/0.0.1/users")
@@ -107,19 +109,6 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
 
-    @PutMapping("/organization/{userId}")
-    public SaayamResponse<OrganizationResponse> updateUserOrganization(
-            @PathVariable String userId,
-            @RequestBody UpdateOrganizationRequest request) {
-        OrganizationResponse response = userService.updateUserOrganization(userId, request);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
-    }
-
-    @GetMapping("/organization/{userId}")
-    public SaayamResponse<OrganizationResponse> getOrganizationByUserId(@PathVariable String userId) {
-        OrganizationResponse organization = userService.getOrganizationByUserId(userId);
-        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, organization);
-    }
     /* Profile Pic Upload */
     // Helper
     private String regionHint(HttpServletRequest req) {
@@ -129,6 +118,29 @@ public class UserController {
 
     private static final String HDR_CALLER_USER_ID = "X-Caller-UserId";
     private static final String HDR_CALLER_GROUPS  = "X-Caller-Groups"; // "admins,superadmins"
+
+    private void requireAdmin(HttpServletRequest req) {
+        String callerUserId = req.getHeader(HDR_CALLER_USER_ID);
+
+        if (callerUserId == null || callerUserId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Missing caller identity");
+        }
+
+        if (!userService.userExists(callerUserId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User does not exist");
+        }
+
+        // Admin status is determined from the caller's Cognito group membership
+        // (same pattern as authorize() below), not userService.isAdminUser,
+        // which can no longer resolve a category now that user_category_id has
+        // been removed from the schema. See issue #165 follow-up.
+        String groups = req.getHeader(HDR_CALLER_GROUPS);
+        boolean isAdmin = groups != null && groups.toLowerCase().contains("admin");
+
+        if (!isAdmin) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not an admin");
+        }
+    }
 
     private void authorize(HttpServletRequest req, String targetUserId) {
         String callerUserId = req.getHeader(HDR_CALLER_USER_ID);
@@ -213,6 +225,12 @@ public class UserController {
         );
     }
 
+    @PostMapping("/profileSkills")
+    public SaayamResponse<UserSkillsResponse> getUserSkills(@Valid @RequestBody UserSkillsRequest request) {
+        UserSkillsResponse response = userService.getUserSkills(request.getUserId());
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.getUserId()}, response);
+    }
+
     @DeleteMapping("/profile/signoff")
     public SaayamResponse<SignOffResponse> signOffUser(
             @Valid @RequestBody SignOffRequest request) {
@@ -227,6 +245,23 @@ public class UserController {
                 new Object[]{userId},
                 response
         );
+    }
+
+    @GetMapping("/search")
+    public SaayamResponse<PaginationResponse<UserProfileResponse>> searchUsers(
+            @RequestParam("q") String query,
+            @RequestParam(value = "page", required = false) Integer page,
+            @RequestParam(value = "size", required = false) Integer size,
+            HttpServletRequest req
+    ) {
+        requireAdmin(req);
+        PaginationResponse<UserProfileResponse> response = userService.searchUsers(query, page, size);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{query, page, size}, response);
+    }
+    @PutMapping("/{userId}/preferences")
+    public SaayamResponse<UserPreferenceResponse> updateUserPreferences(@PathVariable String userId, @Valid @RequestBody UserPreferenceRequest request) throws Exception {
+        UserPreferenceResponse response = userService.updateUserPreferences(userId,request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
 }
