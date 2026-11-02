@@ -14,6 +14,7 @@ import java.util.EnumSet;
 
 import static java.time.DayOfWeek.*;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.sfa.volunteer.model.AvailabilityFrequency.EVERYDAY;
 import static org.sfa.volunteer.model.AvailabilityFrequency.WEEKDAYS;
 import static org.sfa.volunteer.model.AvailabilityFrequency.WEEKENDS;
@@ -28,6 +29,29 @@ class AvailabilityTimeConverterTest {
 
     private static LocalTime t(String hhmm) {
         return LocalTime.parse(hhmm);
+    }
+
+    @Test
+    void rejectsNonexistentStartInsteadOfSilentlyChangingSavedTime() {
+        assertThatThrownBy(() -> AvailabilityTimeConverter.toUtc(SUNDAY, t("02:30"), t("04:00"),
+                CHICAGO, LocalDate.of(2026, 3, 8)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("slots.startTime")
+                .hasMessageContaining("clock change");
+    }
+
+    @Test
+    void rejectsNonexistentOvernightEndInsteadOfChangingSavedTime() {
+        assertThatThrownBy(() -> AvailabilityTimeConverter.toUtc(SATURDAY, t("22:00"), t("02:30"),
+                CHICAGO, LocalDate.of(2026, 3, 7)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("slots.endTime");
+    }
+
+    @Test
+    void repeatedFallBackTimeStillRoundTrips() {
+        UtcSlot utc = AvailabilityTimeConverter.toUtc(SUNDAY, t("01:30"), t("02:30"),
+                CHICAGO, LocalDate.of(2026, 11, 1));
+        assertThat(AvailabilityTimeConverter.toLocal(utc.start(), utc.end(), CHICAGO))
+                .isEqualTo(new LocalSlot(SUNDAY, t("01:30"), t("02:30")));
     }
 
     @Test

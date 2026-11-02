@@ -41,9 +41,21 @@ public final class AvailabilityTimeConverter {
         LocalDate anchor = today.with(TemporalAdjusters.nextOrSame(day));
         LocalDate endDate = end.isAfter(start) ? anchor : anchor.plusDays(1);
 
-        LocalDateTime startUtc = toUtc(anchor.atTime(start).atZone(zone));
-        LocalDateTime endUtc = toUtc(endDate.atTime(end).atZone(zone));
+        LocalDateTime localStart = anchor.atTime(start);
+        LocalDateTime localEnd = endDate.atTime(end);
+        requireExistingTime(localStart, zone, "startTime");
+        requireExistingTime(localEnd, zone, "endTime");
+        LocalDateTime startUtc = toUtc(localStart.atZone(zone));
+        LocalDateTime endUtc = toUtc(localEnd.atZone(zone));
         return new UtcSlot(startUtc.getDayOfWeek(), startUtc, endUtc);
+    }
+
+    // atZone silently moves nonexistent wall-clock times forward during a DST gap.
+    private static void requireExistingTime(LocalDateTime local, ZoneId zone, String field) {
+        if (zone.getRules().getValidOffsets(local).isEmpty()) {
+            throw new IllegalArgumentException("slots." + field + " does not exist on "
+                    + local.toLocalDate() + " in timezone " + zone + " due to a clock change");
+        }
     }
 
     /** Stored UTC start/end back to the local day and times in {@code zone}. */
