@@ -22,3 +22,9 @@ spring:
     hibernate:
       ddl-auto: none
     open-in-view: false
+
+# Issue #222: stop aws-serverless-java-container dumping the whole process environment
+# (AWS keys, DB password) to CloudWatch on every cold start.
+logging:
+  level:
+    com.amazonaws.serverless.proxy.spring: WARN
