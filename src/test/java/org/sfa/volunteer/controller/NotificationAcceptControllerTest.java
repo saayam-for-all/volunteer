@@ -9,6 +9,8 @@ import org.sfa.volunteer.exception.GlobalExceptionHandler;
 import org.sfa.volunteer.exception.NotificationAcceptException;
 import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.service.NotificationService;
+import org.sfa.volunteer.service.NotificationPreferenceService;
+import org.springframework.http.MediaType;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.context.support.ResourceBundleMessageSource;
@@ -32,7 +34,8 @@ class NotificationAcceptControllerTest {
         source.setBasename("lang/messages");
         var messages = new MessageSourceUtil(source);
         var responses = new ResponseBuilder(messages);
-        mvc = MockMvcBuilders.standaloneSetup(new NotificationController(service, responses))
+        mvc = MockMvcBuilders.standaloneSetup(new NotificationController(
+                        service, mock(NotificationPreferenceService.class), responses))
                 .setControllerAdvice(new GlobalExceptionHandler(messages, responses)).build();
     }
 
@@ -99,8 +102,9 @@ class NotificationAcceptControllerTest {
     @Test
     void invalidNotificationPageRangesAreRejectedBeforeCallingService() throws Exception {
         for (String[] range : new String[][]{{"-1", "5"}, {"0", "-1"}, {"5", "1"}}) {
-            mvc.perform(get("/0.0.1/notifications/user-1")
-                            .param("rowStart", range[0]).param("rowEnd", range[1]))
+            mvc.perform(post("/0.0.1/notifications/details")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"userId\":\"user-1\",\"rowStart\":" + range[0] + ",\"rowEnd\":" + range[1] + "}"))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.saayamCode").value(SaayamStatusCode.INVALID_PARAMETER.getCode()));
         }
@@ -109,11 +113,14 @@ class NotificationAcceptControllerTest {
 
     @Test
     void missingAndNonnumericPageParametersAreRejectedBySpring() throws Exception {
-        mvc.perform(get("/0.0.1/notifications/user-1").param("rowStart", "0"))
+        mvc.perform(post("/0.0.1/notifications/details").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"user-1\",\"rowStart\":0}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(get("/0.0.1/notifications/user-1").param("rowEnd", "9"))
+        mvc.perform(post("/0.0.1/notifications/details").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"user-1\",\"rowEnd\":9}"))
                 .andExpect(status().isBadRequest());
-        mvc.perform(get("/0.0.1/notifications/user-1").param("rowStart", "abc").param("rowEnd", "9"))
+        mvc.perform(post("/0.0.1/notifications/details").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"user-1\",\"rowStart\":\"abc\",\"rowEnd\":9}"))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(service);
     }

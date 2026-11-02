@@ -2,9 +2,9 @@ name: PR Build
 
 on:
   push:
-    branches: ["test", "dev", "main"]
+    branches: ["main"]
   pull_request:
-    branches: ["test", "dev", "main"]
+    branches: ["main", "dev", "test"]
 
 jobs:
   build:

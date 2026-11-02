@@ -12,6 +12,7 @@ import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.repository.NotificationsRepository;
 import org.sfa.volunteer.repository.UserNotificationStatusRepository;
 import org.sfa.volunteer.service.NotificationService;
+import org.sfa.volunteer.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,6 +36,8 @@ import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.anyString;
 
 @SpringJUnitConfig(NotificationAcceptDenyIntegrationTest.Config.class)
 class NotificationAcceptDenyIntegrationTest {
@@ -70,7 +73,9 @@ class NotificationAcceptDenyIntegrationTest {
 
         @Bean
         NotificationService notificationService(NotificationsRepository repository) {
-            return new NotificationServiceImpl(repository, mock(UserNotificationStatusRepository.class));
+            var users = mock(UserService.class);
+            when(users.userExists(anyString())).thenReturn(true);
+            return new NotificationServiceImpl(users, repository, mock(UserNotificationStatusRepository.class));
         }
 
         @Bean

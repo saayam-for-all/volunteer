@@ -1,29 +1,38 @@
 package org.sfa.volunteer.service.impl;
 
 import jakarta.transaction.Transactional;
+import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.*;
 import org.sfa.volunteer.exception.CountryNotFoundException;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
+import org.sfa.volunteer.model.AvailabilityFrequency;
 import org.sfa.volunteer.model.Country;
 import org.sfa.volunteer.model.State;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.UserAdditionalDetail;
-import org.sfa.volunteer.model.UserCategory;
 import org.sfa.volunteer.model.UserSignOffReason;
+import org.sfa.volunteer.model.SkillLevel;
 import org.sfa.volunteer.model.UserStatus;
+import org.sfa.volunteer.model.VolunteerUserAvailability;
 import org.sfa.volunteer.repository.CountryRepository;
 import org.sfa.volunteer.repository.StateRepository;
 import org.sfa.volunteer.repository.UserCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserSignOffReasonRepository;
+import org.sfa.volunteer.repository.UserSkillRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
 import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
+import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
 import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.util.AvailabilityTimeConverter;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.UtcSlot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -31,10 +40,24 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.DateTimeException;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -49,6 +72,8 @@ import java.util.stream.Collectors;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
     private final UserAdditionalDetailRepository userAdditionalDetailRepository;
+    private final UserSkillRepository userSkillRepository;
+    private final VolunteerUserAvailabilityRepository userAvailabilityRepository;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -59,6 +84,10 @@ import java.util.stream.Collectors;
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
     private static final String DEFAULT_TIMEZONE = "UTC";
     private static final String DEFAULT_LOCALE = "en_US";
+    private static final int MAX_AVAILABILITY_SLOTS = 20;
+    // STRICT so "24:00" is rejected instead of resolving to midnight
+    private static final DateTimeFormatter AVAILABILITY_TIME =
+            DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT);
 
     @Autowired
     public UserServiceImpl(
@@ -68,7 +97,9 @@ import java.util.stream.Collectors;
             CountryRepository countryRepository,
             StateRepository stateRepository,
             UserSignOffReasonRepository userSignOffReasonRepository,
-            UserAdditionalDetailRepository userAdditionalDetailRepository) {
+            UserAdditionalDetailRepository userAdditionalDetailRepository,
+            UserSkillRepository userSkillRepository,
+            VolunteerUserAvailabilityRepository userAvailabilityRepository) {
 
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
@@ -77,6 +108,8 @@ import java.util.stream.Collectors;
         this.stateRepository = stateRepository;
         this.userSignOffReasonRepository = userSignOffReasonRepository;
         this.userAdditionalDetailRepository = userAdditionalDetailRepository;
+        this.userSkillRepository = userSkillRepository;
+        this.userAvailabilityRepository = userAvailabilityRepository;
     }
 
     @Override
@@ -84,9 +117,6 @@ import java.util.stream.Collectors;
 
         UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_STATUS_ID));
-
-        UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
-                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
         Country country = countryRepository.findByCountryName(request.country())
                 .orElseThrow(() -> new CountryNotFoundException(request.country()));
@@ -109,7 +139,6 @@ import java.util.stream.Collectors;
                 .primaryPhoneNumber(request.phoneNumber())
                 .timeZone(timeZone)
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
-                .userCategory(userCategory)
                 .userStatus(userStatus)
                 .country(country)
                 .build();
@@ -190,12 +219,9 @@ import java.util.stream.Collectors;
     public boolean isAdminUser(String userId) {
         if (userId == null || userId.isBlank()) return false;
 
-        User user = userRepository.findById(userId).orElse(null);
-        if (user == null) return false;
-
-        String category = (user.getUserCategory() == null) ? null : user.getUserCategory().getUserCategory();
-
-        if (category != null && category.toLowerCase().contains("admin")) return true;
+        // userCategory is no longer mapped on User (see issue #165 follow-up on
+        // the user_category_id schema removal), so admin status can't be
+        // determined here yet. Fail closed (deny admin) rather than throw.
         return false;
     }
 
@@ -283,7 +309,8 @@ import java.util.stream.Collectors;
                 .stateName(user.getState() != null ? user.getState().getStateName() : null)
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus() : null)
-                .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
+                // userCategory no longer mapped on User; see issue #165 follow-up
+                .userCategory(null)
                 .gender(user.getGender())
                 .lastLocation(user.getLastLocation())
                 .language1(user.getLanguage1())
@@ -308,7 +335,9 @@ import java.util.stream.Collectors;
         user.setAddressLine3(request.addressLine3());
         user.setCity(request.cityName());
         user.setZipCode(request.zipCode());
-        user.setProfilePicturePath(request.profilePicturePath());
+        if (StringUtils.hasText(request.profilePicturePath())) {
+            user.setProfilePicturePath(request.profilePicturePath());
+        }
         user.setVolunteerStage(request.volunteerStage());
         user.setVolunteerUpdateDate(request.volunteerUpdateDate());
         user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
@@ -321,17 +350,16 @@ import java.util.stream.Collectors;
     // Profile Pic Upload
     // S3 URI <-> DB //
     @Override
+    @Transactional
     public void setProfilePicturePath(String userId, String s3Uri) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
-        user.setProfilePicturePath(s3Uri);  // store S3 URI here
-        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        userRepository.save(user);
+        int updated = userRepository.updateProfilePicturePath(userId, s3Uri, ZonedDateTime.now(ZoneId.of("UTC")));
+        if (updated == 0) {
+            throw new UserNotFoundException(userId);
+        }
     }
     @Override
     public Optional<String> getProfilePicturePath(String userId) {
-        return userRepository.findById(userId)
-                .map(User::getProfilePicturePath)
+        return userRepository.findProfilePicturePathById(userId)
                 .filter(Objects::nonNull)
                 .filter(s -> !s.isBlank());
     }
@@ -341,17 +369,221 @@ import java.util.stream.Collectors;
         return userRepository.existsById(userId);
     }
     @Override
-    public String getUserIdByEmailForAuth(String email) {
-        if (email == null || email.isBlank()) {
-            throw new UserNotFoundException("email is blank");
+    public boolean isEmailOwnedByUser(String userId, String email) {
+        if (userId == null || userId.isBlank() || email == null || email.isBlank()) {
+            return false;
         }
-        var userOpt = userRepository.findFirstByPrimaryEmailAddressOrderByLastUpdateDateDesc(email);
-        if (userOpt.isEmpty()) {
-            userOpt = userRepository.findFirstByPrimaryEmailAddressOrderByIdDesc(email);
+        return userRepository.existsByIdAndPrimaryEmailAddressIgnoreCase(userId, email.trim());
+    }
+
+    @Override
+    public UserSkillsResponse getUserSkills(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        if (!userRepository.existsById(userId)) {
+            throw new UserNotFoundException(userId);
         }
 
-        User user = userOpt.orElseThrow(() -> new UserNotFoundException(email));
-        return user.getId();
+        // LinkedHashMap keeps the query's cat_id order and allows null levels
+        Map<String, SkillLevel> skillLevels = new LinkedHashMap<>();
+        userSkillRepository.findByIdUserIdOrderByIdCatIdAsc(userId)
+                .forEach(us -> skillLevels.put(us.getId().getCatId(), us.getSkillLevel()));
+
+        return new UserSkillsResponse(userId, List.copyOf(skillLevels.keySet()), skillLevels);
+    }
+
+    @Override
+    public AvailabilityResponse getAvailability(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        return toAvailabilityResponse(user, userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
+    }
+
+    @Override
+    public AvailabilityResponse updateAvailability(UpdateAvailabilityRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body is required");
+        }
+        String userId = request.getUserId();
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        ZoneId zone = parseTimezone(request.getTimezone());
+        List<LocalSlot> localSlots = parseSlots(request.getSlots());
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        userRepository.updateAvailabilityTimezone(userId, zone.getId());
+
+        // Vacation fields are accepted but not stored: user_availability has no columns for them yet
+        LocalDate today = LocalDate.now(zone);
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        List<VolunteerUserAvailability> rows = new ArrayList<>();
+        for (LocalSlot slot : localSlots) {
+            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, today);
+            rows.add(VolunteerUserAvailability.builder()
+                    .user(user)
+                    .dayOfWeek(dayName(utc.day()))
+                    .startTime(utc.start())
+                    .endTime(utc.end())
+                    .lastUpdatedAt(now)
+                    .build());
+        }
+
+        // Replace, not merge: flush the deletes so they run before the inserts
+        userAvailabilityRepository.deleteByUser_Id(userId);
+        userAvailabilityRepository.flush();
+        List<VolunteerUserAvailability> saved = userAvailabilityRepository.saveAll(rows);
+
+        return toAvailabilityResponse(userId, zone.getId(), saved);
+    }
+
+    // Checked against the IANA list rather than relying on ZoneId.of() throwing: ZoneId.of() also accepts
+    // fixed offsets such as "+05:30", "UTC+5", "GMT-3" and "Z". Those never follow daylight saving, so slots
+    // saved with one would be an hour off for half the year (BRD NFR-07 asks for an IANA zone).
+    private static ZoneId parseTimezone(String timezone) {
+        if (timezone == null || !ZoneId.getAvailableZoneIds().contains(timezone)) {
+            throw new IllegalArgumentException("timezone must be a valid IANA zone: " + timezone);
+        }
+        return ZoneId.of(timezone);
+    }
+
+    // One local slot per (day, start, end). Several slots on the same day are fine, but they must not overlap;
+    // exact duplicates (e.g. Weekdays 9-17 plus Monday 9-17) are dropped rather than rejected.
+    private static List<LocalSlot> parseSlots(List<AvailabilitySlotRequest> slots) {
+        if (slots == null) {
+            throw new IllegalArgumentException("slots is required");
+        }
+        if (slots.size() > MAX_AVAILABILITY_SLOTS) {
+            throw new IllegalArgumentException("slots cannot have more than " + MAX_AVAILABILITY_SLOTS + " entries");
+        }
+
+        // local slot -> index of the first request entry that produced it
+        Map<LocalSlot, Integer> localSlots = new LinkedHashMap<>();
+        for (int i = 0; i < slots.size(); i++) {
+            AvailabilitySlotRequest slot = slots.get(i);
+            String field = "slots[" + i + "]";
+            if (slot == null) {
+                throw new IllegalArgumentException(field + " is required");
+            }
+            AvailabilityFrequency frequency;
+            try {
+                frequency = AvailabilityFrequency.fromLabel(slot.getFrequency());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(field + ".frequency: " + e.getMessage());
+            }
+            LocalTime start = parseTime(slot.getStartTime(), field + ".startTime");
+            LocalTime end = parseTime(slot.getEndTime(), field + ".endTime");
+            if (start.equals(end)) {
+                throw new IllegalArgumentException(field + ": startTime and endTime must differ");
+            }
+            int index = i;
+            frequency.getDays().forEach(day -> localSlots.putIfAbsent(new LocalSlot(day, start, end), index));
+        }
+        rejectOverlaps(localSlots);
+        return List.copyOf(localSlots.keySet());
+    }
+
+    private static void rejectOverlaps(Map<LocalSlot, Integer> localSlots) {
+        List<Map.Entry<LocalSlot, Integer>> entries = List.copyOf(localSlots.entrySet());
+        for (int a = 0; a < entries.size(); a++) {
+            for (int b = a + 1; b < entries.size(); b++) {
+                Map.Entry<LocalSlot, Integer> first = entries.get(a);
+                Map.Entry<LocalSlot, Integer> second = entries.get(b);
+                // one request entry has a single time range, so it cannot overlap itself
+                if (first.getValue().equals(second.getValue())
+                        || !AvailabilityTimeConverter.overlaps(first.getKey(), second.getKey())) {
+                    continue;
+                }
+                if (second.getValue() < first.getValue()) {
+                    Map.Entry<LocalSlot, Integer> swap = first;
+                    first = second;
+                    second = swap;
+                }
+                throw new IllegalArgumentException("slots[" + first.getValue() + "] and slots[" + second.getValue()
+                        + "] overlap on " + dayName(first.getKey().day()));
+            }
+        }
+    }
+
+    private static LocalTime parseTime(String value, String field) {
+        if (value == null) {
+            throw new IllegalArgumentException(field + " is required");
+        }
+        try {
+            return LocalTime.parse(value, AVAILABILITY_TIME);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException(field + " must be HH:mm: " + value);
+        }
+    }
+
+    private record TimeRange(LocalTime start, LocalTime end) {}
+
+    private record CollapsedSlot(Integer id, AvailabilityFrequency frequency, TimeRange range) {}
+
+    // Rows are UTC, one per day; convert to the user's zone and group back into Everyday / Weekdays / Weekends
+    private static AvailabilityResponse toAvailabilityResponse(User user, List<VolunteerUserAvailability> rows) {
+        return toAvailabilityResponse(user.getId(), user.getTimeZone(), rows);
+    }
+
+    private static AvailabilityResponse toAvailabilityResponse(String userId, String timezone, List<VolunteerUserAvailability> rows) {
+        ZoneId zone = zoneOrUtc(timezone);
+
+        // time range -> local day -> smallest row id
+        Map<TimeRange, Map<DayOfWeek, Integer>> byRange = new LinkedHashMap<>();
+        LocalDateTime lastUpdatedAt = null;
+        for (VolunteerUserAvailability row : rows) {
+            LocalSlot local = AvailabilityTimeConverter.toLocal(row.getStartTime(), row.getEndTime(), zone);
+            byRange.computeIfAbsent(new TimeRange(local.start(), local.end()), r -> new EnumMap<>(DayOfWeek.class))
+                    .merge(local.day(), row.getId(), Math::min);
+            if (row.getLastUpdatedAt() != null
+                    && (lastUpdatedAt == null || row.getLastUpdatedAt().isAfter(lastUpdatedAt))) {
+                lastUpdatedAt = row.getLastUpdatedAt();
+            }
+        }
+
+        List<CollapsedSlot> collapsed = new ArrayList<>();
+        byRange.forEach((range, dayIds) -> {
+            for (AvailabilityFrequency frequency : AvailabilityTimeConverter.collapse(dayIds.keySet())) {
+                Integer id = frequency.getDays().stream()
+                        .map(dayIds::get)
+                        .filter(Objects::nonNull)
+                        .min(Integer::compare)
+                        .orElse(null);
+                collapsed.add(new CollapsedSlot(id, frequency, range));
+            }
+        });
+        collapsed.sort(Comparator.comparing(CollapsedSlot::frequency)
+                .thenComparing(c -> c.range().start())
+                .thenComparing(c -> c.range().end()));
+
+        List<AvailabilitySlotResponse> slots = collapsed.stream()
+                .map(c -> new AvailabilitySlotResponse(c.id(), c.frequency().getLabel(),
+                        c.range().start().format(AVAILABILITY_TIME), c.range().end().format(AVAILABILITY_TIME)))
+                .toList();
+        return new AvailabilityResponse(userId, zone.getId(), slots, lastUpdatedAt);
+    }
+
+    private static ZoneId zoneOrUtc(String timezone) {
+        if (timezone == null || timezone.isBlank()) {
+            return ZoneId.of(DEFAULT_TIMEZONE);
+        }
+        try {
+            return ZoneId.of(timezone);
+        } catch (DateTimeException e) {
+            return ZoneId.of(DEFAULT_TIMEZONE);
+        }
+    }
+
+    // "MONDAY" -> "Monday", as the day_of_week CHECK constraint expects
+    private static String dayName(DayOfWeek day) {
+        String name = day.name();
+        return name.charAt(0) + name.substring(1).toLowerCase();
     }
 
     @Transactional

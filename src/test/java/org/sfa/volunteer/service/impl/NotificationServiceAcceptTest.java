@@ -18,6 +18,7 @@ import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.repository.NotificationsRepository;
 import org.sfa.volunteer.repository.NotificationsRepository.RequestNotificationState;
 import org.sfa.volunteer.repository.UserNotificationStatusRepository;
+import org.sfa.volunteer.service.UserService;
 import org.springframework.http.HttpStatus;
 
 import java.util.List;
@@ -30,6 +31,7 @@ import static org.mockito.Mockito.*;
 class NotificationServiceAcceptTest {
     @Mock private NotificationsRepository repository;
     @Mock private UserNotificationStatusRepository watermarkRepository;
+    @Mock private UserService userService;
     @InjectMocks private NotificationServiceImpl service;
     private Notifications notification;
 
@@ -123,6 +125,7 @@ class NotificationServiceAcceptTest {
 
     @Test
     void unexpectedNotificationReadFailureUsesExistingApplicationError() {
+        when(userService.userExists("user-1")).thenReturn(true);
         when(repository.countAllNotifications("user-1")).thenThrow(new IllegalStateException("read failed"));
         assertThatThrownBy(() -> service.getNotificationCounts(
                 GetNotificationsRequest.builder().userId("user-1").build()))

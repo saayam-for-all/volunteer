@@ -10,6 +10,7 @@ import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.HttpStatus;
+import org.springframework.core.MethodParameter;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.BeanPropertyBindingResult;
@@ -96,12 +97,12 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    void validationErrorsIncludeAllFieldMessages() {
+    void validationErrorsIncludeAllFieldMessages() throws Exception {
         var binding = new BeanPropertyBindingResult(new Object(), "request");
         binding.addError(new FieldError("request", "userId", "User ID is required"));
         binding.addError(new FieldError("request", "name", "Name is required"));
-        var error = mock(MethodArgumentNotValidException.class);
-        when(error.getBindingResult()).thenReturn(binding);
+        var parameter = new MethodParameter(FailureController.class.getDeclaredMethod("fail"), -1);
+        var error = new MethodArgumentNotValidException(parameter, binding);
         var response = handler.handleValidationException(error, null);
         assertThat(response.success()).isFalse();
         assertThat(response.statusCode()).isEqualTo(400);

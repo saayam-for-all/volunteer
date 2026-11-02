@@ -5,10 +5,13 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.AvailabilityUserRequest;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.SignOffRequest;
+import org.sfa.volunteer.dto.request.UserSkillsRequest;
 import org.sfa.volunteer.dto.response.AddressStatusResponse;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
@@ -19,6 +22,9 @@ import org.sfa.volunteer.dto.response.*;
 import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
+import org.sfa.volunteer.util.AvailabilityAuthorization;
+import java.security.Principal;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -129,7 +135,14 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User does not exist");
         }
 
-        if (!userService.isAdminUser(callerUserId)) {
+        // Admin status is determined from the caller's Cognito group membership
+        // (same pattern as authorize() below), not userService.isAdminUser,
+        // which can no longer resolve a category now that user_category_id has
+        // been removed from the schema. See issue #165 follow-up.
+        String groups = req.getHeader(HDR_CALLER_GROUPS);
+        boolean isAdmin = groups != null && groups.toLowerCase().contains("admin");
+
+        if (!isAdmin) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User is not an admin");
         }
     }
@@ -215,6 +228,41 @@ public class UserController {
                 SaayamStatusCode.SUCCESS,
                 Map.of("userId", userId, "message", "Profile image deleted")
         );
+    }
+
+    @PostMapping("/profileSkills")
+    public SaayamResponse<UserSkillsResponse> getUserSkills(@Valid @RequestBody UserSkillsRequest request) {
+        UserSkillsResponse response = userService.getUserSkills(request.getUserId());
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{request.getUserId()}, response);
+    }
+
+    // userId goes in the JSON body, never the path or query string
+    @PostMapping("/availability")
+    public ResponseEntity<SaayamResponse<AvailabilityResponse>> getAvailability(@RequestBody AvailabilityUserRequest request, Principal principal) {
+        return availabilityResult(request.getUserId(), principal, () -> userService.getAvailability(request.getUserId()));
+    }
+
+    @PutMapping("/availability")
+    public ResponseEntity<SaayamResponse<AvailabilityResponse>> updateAvailability(@RequestBody UpdateAvailabilityRequest request, Principal principal) {
+        return availabilityResult(request.getUserId(), principal, () -> userService.updateAvailability(request));
+    }
+
+    private ResponseEntity<SaayamResponse<AvailabilityResponse>> availabilityResult(
+            String userId, Principal principal, Supplier<AvailabilityResponse> operation) {
+        try {
+            AvailabilityAuthorization.requireOwner(userService, userId, principal == null ? null : principal.getName());
+            return ResponseEntity.ok(responseBuilder.buildSuccessResponse(
+                    SaayamStatusCode.SUCCESS, new Object[]{userId}, operation.get()));
+        } catch (org.sfa.volunteer.exception.UserNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseBuilder.buildErrorResponse(
+                    404, SaayamStatusCode.USER_NOT_FOUND, "User not found"));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(responseBuilder.buildErrorResponse(
+                    e.getStatusCode().value(), SaayamStatusCode.BAD_REQUEST, e.getReason()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(responseBuilder.buildErrorResponse(
+                    400, SaayamStatusCode.BAD_REQUEST, e.getMessage()));
+        }
     }
 
     @DeleteMapping("/profile/signoff")

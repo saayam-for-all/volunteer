@@ -1,10 +1,14 @@
 # Accept built on Deny (#198)
 
 This checkout is on `issue-198-accept-api`, based on Akshaj's
-`upstream/realAkshaj_deny_notification_198` at `46bdc6a`. Previous workspace edits
+`upstream/realAkshaj_deny_notification_198` at `46bdc6a`, with the team's `test`
+branch integrated at `4f3ea6d`. Previous workspace edits
 are preserved in the stash named `Original workspace before issue-198-accept branch`.
 The implementation here uses Akshaj's existing
 notification entity, enum, repository, service, controller, and Deny logic.
+The target for the PR is `saayam-for-all/volunteer:test`. Its preference APIs,
+POST `/counts` and `/details` endpoints, user validation, and paginated repository
+contract are retained. Accept and Deny retain their notification-ID URLs below.
 
 ## API
 
@@ -82,18 +86,17 @@ The clean JaCoCo report currently measures:
 | `NotificationController.acceptNotification` | 100% | 100% |
 | `NotificationAcceptException` | 100% | No branches |
 
-The complete notification service and controller classes also have 100% line
-coverage. Tests cover stale pending snapshots, notifications removed before locking,
+Tests cover stale pending snapshots, notifications removed before locking,
 failed conditional updates, invalid identities, missing request references,
 concurrency, and rollback. The shared error handler has regression tests for its
 notification HTTP status mappings and existing domain responses.
 
-Run `mvn clean test` to rebuild the report at `target/site/jacoco/index.html`.
-The latest clean run passed 105 tests. This is measured issue coverage, not a
-change to the project's coverage policy: the inherited JaCoCo `check` execution
-still requires 90% across the entire volunteer service. Running
-`mvn clean test jacoco:check@check` invokes that separate whole-service gate, which
-currently fails because unrelated components remain under-tested.
+Run `mvn clean test jacoco:report` to rebuild the report at
+`target/site/jacoco/index.html`. The combined run after merging `test` passed
+323 tests with no failures or errors; Accept methods still have 100% line and
+branch coverage.
+Issue-specific coverage is distinct from overall service coverage. Build and CI
+coverage policy now follow the latest `test` branch unchanged.
 
 ## Integration boundaries
 
@@ -107,6 +110,6 @@ Notification producers must stop creating new pending notifications for a claime
 request. Row locks serialize the existing notification set; they do not coordinate
 independent producers, deleted winner records, or request-service writes.
 
-Review this branch against Akshaj's branch first. Once Deny is merged, rebase or
-merge the team's target branch and resolve any shared API/schema changes before
-opening or updating the Accept PR. These local changes have not been pushed.
+Open or update the PR against the team's `test` branch. It currently includes
+Akshaj's Deny dependency because that implementation is not yet present in `test`.
+The conflict-resolution changes require a normal push after local validation.
