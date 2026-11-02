@@ -486,8 +486,7 @@ class NotificationServiceImplTest {
                 verify(userNSRepository, times(1)).existsByUserId(userId); // READ
                 verify(userNSRepository, times(1))
                                 .updateLastSeenTimestamp(eq(userId), any(Timestamp.class)); // UPDATE attempted
-                verify(userNSRepository, never())
-                                .createLastSeenTimestamp(anyString(), any());
+                verify(userNSRepository, never()).createLastSeenTimestamp(anyString(), any());
         }
 
         @Test
