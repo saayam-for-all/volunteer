@@ -29,6 +29,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.sfa.volunteer.dto.response.NotificationActionResponse;
+import org.sfa.volunteer.enums.ActionStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestHeader;
 import jakarta.validation.Valid;
 
 @RestController
@@ -117,6 +121,33 @@ public class NotificationController {
                 return responseBuilder.buildSuccessResponse(
                                 SaayamStatusCode.SUCCESS,
                                 response);
+        }
+
+        @PostMapping("/{notificationId}/deny")
+        public SaayamResponse<NotificationActionResponse> denyNotification(
+                        @PathVariable Integer notificationId,
+                        @RequestHeader("X-User-Id") String userId) throws Exception {
+
+                NotificationActionResponse response = notificationService.denyNotification(notificationId, userId);
+                return responseBuilder.buildSuccessResponse(
+                                SaayamStatusCode.NOTIFICATION_DENIED,
+                                response);
+        }
+
+        @PostMapping("/{notificationId}/accept")
+        public ResponseEntity<SaayamResponse<NotificationActionResponse>> acceptNotification(
+                        @PathVariable Integer notificationId,
+                        @RequestHeader("X-User-Id") String userId) {
+                NotificationActionResponse response = notificationService.acceptNotification(notificationId, userId);
+                if (response.actionStatus() == ActionStatus.REQUEST_TAKEN) {
+                        // Return a conflict after the service transaction has committed.
+                        SaayamResponse<NotificationActionResponse> body = responseBuilder.buildErrorResponse(
+                                        HttpStatus.CONFLICT.value(), SaayamStatusCode.NOTIFICATION_REQUEST_TAKEN,
+                                        null, response);
+                        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+                }
+                return ResponseEntity.ok(responseBuilder.buildSuccessResponse(
+                                SaayamStatusCode.NOTIFICATION_ACCEPTED, response));
         }
 
         private void validateRequestParameters(GetNotificationsRequest request) {

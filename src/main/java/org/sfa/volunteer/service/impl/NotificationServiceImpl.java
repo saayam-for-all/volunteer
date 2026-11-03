@@ -1,6 +1,11 @@
 package org.sfa.volunteer.service.impl;
 
 import java.sql.Timestamp;
+import org.sfa.volunteer.dto.response.NotificationActionResponse;
+import org.sfa.volunteer.entities.Notifications;
+import org.sfa.volunteer.enums.ActionStatus;
+import org.sfa.volunteer.exception.NotificationAcceptException;
+import org.springframework.http.HttpStatus;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -131,6 +136,8 @@ public class NotificationServiceImpl implements NotificationService {
                                                         .status(isNew ? "new" : "old")
                                                         .typeName(typeName)
                                                         .message(message)
+                                                        .requestId(row.length > 5 ? (String) row[5] : null)
+                                                        .actionStatus(row.length > 6 ? (ActionStatus) row[6] : null)
                                                         .createDttm(createDttm)
                                                         .build();
                                 })
@@ -190,6 +197,108 @@ public class NotificationServiceImpl implements NotificationService {
 
         });
         }
+
+    @Override
+    @Transactional
+    public NotificationActionResponse acceptNotification(Integer notificationId, String userId) {
+        if (notificationId == null || notificationId <= 0 || userId == null || userId.isBlank()) {
+            throw new NotificationAcceptException(SaayamStatusCode.BAD_REQUEST,
+                    HttpStatus.BAD_REQUEST, userId, notificationId);
+        }
+
+        Notifications notification = notificationsRepo
+                .findByNotificationIdAndUserId(notificationId, userId)
+                .orElseThrow(() -> new NotificationAcceptException(SaayamStatusCode.NOTIFICATION_NOT_FOUND,
+                        HttpStatus.NOT_FOUND, userId, notificationId));
+        String requestId = notification.getRequestId();
+        if (requestId == null || requestId.isBlank()) {
+            throw new NotificationAcceptException(SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED,
+                    HttpStatus.CONFLICT, userId, notification.getActionStatus());
+        }
+
+        // Every Accept for this request locks the same rows in the same order.
+        // Deny's conditional update also takes a row lock, so the two flows serialize.
+        var states = notificationsRepo.lockByRequestId(requestId);
+        var current = states.stream()
+                .filter(n -> notificationId.equals(n.getNotificationId()) && userId.equals(n.getUserId()))
+                .findFirst()
+                .orElseThrow(() -> new NotificationAcceptException(SaayamStatusCode.NOTIFICATION_NOT_FOUND,
+                        HttpStatus.NOT_FOUND, userId, notificationId));
+        String status = current.getActionStatus();
+        if (status == null) {
+            throw new NotificationAcceptException(SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED,
+                    HttpStatus.CONFLICT, userId, null);
+        }
+
+        boolean alreadyAccepted = states.stream()
+                .anyMatch(n -> ActionStatus.ACCEPTED.name().equals(n.getActionStatus()));
+        if (alreadyAccepted || ActionStatus.REQUEST_TAKEN.name().equals(status)) {
+            // A retry by the winner is safe. Other callers receive REQUEST_TAKEN.
+            return NotificationActionResponse.builder()
+                    .notificationId(notificationId).userId(userId).requestId(requestId)
+                    .actionStatus(ActionStatus.ACCEPTED.name().equals(status)
+                            ? ActionStatus.ACCEPTED : ActionStatus.REQUEST_TAKEN)
+                    .build();
+        }
+        if (!ActionStatus.PENDING.name().equals(status)) {
+            throw new NotificationAcceptException(SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED,
+                    HttpStatus.CONFLICT, userId, status);
+        }
+
+        int updated = notificationsRepo.updateActionStatusConditionally(
+                notificationId, userId, ActionStatus.PENDING, ActionStatus.ACCEPTED);
+        if (updated != 1) {
+            throw new NotificationAcceptException(SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED,
+                    HttpStatus.CONFLICT, userId, status);
+        }
+        notificationsRepo.markOtherPendingNotificationsTaken(
+                requestId, notificationId, ActionStatus.PENDING, ActionStatus.REQUEST_TAKEN);
+
+        return NotificationActionResponse.builder()
+                .notificationId(notificationId).userId(userId).requestId(requestId)
+                .actionStatus(ActionStatus.ACCEPTED).build();
+    }
+
+    @Override
+    @Transactional
+    public NotificationActionResponse denyNotification(Integer notificationId, String userId) {
+        if (notificationId == null || userId == null || userId.isBlank()) {
+            throw new NotificationException(SaayamStatusCode.BAD_REQUEST.toString(), userId);
+        }
+
+        Notifications notification = notificationsRepo
+                .findByNotificationIdAndUserId(notificationId, userId)
+                .orElseThrow(() -> new NotificationException(
+                        SaayamStatusCode.NOTIFICATION_NOT_FOUND.toString(), userId));
+
+        ActionStatus current = notification.getActionStatus();
+
+        // NULL means this notification type does not support Accept/Deny
+        if (current == null) {
+            throw new NotificationException(
+                    SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.toString(), userId);
+        }
+
+        if (current != ActionStatus.PENDING) {
+            throw new NotificationException(
+                    SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.toString(), userId);
+        }
+
+        int updated = notificationsRepo.updateActionStatusConditionally(
+                notificationId, userId, ActionStatus.PENDING, ActionStatus.DENIED);
+
+        if (updated == 0) {
+            // Another request updated it between our read and this write
+            throw new NotificationException(
+                    SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.toString(), userId);
+        }
+
+        return NotificationActionResponse.builder()
+                .notificationId(notificationId)
+                .userId(userId)
+                .actionStatus(ActionStatus.DENIED)
+                .build();
+    }
 
         private <T> T handleException(String userId, Supplier<T> action) {
                 try {
