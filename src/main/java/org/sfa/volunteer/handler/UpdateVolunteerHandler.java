@@ -4,116 +4,93 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
-import org.sfa.volunteer.dto.response.VolunteerResponse;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
 import org.sfa.volunteer.service.VolunteerService;
+import org.sfa.volunteer.util.Cors;
 import org.sfa.volunteer.util.MessageSourceUtil;
+import org.sfa.volunteer.util.OnboardingAvailabilityApi;
+import org.sfa.volunteer.util.OnboardingAvailabilityPayload;
 import org.sfa.volunteer.util.ResponseBuilder;
-import org.springframework.boot.SpringApplication;
-import org.springframework.context.ApplicationContext;
-
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
 
 public class UpdateVolunteerHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
-
-    private static final VolunteerService volunteerService;
-    private static final ObjectMapper objectMapper = new ObjectMapper()
+    private static final String STEP_FOUR_METHODS = "PUT,OPTIONS";
+    private static final ObjectMapper LEGACY_JSON = new ObjectMapper()
             .registerModule(new JavaTimeModule())
-            .enable(SerializationFeature.INDENT_OUTPUT); // Enable pretty printing for better readability
-    private static final ResponseBuilder responseBuilder;
-    private static final MessageSourceUtil messageSourceUtil;
+            .enable(SerializationFeature.INDENT_OUTPUT);
 
-    static {
-        ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
-        volunteerService = context.getBean(VolunteerService.class);
-        responseBuilder = context.getBean(ResponseBuilder.class);
-        messageSourceUtil = context.getBean(MessageSourceUtil.class);
+    private final VolunteerService volunteerService;
+    private final ResponseBuilder responseBuilder;
+    private final MessageSourceUtil messageSourceUtil;
+    private final OnboardingAvailabilityApi onboarding;
+
+    public UpdateVolunteerHandler() {
+        volunteerService = VolunteerLambdaContext.bean(VolunteerService.class);
+        responseBuilder = VolunteerLambdaContext.bean(ResponseBuilder.class);
+        messageSourceUtil = VolunteerLambdaContext.bean(MessageSourceUtil.class);
+        onboarding = VolunteerLambdaContext.bean(OnboardingAvailabilityApi.class);
     }
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent requestEvent, Context context) {
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
-
-        try {
-//            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
-            String lang = Optional.ofNullable(requestEvent.getHeaders())
-                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
-                    .orElse("en");
-            Locale locale = Locale.forLanguageTag(lang);
-
-//            String userId = requestEvent.getPathParameters().get("userId");
-            Map<String, Object> body = parseBody(requestEvent.getBody());
-            VolunteerRequest updateRequest = parseRequest(body);
-
-            VolunteerResponse updatedVolunteer = volunteerService.updateVolunteer(updateRequest);
-
-            SaayamResponse<VolunteerResponse> successResponse = responseBuilder.buildSuccessResponse(
-                    SaayamStatusCode.VOLUNTEER_UPDATED,
-//                    new Object[]{userId},
-                    new Object[]{updatedVolunteer.userId()},
-                    updatedVolunteer
-            );
-
-            String responseBody = objectMapper.writeValueAsString(successResponse);
-            response.setBody(responseBody);
-            response.setStatusCode(201); // Created
-        } catch (Exception e) {
-//            String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
-            String lang = Optional.ofNullable(requestEvent.getHeaders())
-                    .map(headers -> headers.getOrDefault("Accept-Language", "en"))
-                    .orElse("en");
-            Locale locale = Locale.forLanguageTag(lang);
-
-            String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
-            int errorCode= 500;
-            SaayamStatusCode saayamErrorMsg = SaayamStatusCode.INTERNAL_SERVER_ERROR;
-
-            if (e.getMessage() != null) {
-                saayamErrorMsg = SaayamStatusCode.valueOf(e.getMessage());
-                errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.valueOf(e.getMessage()).getCode(), null);
-            }
-
-            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
-                    errorCode,
-                    saayamErrorMsg,
-                    errorMessage
-            );
-
-//            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
-//                    500,
-//                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
-//                    errorMessage
-//            );
-
-            try {
-                String responseBody = objectMapper.writeValueAsString(errorResponse);
-                response.setBody(responseBody);
-            } catch (Exception jsonException) {
-                response.setBody("{\"message\":\"Failed to serialize error response\"}");
-            }
-            response.setStatusCode(500); // Internal Server Error
+        if ("OPTIONS".equalsIgnoreCase(requestEvent.getHttpMethod())) {
+            return new APIGatewayProxyResponseEvent().withStatusCode(204).withHeaders(Cors.headers(STEP_FOUR_METHODS));
         }
-        return response;
-    }
-
-    private VolunteerRequest parseRequest(Map<String, Object> body) {
-        return objectMapper.convertValue(body, VolunteerRequest.class);
-    }
-
-    private Map<String, Object> parseBody(String body) {
+        JsonNode body;
         try {
-            return objectMapper.readValue(body, Map.class);
-        } catch (Exception e) {
-            // todo: define a customized error
-            throw new RuntimeException("Failed to parse request body", e);
+            body = OnboardingAvailabilityPayload.object(OnboardingAvailabilityHandler.readBody(requestEvent));
+        } catch (OnboardingAvailabilityException failure) {
+            return OnboardingAvailabilityHandler.respond(failure, STEP_FOUR_METHODS);
+        }
+        if (OnboardingAvailabilityPayload.targetsStepFour(body)) {
+            if (!"PUT".equalsIgnoreCase(requestEvent.getHttpMethod())) {
+                return OnboardingAvailabilityHandler.methodNotAllowed(STEP_FOUR_METHODS);
+            }
+            var result = onboarding.save(body, OnboardingAvailabilityHandler.caller(requestEvent));
+            return OnboardingAvailabilityHandler.respond(result, STEP_FOUR_METHODS);
+        }
+        return updateEarlierStep(body);
+    }
+
+    private APIGatewayProxyResponseEvent updateEarlierStep(JsonNode body) {
+        try {
+            var request = LEGACY_JSON.treeToValue(body, VolunteerRequest.class);
+            if (Integer.valueOf(4).equals(request.step())) {
+                return OnboardingAvailabilityHandler.respond(OnboardingAvailabilityApi.error(400, "BAD_REQUEST",
+                        "step must be an integer for onboarding availability"), STEP_FOUR_METHODS);
+            }
+            var updated = volunteerService.updateVolunteer(request);
+            var envelope = responseBuilder.buildSuccessResponse(SaayamStatusCode.VOLUNTEER_UPDATED,
+                    new Object[] { updated.userId() }, updated);
+            return legacyResponse(201, envelope);
+        } catch (Exception failure) {
+            SaayamStatusCode code = legacyErrorCode(failure.getMessage());
+            String message = messageSourceUtil.getMessage(code.getCode(), null);
+            return legacyResponse(500, responseBuilder.buildErrorResponse(500, code, message));
+        }
+    }
+
+    private static SaayamStatusCode legacyErrorCode(String message) {
+        for (SaayamStatusCode code : SaayamStatusCode.values()) {
+            if (code.name().equals(message)) return code;
+        }
+        return SaayamStatusCode.INTERNAL_SERVER_ERROR;
+    }
+
+    private static APIGatewayProxyResponseEvent legacyResponse(int status, SaayamResponse<?> envelope) {
+        try {
+            return new APIGatewayProxyResponseEvent().withStatusCode(status)
+                    .withBody(LEGACY_JSON.writeValueAsString(envelope));
+        } catch (JsonProcessingException failure) {
+            return new APIGatewayProxyResponseEvent().withStatusCode(500)
+                    .withBody("{\"message\":\"Failed to serialize error response\"}");
         }
     }
 }

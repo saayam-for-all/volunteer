@@ -1,66 +1,86 @@
 package org.sfa.volunteer.service.impl;
 
 import org.springframework.http.HttpStatus;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
-import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.exception.VolunteerException;
 import org.sfa.volunteer.exception.IdentityDocumentException;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
 import org.sfa.volunteer.model.DocumentStatus;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.Volunteer;
-import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.repository.AvailabilityAccountRepository;
+import org.sfa.volunteer.repository.OnboardingAvailabilityRepository;
 import org.sfa.volunteer.repository.VolunteerRepository;
 import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
+import org.sfa.volunteer.service.LegacyAvailabilityProjection;
+import org.sfa.volunteer.service.OnboardingAvailabilityService;
 import org.sfa.volunteer.service.VolunteerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.*;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @Transactional
 public class VolunteerServiceImpl implements VolunteerService {
     private final VolunteerRepository volunteerRepository;
-    private final UserRepository userRepository;
+    private final AvailabilityAccountRepository accounts;
+    private final OnboardingAvailabilityRepository wizardProgress;
+    private final EntityManager entityManager;
+    private final Clock clock;
+    private final LegacyAvailabilityProjection legacyAvailability;
+    private final OnboardingAvailabilityService onboardingAvailability;
 
-    // private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
 
     @Autowired
-    public VolunteerServiceImpl(VolunteerRepository volunteerRepository, UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public VolunteerServiceImpl(VolunteerRepository volunteerRepository, AvailabilityAccountRepository accounts,
+            OnboardingAvailabilityRepository wizardProgress, EntityManager entityManager, Clock clock,
+            LegacyAvailabilityProjection legacyAvailability, OnboardingAvailabilityService onboardingAvailability) {
         this.volunteerRepository = volunteerRepository;
-        // this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
+        this.accounts = accounts;
+        this.wizardProgress = wizardProgress;
+        this.entityManager = entityManager;
+        this.clock = clock;
+        this.legacyAvailability = legacyAvailability;
+        this.onboardingAvailability = onboardingAvailability;
     }
 
-    private void updateUser(User user, Integer step) {
-        user.setVolunteerStage(step);
-        user.setVolunteerUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        userRepository.save(user);
+    private void lockAccount(String userId) {
+        accounts.lockById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+    }
+
+    private Volunteer lockedVolunteer(String userId) {
+        lockAccount(userId);
+        Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
+        entityManager.refresh(volunteer);
+        return volunteer;
+    }
+
+    private void advanceProgress(VolunteerRequest request) {
+        wizardProgress.advanceProgress(request.userId(), request.step(),
+                LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
     }
 
     @Override
     public VolunteerResponse createVolunteer(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
+        lockAccount(request.userId());
 
         Volunteer existing = volunteerRepository.findById(request.userId()).orElse(null);
         if (existing != null) throw VolunteerException.volunteerExists(request.userId());
@@ -68,13 +88,13 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (request.step() != 1) throw VolunteerException.volunteerInvalidStep(request.userId());
 
         Volunteer volunteer = Volunteer.builder()
-                .user(user)
+                .user(entityManager.getReference(User.class, request.userId()))
                 .termsAndConditions(request.termsAndConditions())
                 .termsAcceptedAt(LocalDateTime.now(ZoneId.of("UTC")))
                 .build();
 
         volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
+        advanceProgress(request);
 
         return mapToVolunteerResponse(volunteer);
     }
@@ -90,35 +110,24 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public VolunteerResponse updateVolunteerStep1(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
+        Volunteer volunteer = lockedVolunteer(request.userId());
 
         if (request.step() != 1) throw VolunteerException.volunteerInvalidStep(request.userId());
 
-        volunteer.setUser(user);
         volunteer.setTermsAndConditions(request.termsAndConditions());
         volunteer.setTermsAcceptedAt(LocalDateTime.now(ZoneId.of("UTC")));
 
-        volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
+        volunteer = volunteerRepository.saveAndFlush(volunteer);
+        advanceProgress(request);
 
         return mapToVolunteerResponse(volunteer);
     }
 
     @Override
     public VolunteerResponse updateVolunteerStep2(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
+        Volunteer volunteer = lockedVolunteer(request.userId());
 
         if (request.step() != 2) throw VolunteerException.volunteerInvalidStep(request.userId());
-
-        volunteer.setUser(user);
 
         // Persist new DB columns
         if (request.govtIdPath1() != null) {
@@ -130,8 +139,8 @@ public class VolunteerServiceImpl implements VolunteerService {
             volunteer.setPath2UpdatedAt(LocalDateTime.now(ZoneId.of("UTC")));
         }
 
-        volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
+        volunteer = volunteerRepository.saveAndFlush(volunteer);
+        advanceProgress(request);
 
         return mapToVolunteerResponse(volunteer);
     }
@@ -158,54 +167,19 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public VolunteerResponse updateVolunteerStep3(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
+        Volunteer volunteer = lockedVolunteer(request.userId());
 
         if (request.step() != 3) throw VolunteerException.volunteerInvalidStep(request.userId());
 
-        volunteer.setUser(user);
-        volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
+        advanceProgress(request);
 
         return mapToVolunteerResponse(volunteer);
     }
 
     @Override
-    public VolunteerResponse updateVolunteerStep4(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
-
-        if (request.step() != 4) throw VolunteerException.volunteerInvalidStep(request.userId());
-
-        volunteer.setUser(user);
-
-        // Convert request.availability -> availability_days + availability_times JSONB
-        List<VolunteerUserAvailabilityRequest> avail = Optional.ofNullable(request.availability())
-                .orElse(Collections.emptyList());
-
-        ArrayNode days = MAPPER.createArrayNode();
-        Set<String> uniqueDays = new LinkedHashSet<>();
-        for (var a : avail) {
-            if (a != null && a.dayOfWeek() != null) uniqueDays.add(a.dayOfWeek());
-        }
-        uniqueDays.forEach(days::add);
-
-        // Store full availability items as JSON array
-        JsonNode times = MAPPER.valueToTree(avail);
-
-        volunteer.setAvailabilityDays(days);
-        volunteer.setAvailabilityTimes(times);
-
-        volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
-
-        return mapToVolunteerResponse(volunteer);
+    public VolunteerResponse updateVolunteerStep4(VolunteerRequest request) {
+        throw new OnboardingAvailabilityException(400, "BAD_REQUEST",
+                "Step 4 requires local HH:mm availability and an explicit emergency preference");
     }
 
 
@@ -215,24 +189,20 @@ public class VolunteerServiceImpl implements VolunteerService {
     // }
 
     @Override
-    public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
+    public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) {
+        onboardingAvailability.complete(request.userId(), request.step());
         Volunteer volunteer = volunteerRepository.findById(request.userId())
                 .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
-
-        Integer step = request.step() != null ? request.step() : 4;
-        updateUser(user, step);
-
         return mapToVolunteerResponse(volunteer);
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true,
+            isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public VolunteerResponse getVolunteerByUserId(String userId) throws Exception {
         Volunteer volunteer = volunteerRepository.findById(userId)
                 .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
-        return mapToVolunteerResponse(volunteer);
+        return mapToVolunteerResponse(volunteer, legacyAvailability.read(List.of(volunteer)).get(userId));
     }
     
    @Override
@@ -289,15 +259,18 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true,
+            isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize) {
         int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;
         int pageSizeNum = (pageSize == null) ? DEFAULT_SIZE : pageSize;
 
         Pageable pageable = PageRequest.of(pageNum, pageSizeNum);
         Page<Volunteer> volunteerPage = volunteerRepository.findAll(pageable);
+        var availability = legacyAvailability.read(volunteerPage.getContent());
 
         List<VolunteerResponse> volunteers = volunteerPage.stream()
-                .map(this::mapToVolunteerResponse)
+                .map(volunteer -> mapToVolunteerResponse(volunteer, availability.get(volunteer.getId())))
                 .collect(Collectors.toList());
 
         return PaginationResponse.<VolunteerResponse>builder()
@@ -312,7 +285,11 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer) {
-        String uid = volunteer.getUser() != null ? volunteer.getUser().getId() : volunteer.getId();
+        return mapToVolunteerResponse(volunteer, legacyAvailability.read(List.of(volunteer)).get(volunteer.getId()));
+    }
+
+    private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer, LegacyAvailabilityProjection.View availability) {
+        String uid = volunteer.getId();
 
         return VolunteerResponse.builder()
                 .id(uid)
@@ -323,8 +300,9 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .govtIdPath2(volunteer.getGovtIdPath2())
                 .path1UpdatedAt(volunteer.getPath1UpdatedAt())
                 .path2UpdatedAt(volunteer.getPath2UpdatedAt())
-                .availabilityDays((JsonNode) volunteer.getAvailabilityDays())
-                .availabilityTimes((JsonNode) volunteer.getAvailabilityTimes())
+                .availabilityDays(availability.days())
+                .availabilityTimes(availability.times())
+                .availabilityMigrationRequired(availability.migrationRequired())
                 .createdAt(volunteer.getCreatedAt())
                 .lastUpdatedAt(volunteer.getLastUpdatedAt())
                 .build();

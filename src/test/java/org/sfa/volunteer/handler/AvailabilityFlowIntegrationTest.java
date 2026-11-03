@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.sfa.volunteer.config.AvailabilityConfiguration;
+import org.sfa.volunteer.repository.AvailabilityAccountRepository;
+import org.sfa.volunteer.repository.LegacyAvailabilityRepository;
+import org.sfa.volunteer.service.AvailabilityScheduleService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.impl.UserServiceImpl;
 import org.sfa.volunteer.util.MessageSourceUtil;
@@ -31,7 +35,8 @@ import static org.mockito.ArgumentMatchers.*;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(UserServiceImpl.class)
+@Import({UserServiceImpl.class, AvailabilityScheduleService.class, AvailabilityAccountRepository.class,
+        AvailabilityConfiguration.class, LegacyAvailabilityRepository.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class AvailabilityFlowIntegrationTest {
     @Autowired UserService service;
@@ -55,9 +60,14 @@ class AvailabilityFlowIntegrationTest {
 
     @BeforeEach void setup() {
         jdbc.execute("DROP TABLE IF EXISTS user_availability");
+        jdbc.execute("DROP TABLE IF EXISTS volunteer_details");
         jdbc.execute("DROP TABLE IF EXISTS user_additional_details");
         jdbc.execute("DROP TABLE IF EXISTS users");
         new ResourceDatabasePopulator(new ClassPathResource("availability214-schema.sql")).execute(dataSource);
+        jdbc.execute("""
+                CREATE TABLE volunteer_details (user_id varchar(255) PRIMARY KEY REFERENCES users(user_id),
+                    availability_days json, availability_times json)
+                """);
         jdbc.update("INSERT INTO users(user_id, full_name, primary_email_address, time_zone, language_1) VALUES (?, ?, ?, ?, ?)",
                 "u1", "Local Test", "owner@example.org", "UTC", 123L);
         jdbc.update("INSERT INTO users(user_id, full_name, primary_email_address, time_zone) VALUES (?, ?, ?, ?)",

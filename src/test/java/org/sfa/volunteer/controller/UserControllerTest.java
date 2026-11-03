@@ -8,6 +8,7 @@ import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.response.AvailabilityResponse;
 import org.sfa.volunteer.dto.response.AvailabilitySlotResponse;
 import org.sfa.volunteer.dto.response.UserSkillsResponse;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
 import org.sfa.volunteer.model.SkillLevel;
 import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
@@ -131,6 +132,21 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.data.slots[0].frequency").value("Weekdays"));
 
         verify(userService).getAvailability("123");
+    }
+
+    @Test
+    void profileAvailabilityReturnsActualMigrationConflict() throws Exception {
+        when(userService.getAvailability("123")).thenThrow(new OnboardingAvailabilityException(409,
+                "LEGACY_AVAILABILITY_MIGRATION_REQUIRED", "Saved legacy availability requires migration or re-entry"));
+
+        mockMvc.perform(post("/0.0.1/users/availability")
+                        .principal(() -> "owner@example.org")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"userId\":\"123\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.statusCode").value(409))
+                .andExpect(jsonPath("$.saayamCode").value("LEGACY_AVAILABILITY_MIGRATION_REQUIRED"));
     }
 
     @Test

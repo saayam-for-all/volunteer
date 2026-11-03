@@ -23,6 +23,8 @@ import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.sfa.volunteer.util.AvailabilityAuthorization;
+import org.sfa.volunteer.util.OnboardingAvailabilityApi;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
 import java.security.Principal;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -253,6 +255,9 @@ public class UserController {
             AvailabilityAuthorization.requireOwner(userService, userId, principal == null ? null : principal.getName());
             return ResponseEntity.ok(responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.SUCCESS, new Object[]{userId}, operation.get()));
+        } catch (OnboardingAvailabilityException e) {
+            return ResponseEntity.status(e.getHttpStatus()).body(OnboardingAvailabilityApi.error(
+                    e.getHttpStatus(), e.getErrorCode(), e.getMessage()));
         } catch (org.sfa.volunteer.exception.UserNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(responseBuilder.buildErrorResponse(
                     404, SaayamStatusCode.USER_NOT_FOUND, "User not found"));

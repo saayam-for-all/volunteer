@@ -30,7 +30,7 @@ public interface VolunteerService {
 
     VolunteerResponse updateVolunteerStep4(VolunteerRequest volunteerRequest) throws Exception;
 
-    VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
+    VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest);
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
     

@@ -1,5 +1,6 @@
 package org.sfa.volunteer.service;
 
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -8,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.model.User;
+import org.sfa.volunteer.repository.AvailabilityAccountRepository;
 import org.sfa.volunteer.repository.CountryRepository;
 import org.sfa.volunteer.repository.OrganizationRepository;
 import org.sfa.volunteer.repository.StateRepository;
@@ -43,6 +45,10 @@ class UserServiceImplTest {
     private CountryRepository countryRepository;
     @Mock
     private StateRepository stateRepository;
+    @Mock
+    private AvailabilityAccountRepository availabilityAccounts;
+    @Mock
+    private EntityManager entityManager;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -50,8 +56,7 @@ class UserServiceImplTest {
     @Test
     void updateUserProfilePreservesExistingProfilePicturePathWhenRequestOmitsIt() {
         User existing = userWithProfilePath("s3://saayam-bucket/users/user-1/profile");
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubProfileUpdate(existing);
 
         UpdateUserProfileRequest request = UpdateUserProfileRequest.builder()
                 .firstName("Neel")
@@ -68,8 +73,7 @@ class UserServiceImplTest {
     @Test
     void updateUserProfilePreservesExistingProfilePicturePathWhenRequestSendsBlankValue() {
         User existing = userWithProfilePath("s3://saayam-bucket/users/user-1/profile");
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubProfileUpdate(existing);
 
         UpdateUserProfileRequest request = UpdateUserProfileRequest.builder()
                 .firstName("Neel")
@@ -84,8 +88,7 @@ class UserServiceImplTest {
     @Test
     void updateUserProfileAcceptsExplicitProfilePicturePath() {
         User existing = userWithProfilePath("s3://saayam-bucket/users/user-1/old-profile");
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
-        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubProfileUpdate(existing);
 
         UpdateUserProfileRequest request = UpdateUserProfileRequest.builder()
                 .profilePicturePath("s3://saayam-bucket/users/user-1/profile")
@@ -94,6 +97,13 @@ class UserServiceImplTest {
         var response = userService.updateUserProfile("user-1", request);
 
         assertThat(response.profilePicturePath()).isEqualTo("s3://saayam-bucket/users/user-1/profile");
+    }
+
+    private void stubProfileUpdate(User existing) {
+        when(availabilityAccounts.lockById("user-1")).thenReturn(Optional.of(
+                new AvailabilityAccountRepository.Account("user-1", "UTC", null, null)));
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test

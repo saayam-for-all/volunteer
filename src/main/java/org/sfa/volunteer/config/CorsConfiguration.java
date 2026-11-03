@@ -1,9 +1,15 @@
 package org.sfa.volunteer.config;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.sfa.volunteer.controller.OnboardingAvailabilityController;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.cors.CorsUtils;
+import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
@@ -30,6 +36,18 @@ public class CorsConfiguration {
                         .allowedMethods(allowedMethods)
                         .allowedHeaders(allowedHeaders)
                         .allowCredentials(allowedCredentials);
+            }
+
+            @Override
+            public void addInterceptors(InterceptorRegistry registry) {
+                registry.addInterceptor(new HandlerInterceptor() {
+                    @Override
+                    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+                        // The MVC preflight handler still validates and writes the configured CORS headers.
+                        if (CorsUtils.isPreFlightRequest(request)) response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                        return true;
+                    }
+                }).addPathPatterns(OnboardingAvailabilityController.PATH);
             }
         };
     }

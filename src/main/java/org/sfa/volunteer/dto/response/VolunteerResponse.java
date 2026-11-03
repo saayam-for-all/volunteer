@@ -17,6 +17,7 @@ public record VolunteerResponse(
         LocalDateTime path2UpdatedAt,
         JsonNode availabilityDays,
         JsonNode availabilityTimes,
+        boolean availabilityMigrationRequired,
         LocalDateTime createdAt,
         LocalDateTime lastUpdatedAt) {
 }

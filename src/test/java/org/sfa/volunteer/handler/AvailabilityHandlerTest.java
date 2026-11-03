@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.response.AvailabilityResponse;
 import org.sfa.volunteer.dto.response.AvailabilitySlotResponse;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.MessageSourceUtil;
@@ -114,6 +115,18 @@ class AvailabilityHandlerTest {
         JsonNode slots = json(response).at("/data/slots");
         assertThat(slots.isArray()).isTrue();
         assertThat(slots).isEmpty();
+    }
+
+    @Test
+    void profileAvailabilityReturnsActualMigrationConflict() throws Exception {
+        when(userService.getAvailability(USER_ID)).thenThrow(new OnboardingAvailabilityException(409,
+                "LEGACY_AVAILABILITY_MIGRATION_REQUIRED", "Saved legacy availability requires migration or re-entry"));
+
+        var response = handler.handleRequest(request("POST", GET_BODY), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(409);
+        assertThat(json(response).path("statusCode").asInt()).isEqualTo(409);
+        assertThat(json(response).path("saayamCode").asText()).isEqualTo("LEGACY_AVAILABILITY_MIGRATION_REQUIRED");
     }
 
     @Test

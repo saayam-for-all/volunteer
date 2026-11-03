@@ -11,7 +11,16 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class LoggingAspect {
 
-    @Around("execution(* org.sfa.volunteer.service.*.*(..))")
+    // Availability arguments/results contain personal schedules; keep them out of generic payload logging.
+    @Around("execution(* org.sfa.volunteer.service.*.*(..))"
+            + " && !target(org.sfa.volunteer.service.AvailabilityScheduleService)"
+            + " && !target(org.sfa.volunteer.service.OnboardingAvailabilityService)"
+            + " && !target(org.sfa.volunteer.service.LegacyAvailabilityProjection)"
+            + " && !execution(* org.sfa.volunteer.service.UserService+.getAvailability(..))"
+            + " && !execution(* org.sfa.volunteer.service.UserService+.updateAvailability(..))"
+            + " && !execution(org.sfa.volunteer.dto.response.VolunteerResponse org.sfa.volunteer.service.VolunteerService+.*(..))"
+            + " && !execution(* org.sfa.volunteer.service.VolunteerService+.findAllVolunteersWithPagination(..))"
+            + " && !execution(* org.sfa.volunteer.service.StewardService+.getVolunteers(..))")
     public Object logServiceMethods(ProceedingJoinPoint joinPoint) throws Throwable {
         String methodName = joinPoint.getSignature().getName();
         Object[] args = joinPoint.getArgs();

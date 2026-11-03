@@ -1,6 +1,7 @@
 package org.sfa.volunteer.model;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -61,14 +62,14 @@ public class Volunteer {
     @Column(name = "path2_updated_at")
     private LocalDateTime path2UpdatedAt;
 
-    // jsonb columns
+    // Compatibility data can only be cleared by the canonical schedule transaction.
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "availability_days")
-    private Object availabilityDays;
+    @Column(name = "availability_days", insertable = false, updatable = false)
+    private JsonNode availabilityDays;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "availability_times")
-    private Object availabilityTimes;
+    @Column(name = "availability_times", insertable = false, updatable = false)
+    private JsonNode availabilityTimes;
 
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;

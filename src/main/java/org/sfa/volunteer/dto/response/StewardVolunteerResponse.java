@@ -11,6 +11,7 @@ public record StewardVolunteerResponse(
         String userId,
         Integer volunteerStage,
         Object availabilityDays,
-        Object availabilityTimes
+        Object availabilityTimes,
+        boolean availabilityMigrationRequired
 ) {
 }
