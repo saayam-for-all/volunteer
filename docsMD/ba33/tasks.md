@@ -1,6 +1,6 @@
 # BA 33 implementation tasks and task graph
 
-Status. T1 through T6 are complete on the synced `test` baseline at `09b0a33`. T7 review and verification are in progress. [Review findings](review-findings.md)
+Status. T1 through T7 are complete locally on the synced `test` baseline at `09b0a33`. [Review findings](review-findings.md)
 
 ## Orchestration contract
 
@@ -22,7 +22,7 @@ All database write tests use isolated local PostgreSQL, a dedicated port/databas
 | T4 | Spring/proxy API and verified-owner contract | T3 | T5, T6 | Complete |
 | T5 | Dedicated Lambda and generic Lambda Step 4 integration | T4 | T7 | Complete |
 | T6 | Legacy reader cutover and remaining progress-writer guards | T4 | T7 | Complete |
-| T7 | End-to-end verification, handoff and final review | T5, T6 | None | In progress |
+| T7 | End-to-end verification, handoff and final review | T5, T6 | None | Complete locally |
 
 ```mermaid
 flowchart LR
@@ -130,7 +130,28 @@ Every coding sub-agent returns: task ID and requirement IDs; changed files and i
 - **T4 complete.** Serialized REST Gateway events exercised the actual Spring Lambda adapter against PostgreSQL. The RED tests reproduced a missing canonical route, coerced payloads, legacy Step 4 binding and a 200 preflight. The GREEN suite covers the canonical and retained routes, verified ownership, standalone denial, CORS, sanitized failures and preserved Step 3 behavior. The focused suite passed **161 tests** (`t4-final-targeted.log`). T5 can reuse `OnboardingAvailabilityApi` and the strict request and caller helpers. T6 can reuse the same ownership and response mapping for completion.
 - **T5 complete.** The dedicated handler starts its normal non-web Spring context and shares request, authorization and response handling with T4. The retained Lambda routes `PUT` Step 4 before binding the old DTO. RED/GREEN evidence covers real PostgreSQL save/read, methods and CORS, Base64, and the previous legacy `LocalDateTime` binding failure. The focused Spring and Lambda suite passed **43 tests** (`t5-final-targeted.log`). Gateway setup remains part of the release handoff.
 - **T6 complete.** Volunteer and steward readers prefer relational schedules and preserve legacy-only visibility. Canonical reads return a migration conflict for legacy-only data. A shared transaction clears old JSON during replacement or clear and preserves it on rollback. Completion requires verified ownership and a valid saved schedule. Narrow progress updates and refreshed entities prevent stale earlier-step, profile and preference saves from regressing progress. Read-only mapping for the obsolete JSON fields protects identity-document saves. The focused suite passed **89 tests** (`t6-final-focused.log`).
+- **T7 complete.** Two independent reviewers examined the API and persistence paths and rechecked both fixes. The schema-order RED reproduced a 500 before the fix restored 503. The midnight RED reproduced the DST exception before the fix kept the validated schedule through persistence. Focused suites passed **103** and **130** tests respectively. [Review dispositions and release gates](review-findings.md#t7-implementation-reviews)
+
+From the volunteer checkout, the isolated runner executed `mvn clean verify` with native PostgreSQL enabled:
+
+```powershell
+& 'E:\Saayam For All\.tools\ba33-sync-20261103-094943\run-local-tests.ps1' -LogName 't7-final-verify.log' -Native -Verify
+```
+
+The build passed **440 tests with zero failures, errors or skips**. JaCoCo covered **658 of 692 changed executable lines (95.09%)**, measured from the Java source diff against `09b0a33`. Aggregate line coverage increased from **1,464 of 3,277 (44.68%)** on the synced baseline to **2,154 of 3,706 (58.12%)**. The credential-scrubbed run used isolated PostgreSQL with synthetic fixtures and H2.
+
+## Requirement-to-test traceability
+
+| Requirements | Local behavioral evidence |
+|---|---|
+| R1, R7, R8 | `OnboardingAvailabilityPostgresTest` covers relational save/read, emergency true and false, and full replacement. `OnboardingAvailabilityMigrationPostgresTest` verifies the migration on isolated PostgreSQL. |
+| R2–R6 | `OnboardingAvailabilityPostgresTest` covers missing values, empty schedules, strict times, overnight rejection, overlaps, adjacency and Everyday expansion. The Spring proxy and direct Lambda tests cover malformed and coercible request payloads. |
+| R9 | `OnboardingAvailabilityPostgresTest` covers rollback and write serialization. `AvailabilityCutoverPostgresTest` covers progress guards and stale concurrent updates. `OnboardingAvailabilityProxyTest` covers completion ownership, saved-state prerequisites and stage advancement. |
+| R10 | `ProfileAvailabilityPostgresTest`, `UserServiceImplAvailabilityTest`, `AvailabilityFlowIntegrationTest` and `AvailabilityHandlerTest` cover Profile round trips, sparse schema, clears, overnight slots and existing authorization behavior. |
+| R11, R12 | `OnboardingAvailabilityProxyTest`, `OnboardingAvailabilityStandaloneTest` and `OnboardingAvailabilityHandlerPostgresTest` assert trusted caller behavior and actual HTTP statuses and envelopes, including schema failure precedence. |
+| R13 | `OnboardingAvailabilityPostgresTest` covers invalid account zones, local round trips across UTC days and daylight-saving changes, and consistent date selection across midnight. |
+| R14 | `AvailabilityCutoverPostgresTest` covers volunteer and steward projections, legacy-only visibility, canonical migration conflicts, JSON cleanup and rollback. |
 
 ## Release dependencies are not coding-task completion
 
-F1 automatic historical backfill, F2 standalone-Spring JWT integration and F3 HTTP API v2 support remain deferred as recorded in review-findings.md. The DB owner must deploy the emergency migration and resolve historical/account-zone readiness; frontend/gateway owners must integrate supported contracts; product confirms the cap; the lead confirms final branch/dependency presentation. These gates block rollout, not authoring the local backend change. Creating this task graph authorizes none of those external actions.
+F1 automatic historical backfill, F2 standalone Spring JWT integration and F3 HTTP API v2 support remain deferred. Rollout depends on migration and account readiness, frontend adoption, gateway authorization for the new and existing routes, a decision on historical stage-4 records, and confirmation of the provisional slot cap and PR target. [Review findings](review-findings.md) · [Release gates](design.md#external-integration-and-release-gates)

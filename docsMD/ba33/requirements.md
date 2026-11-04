@@ -48,7 +48,7 @@ Onboarding reuses internal timezone conversion solely for storage compatibility.
 |---|---|---|
 | A1 | Backend ownership is the user's working scope; lead has not yet specified the final handoff. | Keep frontend work as a documented integration contract. |
 | A2 | The issue-body BRD's mandatory-slot and overlap rules take precedence over older open questions. Adjacent intervals are interpreted as non-overlapping. | Record these choices for product review; do not inherit Profile's empty/overnight semantics. |
-| A3 | PR 215 is the local foundation; eventual source/target branch and dependency presentation are pending. | Document the pinned base; do not push, merge, or claim lead approval. |
+| A3 | The synced `test` baseline includes the Profile Availability foundation from PR 215. The eventual PR target still needs lead confirmation. | Document the pinned base and keep agent changes local. |
 | A4 | Use the existing Profile limit of 20 input slots as a proposed operational bound for onboarding, not a BRD-mandated limit. | Explicit product confirmation is still required before release; tests make the bound visible. |
 | A5 | Emergency edits are self-service. No new administrative override policy is introduced. | Privileged editing beyond the established identity contract requires a separate decision. |
 | A6 | Reusing PR 215's UTC representation requires a valid stored IANA timezone, although the onboarding FRD excludes timezone-aware scheduling. | Before rollout, owners remediate missing/invalid account zones through the existing profile flow; until then onboarding returns 409 without modifying data. |

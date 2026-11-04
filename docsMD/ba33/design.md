@@ -162,10 +162,13 @@ The orchestrator owns sequencing and integration. Coding tasks must have explici
 - DB owner reviews/applies the emergency-column migration before enabling feature traffic.
 - Frontend owner adopts strict HH:mm, explicit emergency preference, save/read integration and error handling before moving to Review.
 - Gateway owner configures authenticated routes and trusted identity propagation; verify on the intended deployment topology before release.
-- Lead confirms eventual branch/PR target and how the dependency on unmerged PR 215 should be presented. No GitHub push is authorized.
-- Product confirms the provisional 20-slot input limit. Until then, it remains an explicit proposed assumption, not an approved requirement.
+- Verify the intended audience and effective gateway authorization for existing volunteer detail/list and steward volunteer readers, plus volunteer create and Step 1–3 routes that return the same volunteer response. These responses can now contain relational schedules saved in Profile. The legacy Spring readers and Step 1–3 flows do not enforce caller ownership in the application. Keep those routes behind the approved access policy on the target deployment.
+- Switch or disable every old JSON-only Step 4 writer before enabling relational saves. Coordinate Spring and Lambda route aliases during rollout and rollback. An old writer can otherwise report a successful JSON save that relational-first readers ignore.
+- Historical stage-4 records with valid relational schedules can satisfy the completion check after migration. The existing fields cannot distinguish an earlier completion or Profile save from an explicit onboarding save. Confirm with the DB and product owners whether affected records require re-entry before rollout.
+- The synced `test` baseline includes the Profile Availability foundation. The lead confirms the eventual PR target. No GitHub push is authorized for the agent.
+- Product confirms the provisional 20-slot input limit and frontend editing behavior. Reads return expanded weekdays, so three `Everyday` inputs can reload as 21 rows. The frontend can regroup identical seven-day intervals for resubmission. Some edits to a schedule near the limit can still require more than 20 entries.
 - Account owners remediate invalid/missing stored timezones before rollout (derived assumption A6).
 - Historical JSON-only records require owner-approved inventory/backfill or re-entry. Automatic bulk conversion is deferred; the code must preserve visibility and return the explicit migration-required response.
 - Deployment must use the supported REST API Gateway + Cognito context topology. Standalone Spring JWT authentication and HTTP API v2 support are deferred and may not be claimed as tested/supported.
 
-Review findings and their disposition will be recorded in `review-findings.md` after independent reviews. `tasks.md` is created only once blocking design findings are incorporated or explicitly deferred and notified to the user.
+See [review findings](review-findings.md) for review dispositions and [tasks](tasks.md) for local implementation and verification evidence.

@@ -230,6 +230,13 @@ class OnboardingAvailabilityProxyTest {
     }
 
     @Test
+    void missingAccountProjectionColumnReturnsUnavailableOnlyForVerifiedCaller() throws Exception {
+        jdbc.execute("ALTER TABLE users DROP COLUMN time_zone");
+        assertFailure(invoke("POST", PATH, READ, null), 403, "FORBIDDEN");
+        assertFailure(invoke("POST", PATH, READ, ownerClaims(OWNER)), 503, "FEATURE_UNAVAILABLE");
+    }
+
+    @Test
     void databaseFailureReturnsSanitizedInternalErrorWithoutProgress() throws Exception {
         jdbc.execute("ALTER TABLE user_availability ADD CONSTRAINT synthetic_test_failure CHECK (start_time >= end_time)");
         JsonNode failed = invoke("PUT", PATH, SAVE, ownerClaims(OWNER));

@@ -86,10 +86,18 @@ class OnboardingAvailabilityPostgresTest {
 
     static class TestClock extends Clock {
         private final AtomicReference<Instant> now = new AtomicReference<>(Instant.parse("2026-07-06T12:00:00Z"));
-        void set(Instant instant) { now.set(instant); }
+        private final AtomicReference<Instant> afterNextRead = new AtomicReference<>();
+        void set(Instant instant) {
+            now.set(instant);
+            afterNextRead.set(null);
+        }
+        void advanceAfterNextRead(Instant instant) { afterNextRead.set(instant); }
         @Override public ZoneId getZone() { return ZoneOffset.UTC; }
         @Override public Clock withZone(ZoneId zone) { return Clock.fixed(instant(), zone); }
-        @Override public Instant instant() { return now.get(); }
+        @Override public Instant instant() {
+            Instant next = afterNextRead.getAndSet(null);
+            return next == null ? now.get() : now.getAndSet(next);
+        }
     }
 
     @DynamicPropertySource
@@ -448,6 +456,22 @@ class OnboardingAvailabilityPostgresTest {
                 .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
                         assertThat(failure.getHttpStatus()).isEqualTo(400));
         assertThat(onboarding.read("SID-T2")).isEqualTo(before);
+    }
+
+    @Test
+    void aSaveCrossingLocalMidnightKeepsTheValidatedSundayOccurrence() {
+        jdbc.update("UPDATE users SET time_zone='America/New_York' WHERE user_id='SID-T2'");
+        // After midnight the next Sunday is March 8, when 02:30 is in the spring-forward gap.
+        clock.set(Instant.parse("2026-03-02T04:59:59Z"));
+        clock.advanceAfterNextRead(Instant.parse("2026-03-02T05:00:00Z"));
+
+        var saved = onboarding.save(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Sunday", "02:30", "04:00")), true));
+
+        assertThat(onboarding.read("SID-T2")).isEqualTo(saved);
+        assertThat(saved.availability()).extracting(OnboardingAvailabilitySlotResponse::dayOfWeek,
+                OnboardingAvailabilitySlotResponse::startTime, OnboardingAvailabilitySlotResponse::endTime)
+                .containsExactly(tuple("Sunday", "02:30", "04:00"));
     }
 
     @Test

@@ -18,8 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.DayOfWeek;
-import java.time.LocalDateTime;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -54,8 +54,9 @@ public class OnboardingAvailabilityService {
         var account = accounts.lockById(request.userId()).orElseThrow(() -> missingAccount());
         requireVolunteer(request.userId());
         ZoneId zone = storedZone(account.timeZone());
-        requireRepresentableTimes(slots, zone);
-        var saved = schedules.replace(request.userId(), zone, slots);
+        LocalDate anchorDate = LocalDate.now(clock.withZone(zone));
+        requireRepresentableTimes(slots, zone, anchorDate);
+        var saved = schedules.replace(request.userId(), zone, slots, anchorDate);
         state.saveState(request.userId(), request.isEmergencyAvailable(),
                 LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
         return response(account.userId(), request.isEmergencyAvailable(),
@@ -119,12 +120,11 @@ public class OnboardingAvailabilityService {
         return ZoneId.of(timezone);
     }
 
-    private void requireRepresentableTimes(List<LocalSlot> slots, ZoneId zone) {
-        LocalDate today = LocalDate.now(clock.withZone(zone));
+    private static void requireRepresentableTimes(List<LocalSlot> slots, ZoneId zone, LocalDate anchorDate) {
         for (LocalSlot slot : slots) {
             UtcSlot utc;
             try {
-                utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, today);
+                utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, anchorDate);
             } catch (IllegalArgumentException invalidTime) {
                 throw invalidOccurrence();
             }

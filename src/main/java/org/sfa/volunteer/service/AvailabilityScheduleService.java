@@ -98,23 +98,25 @@ public class AvailabilityScheduleService {
         Account account = accountRepository.lockById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
         accountRepository.updateTimezone(userId, zone.getId());
-        return toAvailabilityResponse(account.userId(), zone.getId(), replaceRows(userId, zone, localSlots));
+        LocalDate anchorDate = LocalDate.now(clock.withZone(zone));
+        return toAvailabilityResponse(account.userId(), zone.getId(), replaceRows(userId, zone, localSlots, anchorDate));
     }
 
     /** Replace canonical rows under the same account lock used by Profile writes. */
-    public List<VolunteerUserAvailability> replace(String userId, ZoneId zone, List<LocalSlot> localSlots) {
+    public List<VolunteerUserAvailability> replace(String userId, ZoneId zone, List<LocalSlot> localSlots,
+            LocalDate anchorDate) {
         accountRepository.lockById(userId).orElseThrow(() -> new UserNotFoundException(userId));
-        return replaceRows(userId, zone, localSlots);
+        return replaceRows(userId, zone, localSlots, anchorDate);
     }
 
-    private List<VolunteerUserAvailability> replaceRows(String userId, ZoneId zone, List<LocalSlot> localSlots) {
+    private List<VolunteerUserAvailability> replaceRows(String userId, ZoneId zone, List<LocalSlot> localSlots,
+            LocalDate anchorDate) {
         // The lazy reference supplies the FK without hydrating the drifted legacy User mapping.
         User user = entityManager.getReference(User.class, userId);
-        LocalDate today = LocalDate.now(clock.withZone(zone));
         LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
         List<VolunteerUserAvailability> rows = new ArrayList<>();
         for (LocalSlot slot : localSlots) {
-            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, today);
+            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, anchorDate);
             rows.add(VolunteerUserAvailability.builder()
                     .user(user)
                     .dayOfWeek(dayName(utc.day()))

@@ -5,6 +5,7 @@ import com.amazonaws.serverless.proxy.model.AwsProxyRequestContext;
 import jakarta.servlet.http.HttpServletRequest;
 import org.sfa.volunteer.exception.OnboardingAvailabilityException;
 import org.sfa.volunteer.repository.AvailabilityAccountRepository;
+import org.sfa.volunteer.repository.OnboardingAvailabilitySchema;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -12,9 +13,11 @@ public class OnboardingAvailabilityAuthorization {
     public record Caller(String subject, String email, boolean emailVerified) {}
 
     private final AvailabilityAccountRepository accounts;
+    private final OnboardingAvailabilitySchema schema;
 
-    public OnboardingAvailabilityAuthorization(AvailabilityAccountRepository accounts) {
+    public OnboardingAvailabilityAuthorization(AvailabilityAccountRepository accounts, OnboardingAvailabilitySchema schema) {
         this.accounts = accounts;
+        this.schema = schema;
     }
 
     public void requireOwner(String userId, HttpServletRequest request) {
@@ -37,6 +40,7 @@ public class OnboardingAvailabilityAuthorization {
             throw forbidden();
         }
         OnboardingAvailabilityPolicy.requireUserId(userId);
+        schema.requireReady();
         var account = accounts.findById(userId).orElseThrow(() ->
                 new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found"));
         if (account.email() == null || !account.email().strip().equalsIgnoreCase(caller.email().strip())) {

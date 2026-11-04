@@ -237,6 +237,15 @@ class OnboardingAvailabilityHandlerPostgresTest {
     }
 
     @Test
+    void missingWizardStageColumnReturnsUnavailableWithoutSaving() throws Exception {
+        jdbc.execute("ALTER TABLE users DROP COLUMN promotion_wizard_stage");
+        assertFailure(handler.handleRequest(event("PUT", SAVE, Map.of()), null), 403, "FORBIDDEN");
+        assertFailure(handler.handleRequest(event("PUT", SAVE, verifiedClaims(OWNER)), null),
+                503, "FEATURE_UNAVAILABLE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isZero();
+    }
+
+    @Test
     void storageFailureReturnsSanitized500AndRollsBackReplacement() throws Exception {
         var saved = handler.handleRequest(event("PUT", SAVE, verifiedClaims(OWNER)), null);
         assertThat(saved.getStatusCode()).isEqualTo(200);

@@ -43,3 +43,18 @@ Initial reviews: not ready for task decomposition until the listed design decisi
 Review outcome: ready for task decomposition, not authorization to code, deploy or push. F1–F3 remain explicit deferrals and all external rollout gates remain in force. Their status is not upgraded by creating tasks.md.
 
 No application coding, DB migration execution, commits, pushes, or PR changes were performed in this documentation pass.
+
+## T7 implementation reviews
+
+Independent API and PostgreSQL reviewers examined the implementation against the synced `test` baseline. This pass included the local changes that were in `f13e07e` and `0cdc37b` when T7 resumed.
+
+| Finding | Disposition |
+|---|---|
+| Required account columns could be queried before the schema readiness check, returning 500 instead of 503. | Fixed. The shared guard checks trusted identity and target input, then readiness before the account query. Transactional readiness checks remain in place. The Spring proxy RED returned 500. The GREEN and 103-test focused run passed, including the direct Lambda case. |
+| A save that crosses local midnight could validate and persist against different dates, turning a valid time into a DST gap. | Fixed. One account-local date is captured under the account lock and reused for validation and persistence. The PostgreSQL RED reproduced the exception. The regression verifies that the same local interval saves and reloads. |
+| Legacy volunteer and steward responses now include schedules saved in Profile. Existing application handlers do not establish an approved audience for every affected route. | Deployment gate. Confirm and enforce the intended audience for the affected legacy readers and volunteer mutation responses before rollout. Route authorization design and deployment are deferred and disclosed in the handoff. |
+| Historical stage-4 records with valid Profile schedules can satisfy the completion gate once the migration supplies the default preference. | Product and data decision deferred and disclosed in the handoff. The schema has no onboarding provenance marker. Inventory affected records and decide whether they require re-entry before rollout. |
+| An older JSON-only Step 4 writer can report success while relational-first readers ignore its write. | Deployment gate. Switch or disable all old Step 4 writers before enabling relational saves, with the same coordination for rollback. |
+| Expanded `Everyday` reads can exceed the provisional 20-entry save cap even when the original input was accepted. | Product and frontend decision deferred and disclosed in the handoff. Confirm the cap and regroup compatible intervals before resubmission. Some edits near the cap can still exceed it. |
+
+Both reviewers rechecked the fixes and reported no remaining in-scope code findings. [Release gates](design.md#external-integration-and-release-gates)
