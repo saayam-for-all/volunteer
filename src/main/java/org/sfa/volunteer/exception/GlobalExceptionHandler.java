@@ -206,4 +206,31 @@ public class GlobalExceptionHandler {
 
         }
 
+        @ExceptionHandler(SkillsException.class)
+        @ResponseBody
+        public <T> SaayamResponse<T> handleSkillsException(SkillsException exception, WebRequest request) {
+
+                String errorMessage;
+                SaayamStatusCode status;
+
+                if (exception.getMessage().contains(SaayamStatusCode.INVALID_SKILL_CATEGORY.toString())) {
+                        errorMessage = messageSourceUtil.getMessage(
+                                        SaayamStatusCode.INVALID_SKILL_CATEGORY.getCode(),
+                                        new Object[] { exception.getUserId() });
+                        log.error("SkillsInvalidCategoryException: {}", errorMessage);
+                        status = SaayamStatusCode.INVALID_SKILL_CATEGORY;
+                } else {
+                        errorMessage = messageSourceUtil.getMessage(
+                                        SaayamStatusCode.BAD_REQUEST.getCode(),
+                                        new Object[] { exception.getUserId() });
+                        log.error("SkillsBadRequestException: {}", errorMessage);
+                        status = SaayamStatusCode.BAD_REQUEST;
+                }
+
+                return responseBuilder.buildErrorResponse(
+                                HttpStatus.BAD_REQUEST.value(),
+                                status,
+                                errorMessage);
+        }
+
 }
