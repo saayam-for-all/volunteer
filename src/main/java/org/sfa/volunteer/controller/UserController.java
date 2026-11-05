@@ -8,6 +8,7 @@ import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.FindUserProfileUsingEmail;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
+import org.sfa.volunteer.dto.request.UpdateProfilePageRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.SignOffRequest;
 import org.sfa.volunteer.dto.response.AddressStatusResponse;
@@ -15,6 +16,7 @@ import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.OrganizationResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.SignOffResponse;
+import org.sfa.volunteer.dto.response.ProfilePageResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.dto.response.WizardStatusResponse;
 import org.sfa.volunteer.dto.response.*;
@@ -227,6 +229,21 @@ public class UserController {
                 new Object[]{userId},
                 response
         );
+    }
+
+
+    @GetMapping("/profilePage/{userId}")
+    public SaayamResponse<ProfilePageResponse> getProfilePage(@PathVariable String userId) {
+        ProfilePageResponse response = userService.getProfilePage(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+    @PutMapping("/profilePage/{userId}")
+    public SaayamResponse<ProfilePageResponse> updateProfilePage(
+            @PathVariable String userId,
+            @RequestBody UpdateProfilePageRequest request) {
+        ProfilePageResponse response = userService.updateProfilePage(userId, request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
 
 }

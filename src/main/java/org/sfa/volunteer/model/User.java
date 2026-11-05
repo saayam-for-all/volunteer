@@ -72,7 +72,7 @@ public class User {
     @Column(name = "gender")
     private String gender;
 
-    @Column(name = "last_location")
+    @Transient
     private String lastLocation;
 
     @Column(name = "language_1")
@@ -87,10 +87,10 @@ public class User {
     @Column(name = "promotion_wizard_stage")
     private Integer volunteerStage;
 
-    @Column(name = "promotion_wizard_last_update_date")
+    @Column(name = "promotion_wizard_last_updated_at")
     private ZonedDateTime volunteerUpdateDate;
 
-    @Column(name = "last_update_date")
+    @Column(name = "last_updated_at")
     private ZonedDateTime lastUpdateDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -108,10 +108,10 @@ public class User {
     @JsonBackReference
     private UserStatus userStatus;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_category_id", nullable = false)
-    @JsonBackReference
-    private UserCategory userCategory;
+    // @ManyToOne(fetch = FetchType.LAZY)
+    // @JoinColumn(name = "user_category_id", nullable = false)
+    // @JsonBackReference
+    // private UserCategory userCategory;
 
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private UserAdditionalDetail additionalDetail;
@@ -141,7 +141,6 @@ public class User {
                 ", state=" + state +
                 ", country=" + country +
                 ", userStatus=" + userStatus +
-                ", userCategory=" + userCategory +
                 ", volunteerStage=" + volunteerStage +
                 ", volunteerUpdateDate=" + volunteerUpdateDate +
                 '}';

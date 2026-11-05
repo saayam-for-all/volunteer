@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.sfa.volunteer.dto.request.UpdateProfilePageRequest;
+import org.sfa.volunteer.dto.response.ProfilePageResponse;
 
 @Service
 @Transactional
@@ -86,8 +88,9 @@ import java.util.stream.Collectors;
         UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_STATUS_ID));
 
-        UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
-                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
+        // TEMP LOCAL ONLY - commented out until dev DB has user_category_id column
+        // UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
+        //         .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
         Country country = countryRepository.findByCountryName(request.country())
                 .orElseThrow(() -> new CountryNotFoundException(request.country()));
@@ -110,7 +113,7 @@ import java.util.stream.Collectors;
                 .primaryPhoneNumber(request.phoneNumber())
                 .timeZone(timeZone)
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
-                .userCategory(userCategory)
+                // .userCategory(userCategory) // TEMP LOCAL ONLY
                 .userStatus(userStatus)
                 .country(country)
                 .build();
@@ -259,7 +262,7 @@ import java.util.stream.Collectors;
                 .stateName(user.getState() != null ? user.getState().getStateName() : null)
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus() : null)
-                .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
+                // .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null) // TEMP LOCAL ONLY
                 .gender(user.getGender())
                 .lastLocation(user.getLastLocation())
                 .language1(user.getLanguage1())
@@ -364,6 +367,34 @@ import java.util.stream.Collectors;
 
         User user = userOpt.orElseThrow(() -> new UserNotFoundException(email));
         return user.getId();
+    }
+
+
+    @Override
+    public ProfilePageResponse getProfilePage(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        return ProfilePageResponse.builder()
+                .userId(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .emailAddress(user.getPrimaryEmailAddress())
+                .phoneNumber(user.getPrimaryPhoneNumber())
+                .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
+                .build();
+    }
+
+    @Transactional
+    @Override
+    public ProfilePageResponse updateProfilePage(String userId, UpdateProfilePageRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        if (request.firstName() != null) user.setFirstName(request.firstName());
+        if (request.lastName() != null) user.setLastName(request.lastName());
+        if (request.phoneNumber() != null) user.setPrimaryPhoneNumber(request.phoneNumber());
+        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
+        userRepository.save(user);
+        return getProfilePage(userId);
     }
 
     @Transactional
