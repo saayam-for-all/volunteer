@@ -12,6 +12,7 @@ import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
 import org.sfa.volunteer.util.JwtClaims;
 import org.sfa.volunteer.util.ResponseBuilder;
+import org.sfa.volunteer.util.IdentityDocumentAuthorizer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -86,23 +87,14 @@ public class IdentityDocumentController {
                         SaayamStatusCode.SUCCESS, Map.of("url", url.get())));
     }
 
-    private void authorizeUser(JwtClaims claims, String targetUserId) {
-        if (isAdmin(claims.groups())) return;
-
-        if (!userService.isEmailOwnedByUser(targetUserId, claims.email())) {
-            throw new ForbiddenException("Not allowed");
-        }
-    }
-
     private void authorize(String authorization, String targetUserId) {
-        authorizeUser(JwtClaims.parse(authorization), targetUserId);
-    }
-    
-    private boolean isAdmin(String groups) {
-        if (groups == null || groups.isBlank()) return false;
-        for (String g : groups.split(",")) {
-            if (g.trim().equalsIgnoreCase("admin")) return true;
-        }
-        return false;
+        JwtClaims claims = JwtClaims.parse(authorization);
+
+        IdentityDocumentAuthorizer.requireOwnerOrAdmin(
+                userService,
+                targetUserId,
+                claims.email(),
+                claims.groups()
+        );
     }
 }
