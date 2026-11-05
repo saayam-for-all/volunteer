@@ -72,7 +72,8 @@ class NotificationControllerTest {
                                 mockResponse))
                                 .thenReturn(mockSaayamResponse);
 
-                SaayamResponse<GetNotificationsResponse> result = notificationController.getNotificationCounts(userId);
+                SaayamResponse<GetNotificationsResponse> result = notificationController.getNotificationCounts(
+                                GetNotificationsRequest.builder().userId(userId).build());
 
                 assertNotNull(result);
                 assertTrue(result.success());
@@ -122,9 +123,9 @@ class NotificationControllerTest {
                                 mockResponse))
                                 .thenReturn(mockSaayamResponse);
 
-                SaayamResponse<GetNotificationsResponse> result = notificationController.getNotifications(userId,
-                                rowStart,
-                                rowEnd);
+                SaayamResponse<GetNotificationsResponse> result = notificationController.getNotifications(
+                                GetNotificationsRequest.builder().userId(userId)
+                                                .rowStart(rowStart).rowEnd(rowEnd).build());
 
                 assertNotNull(result);
                 assertTrue(result.success());
