@@ -88,8 +88,9 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
         UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_STATUS_ID));
 
-        UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
-                .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
+        // TEMP LOCAL ONLY - commented out until dev DB has user_category_id column
+        // UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
+        //         .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
 
         Country country = countryRepository.findByCountryName(request.country())
                 .orElseThrow(() -> new CountryNotFoundException(request.country()));
@@ -112,7 +113,7 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
                 .primaryPhoneNumber(request.phoneNumber())
                 .timeZone(timeZone)
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
-                .userCategory(userCategory)
+                // .userCategory(userCategory) // TEMP LOCAL ONLY
                 .userStatus(userStatus)
                 .country(country)
                 .build();
@@ -261,7 +262,7 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
                 .stateName(user.getState() != null ? user.getState().getStateName() : null)
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus() : null)
-                .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null)
+                // .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null) // TEMP LOCAL ONLY
                 .gender(user.getGender())
                 .lastLocation(user.getLastLocation())
                 .language1(user.getLanguage1())

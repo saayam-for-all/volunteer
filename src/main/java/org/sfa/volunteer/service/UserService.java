@@ -3,6 +3,7 @@ package org.sfa.volunteer.service;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.UpdateProfilePageRequest;
 
 import org.sfa.volunteer.dto.response.*;
 
@@ -37,4 +38,8 @@ public interface UserService {
     java.util.Optional<String> getProfilePicturePath(String userId);
     boolean userExists(String userId);
     String getUserIdByEmailForAuth(String email);
+
+    // Profile Page
+    ProfilePageResponse getProfilePage(String userId);
+    ProfilePageResponse updateProfilePage(String userId, UpdateProfilePageRequest request);
 }
