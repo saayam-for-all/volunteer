@@ -1,18 +1,17 @@
 package org.sfa.volunteer.repository;
 
-import org.sfa.volunteer.model.User;
-import org.sfa.volunteer.model.Volunteer;
 import org.sfa.volunteer.model.VolunteerUserAvailability;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
-public interface VolunteerUserAvailabilityRepository extends JpaRepository<VolunteerUserAvailability, Long> {
-    @Query("SELECT u FROM VolunteerUserAvailability u WHERE u.user =:userId")
-    List<VolunteerUserAvailability> findUserAvailability(@Param("userId") String userId);
+public interface VolunteerUserAvailabilityRepository extends JpaRepository<VolunteerUserAvailability, Integer> {
 
+    List<VolunteerUserAvailability> findByUser_IdOrderByIdAsc(String userId);
+
+    @Modifying
+    void deleteByUser_Id(String userId);
 }

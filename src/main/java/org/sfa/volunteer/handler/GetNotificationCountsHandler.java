@@ -19,7 +19,10 @@ import org.springframework.context.ApplicationContext;
 import org.sfa.volunteer.dto.request.GetNotificationsRequest;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.response.GetNotificationsResponse;
+import org.sfa.volunteer.exception.UserNotFoundException;
+import org.sfa.volunteer.exception.NotificationException;
 
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -35,20 +38,36 @@ public class GetNotificationCountsHandler
             .registerModule(new JavaTimeModule())
             .enable(SerializationFeature.INDENT_OUTPUT);
 
+    
+        // --- CORS headers ---
+    private static final Map<String, String> CORS_HEADERS = new HashMap<>();
     static {
         // FIXED: load your real Spring Boot application, not NotificationService.class
         ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
         notificationService = context.getBean(NotificationService.class);
         responseBuilder = context.getBean(ResponseBuilder.class);
         messageSourceUtil = context.getBean(MessageSourceUtil.class);
+
+        CORS_HEADERS.put("Access-Control-Allow-Origin", "*");
+        CORS_HEADERS.put("Access-Control-Allow-Methods", "POST,OPTIONS");
+        CORS_HEADERS.put("Access-Control-Allow-Headers", "Content-Type,Authorization");
     }
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
+        APIGatewayProxyResponseEvent eResponse = new APIGatewayProxyResponseEvent().withHeaders(CORS_HEADERS);
 
-        APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
+        // Preflight request
+        if ("OPTIONS".equalsIgnoreCase(event.getHttpMethod())) {
+        return eResponse.withStatusCode(204);
+        }
 
         try {
+
+            String lang = Optional.ofNullable(event.getHeaders())
+                    .map(h -> h.getOrDefault("Accept-Language", "en"))
+                    .orElse("en");
+            Locale locale = Locale.forLanguageTag(lang);
             // FIXED: direct deserialization instead of Map parsing
             GetNotificationsRequest request = objectMapper.readValue(event.getBody(), GetNotificationsRequest.class);
 
@@ -59,30 +78,63 @@ public class GetNotificationCountsHandler
                     new Object[] { request.userId() },
                     result);
 
-            response.setStatusCode(200); // FIXED: 200 instead of 201
-            response.setBody(objectMapper.writeValueAsString(success));
+            String responseBody = objectMapper.writeValueAsString(success);
+            return eResponse.withStatusCode(200).withBody(responseBody);
+
+        } catch (NotificationException ex) {
+
+            if ("USER_NOT_FOUND".equals(ex.getMessage())) {
+            String msg = messageSourceUtil.getMessage(
+                    SaayamStatusCode.USER_NOT_FOUND.getCode(),
+                    new Object[] { ex.getUserId() });
+
+            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
+                    404,
+                    SaayamStatusCode.USER_NOT_FOUND,
+                    msg);
+
+            String responseBody;
+            try {
+                responseBody = objectMapper.writeValueAsString(errorResponse);
+            } catch (Exception jsonException) {
+                responseBody = "{\"message\":\"USER_NOT_FOUND\"}";
+            }
+            return eResponse.withStatusCode(404).withBody(responseBody);
+        } 
+            return buildInternalServerErrorResponse(eResponse);
 
         } catch (Exception e) {
 
-            SaayamStatusCode code = SaayamStatusCode.INTERNAL_SERVER_ERROR;
-            String msg = messageSourceUtil.getMessage(code.getCode(), null);
+            return buildInternalServerErrorResponse(eResponse);
+        }
+    }
 
-            SaayamResponse<Void> error = responseBuilder.buildErrorResponse(
+    private APIGatewayProxyResponseEvent buildInternalServerErrorResponse(
+        APIGatewayProxyResponseEvent response) {
+
+                SaayamStatusCode code = SaayamStatusCode.INTERNAL_SERVER_ERROR;
+
+            String msg = messageSourceUtil.getMessage(
+                        code.getCode(),
+                        null);
+
+            SaayamResponse<Void> errorResponse =
+                responseBuilder.buildErrorResponse(
                     500,
                     code,
                     msg);
 
+            String responseBody;
             try {
-                response.setBody(objectMapper.writeValueAsString(error));
-            } catch (Exception ignored) {
-                response.setBody("{\"message\":\"Failed to serialize error response\"}");
+                responseBody = objectMapper.writeValueAsString(errorResponse);
+            } catch (Exception ex) {
+                responseBody = "{\"message\":\"INTERNAL_SERVER_ERROR\"}";
             }
 
-            response.setStatusCode(500);
+            return response
+                    .withStatusCode(500)
+                    .withBody(responseBody);
         }
-
-        return response;
-    }
 
     private GetNotificationsRequest parseRequest(Map<String, Object> body) {
         return objectMapper.convertValue(body, GetNotificationsRequest.class);

@@ -9,6 +9,7 @@ import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -161,6 +162,26 @@ public class GlobalExceptionHandler {
                                 errorMessage);
         }
 
+        @ExceptionHandler(ForbiddenException.class)
+        @ResponseStatus(HttpStatus.FORBIDDEN)
+        @ResponseBody
+        public <T> SaayamResponse<T> handleForbiddenException(ForbiddenException exception, WebRequest request) {
+            String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.FORBIDDEN.getCode(), null);
+            log.error("ForbiddenException: {}", exception.getReason());
+            return responseBuilder.buildErrorResponse(HttpStatus.FORBIDDEN.value(), SaayamStatusCode.FORBIDDEN, errorMessage);
+        }
+
+        @ExceptionHandler(IdentityDocumentException.class)
+        @ResponseBody
+        public <T> ResponseEntity<SaayamResponse<T>> handleIdentityDocumentException(
+                        IdentityDocumentException exception, WebRequest request) {
+            String errorMessage = messageSourceUtil.getMessage(exception.getStatusCode().getCode(), null);
+            log.error("IdentityDocumentException: {}", exception.getReason());
+            return ResponseEntity.status(exception.getHttpStatus())
+                            .body(responseBuilder.buildErrorResponse(
+                                exception.getHttpStatus().value(), exception.getStatusCode(), errorMessage));
+        }
+
 	@ExceptionHandler(MethodArgumentNotValidException.class)
         @ResponseBody
         public <T> SaayamResponse<T> handleValidationException(MethodArgumentNotValidException exception, WebRequest request) {
@@ -173,7 +194,7 @@ public class GlobalExceptionHandler {
 
         @ExceptionHandler(NotificationException.class)
         @ResponseBody
-        public <T> SaayamResponse<T> handleNotificationException(NotificationException exception, WebRequest request) {
+        public <T> ResponseEntity<SaayamResponse<T>> handleNotificationException(NotificationException exception, WebRequest request) {
 
                 String errorMessage;
                 SaayamStatusCode status;
@@ -211,18 +232,49 @@ public class GlobalExceptionHandler {
                         log.error("NotificationBadRequestException: {}", errorMessage);
                         status = SaayamStatusCode.BAD_REQUEST;
                 }
-                // 4. Unknown Notification error
+                // 5. Notification not found
+                else if (exception.getMessage().contains(SaayamStatusCode.NOTIFICATION_NOT_FOUND.toString())) {
+                        errorMessage = messageSourceUtil.getMessage(
+                                        SaayamStatusCode.NOTIFICATION_NOT_FOUND.getCode(),
+                                        new Object[] { exception.getUserId() });
+                        log.error("NotificationNotFoundException: {}", errorMessage);
+                        status = SaayamStatusCode.NOTIFICATION_NOT_FOUND;
+                }
+                // 6. Notification already actioned
+                else if (exception.getMessage().contains(SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.toString())) {
+                        errorMessage = messageSourceUtil.getMessage(
+                                        SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED.getCode(),
+                                        new Object[] { exception.getUserId() });
+                        log.error("NotificationAlreadyActionedException: {}", errorMessage);
+                        status = SaayamStatusCode.NOTIFICATION_ALREADY_ACTIONED;
+                }
+                // 7. Unknown Notification error
                 else {
                         errorMessage = "Notification error";
                         log.error("NotificationException: {}", errorMessage);
                         status = SaayamStatusCode.UNEXPECTED_ERROR;
                 }
 
-                return responseBuilder.buildErrorResponse(
-                                HttpStatus.BAD_REQUEST.value(), // All domain errors → 400
-                                status,
-                                errorMessage);
+                HttpStatus httpStatus = switch (status) {
+                        case USER_NOT_FOUND, NOTIFICATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+                        case NOTIFICATION_ALREADY_ACTIONED -> HttpStatus.CONFLICT;
+                        case DATABASE_ERROR, UNEXPECTED_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
+                        default -> HttpStatus.BAD_REQUEST;
+                };
+                return ResponseEntity.status(httpStatus).body(responseBuilder.buildErrorResponse(
+                                httpStatus.value(), status, errorMessage));
 
+        }
+
+        @ExceptionHandler(NotificationAcceptException.class)
+        @ResponseBody
+        public ResponseEntity<SaayamResponse<Object>> handleNotificationAcceptException(
+                        NotificationAcceptException exception) {
+                String message = messageSourceUtil.getMessage(exception.getStatusCode().getCode(),
+                                new Object[] { exception.getDetail() });
+                return ResponseEntity.status(exception.getHttpStatus())
+                                .body(responseBuilder.buildErrorResponse(exception.getHttpStatus().value(),
+                                                exception.getStatusCode(), message));
         }
 
 }

@@ -43,6 +43,11 @@ public interface UserRepository extends JpaRepository<User, String> {
     int updateProfilePicturePath(@Param("userId") String userId, @Param("s3Uri") String s3Uri,
             @Param("now") ZonedDateTime now);
 
+    // Availability must not save unrelated User columns whose mappings may have schema drift.
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update User u set u.timeZone = :timezone where u.id = :userId")
+    int updateAvailabilityTimezone(@Param("userId") String userId, @Param("timezone") String timezone);
+
     @Query("""
             select u from User u
             where
