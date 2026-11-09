@@ -18,6 +18,9 @@ spring:
     url: jdbc:postgresql://localhost:5432/postgres
     username: postgres
     password: welcome1
+    hikari:
+      maximum-pool-size: 1
+      minimum-idle: 1
   jpa:
     hibernate:
       ddl-auto: none
@@ -27,4 +30,6 @@ spring:
 # (AWS keys, DB password) to CloudWatch on every cold start.
 logging:
   level:
-    com.amazonaws.serverless.proxy.spring: WARN
+    root: INFO
+    com.amazonaws: ERROR
+    com.amazonaws.serverless.proxy.spring: ERROR
