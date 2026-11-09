@@ -8,12 +8,17 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.DynamicUpdate;
 import java.time.LocalDate;
 
 import java.time.ZonedDateTime;
 import java.util.Objects;
 
 @Entity
+// WORKAROUND, not a fix: write only the changed columns on UPDATE. Without this Hibernate writes every
+// mapped column, and users.language_1/2/3 (bigint in the DB, String here) and last_location (point in
+// the old DDL, String here) make PostgreSQL reject the UPDATE. See runbook / the type-mismatch issue.
+@DynamicUpdate
 @Data
 @Builder
 @AllArgsConstructor
