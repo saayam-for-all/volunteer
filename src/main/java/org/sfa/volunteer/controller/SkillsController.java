@@ -6,13 +6,10 @@ import org.sfa.volunteer.dto.request.SaveUserSkillsRequest;
 import org.sfa.volunteer.dto.response.SaveUserSkillsResponse;
 import org.sfa.volunteer.service.SkillsService;
 import org.sfa.volunteer.util.ResponseBuilder;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/0.0.1/users")
@@ -26,15 +23,9 @@ public class SkillsController {
         this.responseBuilder = responseBuilder;
     }
 
-    @PutMapping("/{userId}/skills")
+    @PutMapping("/skills")
     public SaayamResponse<SaveUserSkillsResponse> saveUserSkills(
-            @PathVariable String userId,
-            @RequestBody List<String> catIds) {
-
-        SaveUserSkillsRequest request = SaveUserSkillsRequest.builder()
-                .userId(userId)
-                .catIds(catIds)
-                .build();
+            @RequestBody SaveUserSkillsRequest request) {
 
         SaveUserSkillsResponse response = skillsService.saveUserSkills(request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_SKILLS_SAVED, response);
