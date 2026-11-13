@@ -9,10 +9,21 @@ spring:
     url: jdbc:postgresql://localhost:5432/postgres
     username: postgres
     password: welcome1
+    hikari:
+      maximum-pool-size: 1
+      minimum-idle: 1
   jpa:
     hibernate:
       ddl-auto: none
     open-in-view: false
+
+# Issue #222: stop aws-serverless-java-container dumping the whole process environment
+# (AWS keys, DB password) to CloudWatch on every cold start.
+logging:
+  level:
+    root: INFO
+    com.amazonaws: ERROR
+    com.amazonaws.serverless.proxy.spring: ERROR
 
 saayam:
   s3:

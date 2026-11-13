@@ -1,6 +1,7 @@
 package org.sfa.volunteer.service;
 
 import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
 import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
@@ -32,7 +33,6 @@ public interface UserService {
     SignOffResponse signOffUser(String userId, String reason);
 
     UserIdResponse getUserIdByEmail(String email);
-
     // Profile Pic Upload
     // AWS (S3 URI <-> DB)
     void setProfilePicturePath(String userId, String s3Uri);
@@ -40,6 +40,10 @@ public interface UserService {
     java.util.Optional<String> getProfilePicturePath(String userId);
 
     boolean userExists(String userId);
+
+    PersonalInfoResponse getPersonalInfoById(String userId);
+
+    PersonalInfoResponse updatePersonalInfo(UpdatePersonalInfoRequest updateRequest);
 
     boolean isEmailOwnedByUser(String userId, String email);
 

@@ -5,11 +5,11 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 
 @Builder
-public record CreateUserRequest(
+public record   CreateUserRequest(
         @NotBlank String name,
         @NotBlank @Email String email,
-        @NotBlank String phoneNumber,
+        String phoneNumber,
         String timeZone,
-        @NotBlank String country,
+        String country,
         String locale) {
 }
