@@ -11,6 +11,7 @@ import org.sfa.volunteer.exception.NotificationException;
 import org.sfa.volunteer.repository.UserNotificationPreferenceRepository;
 import org.sfa.volunteer.repository.projection.NotificationPreferenceRow;
 import org.sfa.volunteer.service.impl.NotificationPreferenceServiceImpl;
+import org.sfa.volunteer.service.UserService;
 
 import java.util.List;
 
@@ -21,13 +22,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
- * Behaviour of the notification-preferences API, which backs the settings control
+ * Behaviour of the notification-preferences API, which backs the settings
+ * control
  * on the notification centre.
  */
 class NotificationPreferenceServiceImplTest {
@@ -36,14 +35,19 @@ class NotificationPreferenceServiceImplTest {
 
     private UserNotificationPreferenceRepository repository;
     private NotificationPreferenceServiceImpl service;
+    private UserService userService;
 
     @BeforeEach
     void setUp() {
         repository = mock(UserNotificationPreferenceRepository.class);
-        service = new NotificationPreferenceServiceImpl(repository);
+        userService = mock(UserService.class);
+        service = new NotificationPreferenceServiceImpl(repository,
+                userService);
     }
 
-    /** Plain stub rather than a Mockito mock, so rows can be built inline in when(). */
+    /**
+     * Plain stub rather than a Mockito mock, so rows can be built inline in when().
+     */
     private record Row(Integer channelId, String channelName, String description, String preference)
             implements NotificationPreferenceRow {
         @Override
@@ -80,10 +84,15 @@ class NotificationPreferenceServiceImplTest {
     /** Every channel is returned, including ones the user has never configured. */
     @Test
     void getReturnsEveryChannelIncludingUnsetOnes() {
+
+        when(userService.userExists(USER)).thenReturn(true);
         when(repository.findPreferencesForUser(USER)).thenReturn(allChannels(null));
 
-        GetNotificationPreferencesResponse response =
-                service.getPreferences(new GetNotificationPreferencesRequest(USER));
+        GetNotificationPreferencesResponse response = service
+                .getPreferences(new GetNotificationPreferencesRequest(USER));
+
+        // Verify user validation
+        verify(userService, times(1)).userExists(anyString());
 
         assertEquals(USER, response.userId());
         assertEquals(4, response.preferences().size());
@@ -104,6 +113,7 @@ class NotificationPreferenceServiceImplTest {
     /** No row yet: the update finds nothing to change, so a row is inserted. */
     @Test
     void updateInsertsWhenNoRowExists() {
+        when(userService.userExists(USER)).thenReturn(true);
         when(repository.channelExists(1)).thenReturn(1);
         when(repository.updatePreference(USER, 1, "both")).thenReturn(0);
         when(repository.findPreferencesForUser(USER)).thenReturn(allChannels("both"));
@@ -112,6 +122,8 @@ class NotificationPreferenceServiceImplTest {
                 new UpdateNotificationPreferencesRequest(USER,
                         List.of(new NotificationPreferenceUpdate(1, "both"))));
 
+        // Verify user validation
+        verify(userService, times(1)).userExists(anyString());
         verify(repository).insertPreference(USER, 1, "both");
         assertEquals(1, response.created());
         assertEquals(0, response.updated());
@@ -120,6 +132,7 @@ class NotificationPreferenceServiceImplTest {
     /** Row already there: update it, do not insert a duplicate. */
     @Test
     void updateUpdatesWhenARowAlreadyExists() {
+        when(userService.userExists(USER)).thenReturn(true);
         when(repository.channelExists(1)).thenReturn(1);
         when(repository.updatePreference(USER, 1, "email")).thenReturn(1);
         when(repository.findPreferencesForUser(USER)).thenReturn(allChannels("email"));
@@ -127,7 +140,8 @@ class NotificationPreferenceServiceImplTest {
         UpdateNotificationPreferencesResponse response = service.updatePreferences(
                 new UpdateNotificationPreferencesRequest(USER,
                         List.of(new NotificationPreferenceUpdate(1, "email"))));
-
+        // Verify user validation
+        verify(userService, times(1)).userExists(anyString());
         verify(repository, never()).insertPreference(anyString(), anyInt(), anyString());
         assertEquals(0, response.created());
         assertEquals(1, response.updated());
@@ -136,6 +150,7 @@ class NotificationPreferenceServiceImplTest {
     /** A null preference clears the channel rather than being rejected. */
     @Test
     void aNullPreferenceClearsTheChannel() {
+        when(userService.userExists(USER)).thenReturn(true);
         when(repository.channelExists(1)).thenReturn(1);
         when(repository.updatePreference(USER, 1, null)).thenReturn(1);
         when(repository.findPreferencesForUser(USER)).thenReturn(allChannels(null));
@@ -143,11 +158,15 @@ class NotificationPreferenceServiceImplTest {
         service.updatePreferences(new UpdateNotificationPreferencesRequest(USER,
                 List.of(new NotificationPreferenceUpdate(1, null))));
 
+        // Verify user validation
+        verify(userService, times(1)).userExists(anyString());
         verify(repository).updatePreference(USER, 1, null);
     }
 
     @Test
     void preferenceValueIsCaseInsensitiveAndNormalisedToLowerCase() {
+
+        when(userService.userExists(USER)).thenReturn(true);
         when(repository.channelExists(1)).thenReturn(1);
         when(repository.updatePreference(eq(USER), eq(1), anyString())).thenReturn(1);
         when(repository.findPreferencesForUser(USER)).thenReturn(allChannels("both"));
@@ -157,6 +176,8 @@ class NotificationPreferenceServiceImplTest {
 
         // The database enum spells these lower case; anything else fails the cast.
         verify(repository).updatePreference(USER, 1, "both");
+        // Verify user validation
+        verify(userService, times(1)).userExists(anyString());
     }
 
     /**
@@ -209,6 +230,8 @@ class NotificationPreferenceServiceImplTest {
     /** Several channels in one call are applied independently. */
     @Test
     void severalChannelsAreAppliedInOneCall() {
+
+        when(userService.userExists(USER)).thenReturn(true);
         when(repository.channelExists(anyInt())).thenReturn(1);
         when(repository.updatePreference(USER, 1, "both")).thenReturn(1);
         when(repository.updatePreference(USER, 3, "email")).thenReturn(0);
@@ -219,6 +242,8 @@ class NotificationPreferenceServiceImplTest {
                         new NotificationPreferenceUpdate(1, "both"),
                         new NotificationPreferenceUpdate(3, "email"))));
 
+        // Verify user validation
+        verify(userService, times(1)).userExists(anyString());
         verify(repository).updatePreference(USER, 1, "both");
         verify(repository).insertPreference(USER, 3, "email");
         assertEquals(1, response.created());
@@ -228,7 +253,7 @@ class NotificationPreferenceServiceImplTest {
     @Test
     void updateRejectsABlankUserId() {
         assertThrows(NotificationException.class, () -> service.updatePreferences(
-                new UpdateNotificationPreferencesRequest("", 
+                new UpdateNotificationPreferencesRequest("",
                         List.of(new NotificationPreferenceUpdate(1, "email")))));
     }
 }

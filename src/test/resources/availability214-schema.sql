@@ -8,7 +8,8 @@ CREATE TABLE users (
     zip_code VARCHAR(20), gender VARCHAR(50), last_location VARCHAR(255),
     language_1 BIGINT, language_2 BIGINT, language_3 BIGINT, promotion_wizard_stage INTEGER,
     promotion_wizard_last_updated_at TIMESTAMP, last_updated_at TIMESTAMP,
-    state_id VARCHAR(64), country_id INTEGER, user_status_id BIGINT
+    state_id VARCHAR(64), country_id INTEGER, user_status_id BIGINT,
+    dob DATE, external_auth_provider VARCHAR(255)
 );
 CREATE TABLE user_additional_details (
     additional_detail_id BIGINT PRIMARY KEY, user_id VARCHAR(255), secondary_email_1 VARCHAR(255),

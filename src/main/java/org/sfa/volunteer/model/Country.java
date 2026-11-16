@@ -19,7 +19,7 @@ import java.time.ZonedDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "country")
+@Table(name = "countries")
 public class Country {
 
 
@@ -39,7 +39,7 @@ public class Country {
     @Column(name = "is_eu_member")
     private Boolean isEuMember;
 
-    @Column(name = "last_update_date")
+    @Column(name = "last_updated_at")
     private LocalDateTime lastUpdateDate;
 
 

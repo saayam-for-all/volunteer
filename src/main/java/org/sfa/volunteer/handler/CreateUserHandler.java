@@ -89,7 +89,6 @@ public class CreateUserHandler implements RequestHandler<APIGatewayProxyRequestE
         try {
             return objectMapper.readValue(body, Map.class);
         } catch (Exception e) {
-            // todo: define a customized error
             throw new RuntimeException("Failed to parse request body", e);
         }
     }
