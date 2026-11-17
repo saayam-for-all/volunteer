@@ -18,6 +18,7 @@ import org.sfa.volunteer.repository.projection.NotificationPreferenceRow;
 import org.sfa.volunteer.service.NotificationPreferenceService;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.sfa.volunteer.service.UserService;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -25,15 +26,19 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationPreferenceServiceImpl implements NotificationPreferenceService {
 
     private final UserNotificationPreferenceRepository preferenceRepository;
+    private final UserService userService;
 
-    public NotificationPreferenceServiceImpl(UserNotificationPreferenceRepository preferenceRepository) {
+    public NotificationPreferenceServiceImpl(UserNotificationPreferenceRepository preferenceRepository,
+            UserService userService) {
         this.preferenceRepository = preferenceRepository;
+        this.userService = userService;
     }
 
     @Override
     @Transactional(readOnly = true)
     public GetNotificationPreferencesResponse getPreferences(GetNotificationPreferencesRequest request) {
-        String userId = requireUserId(request.userId());
+        String userId = request.userId();
+        validateUser(userId);
 
         List<NotificationPreferenceRow> rows = handleException(userId,
                 () -> preferenceRepository.findPreferencesForUser(userId));
@@ -47,7 +52,8 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     @Override
     @Transactional
     public UpdateNotificationPreferencesResponse updatePreferences(UpdateNotificationPreferencesRequest request) {
-        String userId = requireUserId(request.userId());
+        String userId = request.userId();
+        validateUser(userId);
 
         List<NotificationPreferenceUpdate> updates = request.preferences();
         if (updates == null || updates.isEmpty()) {
@@ -99,7 +105,8 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
     }
 
     /**
-     * A null or blank preference clears the channel's setting; anything else must be
+     * A null or blank preference clears the channel's setting; anything else must
+     * be
      * one of the {@code preference_type} values.
      */
     private String normalisePreference(String preference, String userId) {
@@ -112,11 +119,19 @@ public class NotificationPreferenceServiceImpl implements NotificationPreference
                         SaayamStatusCode.INVALID_PARAMETER.toString(), userId));
     }
 
-    private String requireUserId(String userId) {
+    private void validateUser(String userId) {
         if (userId == null || userId.isBlank()) {
-            throw new NotificationException(SaayamStatusCode.USER_NOT_FOUND.toString(), userId);
+            throw new NotificationException(
+                    SaayamStatusCode.BAD_REQUEST.toString(),
+                    userId);
+
         }
-        return userId;
+
+        if (!userService.userExists(userId)) {
+            throw new NotificationException(
+                    SaayamStatusCode.USER_NOT_FOUND.toString(),
+                    userId);
+        }
     }
 
     private static NotificationPreferenceResponse toResponse(NotificationPreferenceRow row) {

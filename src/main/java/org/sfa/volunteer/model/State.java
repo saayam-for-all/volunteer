@@ -23,7 +23,7 @@ import java.util.Objects;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "state")
+@Table(name = "states")
 public class State {
 
     @Id
@@ -39,7 +39,7 @@ public class State {
     @Column(name = "state_name")
     private String stateName;
 
-    @Column(name = "last_update_date")
+    @Column(name = "last_updated_at")
     private ZonedDateTime lastUpdateDate;
 
 

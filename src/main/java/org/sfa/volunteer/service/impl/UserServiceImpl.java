@@ -4,10 +4,12 @@ import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
+import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.*;
 import org.sfa.volunteer.exception.CountryNotFoundException;
+import org.sfa.volunteer.exception.StateNotFoundException;
 import org.sfa.volunteer.exception.UserCategoryNotFoundException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.exception.WizardProgressMutationException;
@@ -36,12 +38,17 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.sfa.volunteer.dto.response.PersonalInfoResponse;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +80,10 @@ import java.util.stream.Collectors;
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
     private static final String DEFAULT_TIMEZONE = "UTC";
     private static final String DEFAULT_LOCALE = "en_US";
+    // STRICT + "uuuu" so impossible dates such as 02/30/1990 are rejected instead of being
+    // silently moved to the last day of the month (the default SMART style does that)
+    private static final DateTimeFormatter DOB_FORMAT =
+            DateTimeFormatter.ofPattern("MM/dd/uuuu").withResolverStyle(ResolverStyle.STRICT);
 
     @Autowired
     public UserServiceImpl(
@@ -107,35 +118,33 @@ import java.util.stream.Collectors;
         UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_STATUS_ID));
 
-        Country country = countryRepository.findByCountryName(request.country())
-                .orElseThrow(() -> new CountryNotFoundException(request.country()));
+        // Only fetch country if provided (Google sign-in won't have it)
+        Country country = null;
+        if (request.country() != null && !request.country().isBlank()) {
+            country = countryRepository.findByCountryName(request.country())
+                    .orElseThrow(() -> new CountryNotFoundException(request.country()));
+        }
 
+        String timeZone = (request.timeZone() != null && !request.timeZone().isBlank())
+                ? request.timeZone()
+                : DEFAULT_TIMEZONE;
 
-        String timeZone =
-                (request.timeZone() != null && !request.timeZone().isBlank())
-                        ? request.timeZone()
-                        : DEFAULT_TIMEZONE;
+        String locale = (request.locale() != null && !request.locale().isBlank())
+                ? request.locale()
+                : DEFAULT_LOCALE;
 
-        String locale =
-                (request.locale() != null && !request.locale().isBlank())
-                        ? request.locale()
-                        : DEFAULT_LOCALE;
-
-        // Create a new User entity from the request data
         User user = User.builder()
                 .fullName(request.name())
                 .primaryEmailAddress(request.email())
-                .primaryPhoneNumber(request.phoneNumber())
+                .primaryPhoneNumber(request.phoneNumber())   // null is fine
                 .timeZone(timeZone)
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
                 .userStatus(userStatus)
-                .country(country)
+                .country(country)                            // null is fine
                 .build();
 
-        // Save the User entity to the database
         user = userRepository.save(user);
 
-        // Create a response object from the saved User entity
         return CreateUserResponse.builder()
                 .name(user.getFullName())
                 .email(user.getPrimaryEmailAddress())
@@ -419,6 +428,96 @@ import java.util.stream.Collectors;
         return new SignOffResponse(
                 userId
         );
+    }
+
+    @Override
+    public PersonalInfoResponse getPersonalInfoById(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        UserAdditionalDetail detail = user.getAdditionalDetail();
+
+        return PersonalInfoResponse.builder()
+                .dateOfBirth(user.getDob() != null
+                        ? user.getDob().format(DOB_FORMAT)
+                        : null)
+                .gender(user.getGender())
+                .addressLine1(user.getAddressLine1())
+                .addressLine2(user.getAddressLine2())
+                .city(user.getCity())
+                .state(user.getState() != null ? user.getState().getStateName() : null)
+                .country(user.getCountry() != null ? user.getCountry().getCountryName() : null)
+                .zipCode(user.getZipCode())
+                .secondaryEmail(detail != null ? detail.getSecondaryEmail1() : null)
+                .secondaryPhone(detail != null ? detail.getSecondaryPhone1() : null)
+                .build();
+    }
+
+    @Override
+    public PersonalInfoResponse updatePersonalInfo(UpdatePersonalInfoRequest updateRequest) {
+        User user = userRepository.findById(updateRequest.getUserId())
+                .orElseThrow(() -> new UserNotFoundException(updateRequest.getUserId()));
+
+        // Update user fields (only if not null)
+        if (updateRequest.getDateOfBirth() != null) {
+            try {
+                user.setDob(LocalDate.parse(updateRequest.getDateOfBirth(), DOB_FORMAT));
+            } catch (DateTimeParseException e) {
+                // A client mistake: surface it as a 400 (IllegalArgumentException), not a 500
+                throw new IllegalArgumentException("dateOfBirth must be in MM/dd/yyyy format");
+            }
+        }
+        if (updateRequest.getGender() != null) {
+            user.setGender(updateRequest.getGender());
+        }
+        if (updateRequest.getAddressLine1() != null) {
+            user.setAddressLine1(updateRequest.getAddressLine1());
+        }
+        if (updateRequest.getAddressLine2() != null) {
+            user.setAddressLine2(updateRequest.getAddressLine2());
+        }
+        if (updateRequest.getCity() != null) {
+            user.setCity(updateRequest.getCity());
+        }
+        if (updateRequest.getZipCode() != null) {
+            user.setZipCode(updateRequest.getZipCode());
+        }
+
+        // Handle state - fetch State entity by name
+        if (updateRequest.getState() != null) {
+            State state = stateRepository.findByStateName(updateRequest.getState())
+                    .orElseThrow(() -> new StateNotFoundException(updateRequest.getState()));
+            user.setState(state);
+        }
+
+        // Handle country - fetch Country entity by name
+        if (updateRequest.getCountry() != null) {
+            Country country = countryRepository.findByCountryName(updateRequest.getCountry())
+                    .orElseThrow(() -> new CountryNotFoundException(updateRequest.getCountry()));
+            user.setCountry(country);
+        }
+
+        // Update additional details
+        UserAdditionalDetail detail = user.getAdditionalDetail();
+        if (detail == null) {
+            detail = new UserAdditionalDetail();
+            detail.setUser(user);
+        }
+
+        if (updateRequest.getSecondaryEmail() != null) {
+            detail.setSecondaryEmail1(updateRequest.getSecondaryEmail());
+        }
+        if (updateRequest.getSecondaryPhone() != null) {
+            detail.setSecondaryPhone1(updateRequest.getSecondaryPhone());
+        }
+
+        user.setAdditionalDetail(detail);
+        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
+
+        User updatedUser = userRepository.save(user);
+
+        // Reuse the getter logic
+        return getPersonalInfoById(updatedUser.getId());
     }
 
     @Override

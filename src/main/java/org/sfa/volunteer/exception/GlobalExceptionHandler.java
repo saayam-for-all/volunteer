@@ -144,6 +144,24 @@ public class GlobalExceptionHandler {
                                 errorMessage);
         }
 
+        @ExceptionHandler(StateNotFoundException.class)
+        @ResponseBody
+        public <T> SaayamResponse<T> handleStateNotFoundException(
+                        StateNotFoundException exception,
+                        WebRequest request) {
+
+                String errorMessage = messageSourceUtil.getMessage(
+                                SaayamStatusCode.STATE_NOT_FOUND.getCode(),
+                                new Object[] { exception.getStateName() });
+
+                log.error("StateNotFoundException: {}", errorMessage);
+
+                return responseBuilder.buildErrorResponse(
+                                HttpStatus.NOT_FOUND.value(),
+                                SaayamStatusCode.STATE_NOT_FOUND,
+                                errorMessage);
+        }
+
         @ExceptionHandler(ForbiddenException.class)
         @ResponseStatus(HttpStatus.FORBIDDEN)
         @ResponseBody

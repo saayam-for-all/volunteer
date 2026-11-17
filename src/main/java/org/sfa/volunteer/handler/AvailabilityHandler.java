@@ -23,7 +23,8 @@ import org.sfa.volunteer.util.AvailabilityAuthorization;
 import org.sfa.volunteer.util.OnboardingAvailabilityApi;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
-import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 
 import java.nio.charset.StandardCharsets;
@@ -144,7 +145,19 @@ public class AvailabilityHandler implements RequestHandler<APIGatewayProxyReques
         if (ctx == null) {
             synchronized (AvailabilityHandler.class) {
                 if (springContext == null) {
-                    springContext = SpringApplication.run(VolunteerApplication.class);
+                    var application = new SpringApplicationBuilder(VolunteerApplication.class)
+                            .web(WebApplicationType.NONE)
+                            .properties(
+                                    "spring.main.web-application-type=none",
+                                    "spring.autoconfigure.exclude=org.springframework.cloud.function.serverless.web.ServerlessAutoConfiguration"
+                            )
+                            .build();
+                    // The servlet initializer logs the process environment and is unnecessary here.
+                    application.setInitializers(application.getInitializers().stream()
+                            .filter(initializer -> !(initializer instanceof
+                                    com.amazonaws.serverless.proxy.spring.AwsSpringWebRuntimeInitializer))
+                            .toList());
+                    springContext = application.run();
                 }
                 ctx = springContext;
             }
