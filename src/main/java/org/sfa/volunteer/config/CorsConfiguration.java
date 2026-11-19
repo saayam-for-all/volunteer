@@ -1,4 +1,5 @@
 package org.sfa.volunteer.config;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,7 +12,7 @@ public class CorsConfiguration {
     private String allowedOrigin;
 
     @Value("${cors.allowed-headers}")
-    private String allowedHeaders;
+    private String[] allowedHeaders;
 
     @Value("${cors.allowed-methods}")
     private String[] allowedMethods;
@@ -20,7 +21,7 @@ public class CorsConfiguration {
     private boolean allowedCredentials;
 
     @Bean
-    public WebMvcConfigurer corsConfig(){
+    public WebMvcConfigurer corsConfig() {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {

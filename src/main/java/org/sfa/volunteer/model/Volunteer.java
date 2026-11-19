@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.springframework.context.annotation.Lazy;
-
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
@@ -42,6 +42,18 @@ public class Volunteer {
 
     @Column(name = "govt_id_path2")
     private String govtIdPath2;
+
+    @Column(name = "govt_id_name1")
+    private String govtIdName1;
+
+    @Column(name = "govt_id_name2")
+    private String govtIdName2;
+
+    @Column(name = "govt_id_expiry1")
+    private LocalDate govtIdExpiry1;
+
+    @Column(name = "govt_id_expiry2")
+    private LocalDate govtIdExpiry2;
 
     @Column(name = "path1_updated_at")
     private LocalDateTime path1UpdatedAt;

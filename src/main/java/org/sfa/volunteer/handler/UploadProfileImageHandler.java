@@ -111,14 +111,13 @@ public class UploadProfileImageHandler implements RequestHandler<Map<String, Obj
 
         if (isBlank(auth.email)) throw new Forbidden("JWT email missing");
 
-        String callerSid;
+        boolean authorized;
         try {
-            callerSid = userService.getUserIdByEmailForAuth(auth.email);
+            authorized = userService.isEmailOwnedByUser(targetUserId, auth.email);
         } catch (Exception e) {
-            throw new Forbidden("JWT user not mapped to DB user");
+            throw new Forbidden("Not allowed");
         }
-        if (isBlank(callerSid)) throw new Forbidden("JWT user not mapped to DB user");
-        if (!callerSid.equals(targetUserId)) throw new Forbidden("Not allowed");
+        if (!authorized) throw new Forbidden("Not allowed");
     }
 
     @SuppressWarnings("unchecked")

@@ -12,7 +12,7 @@ public class VolunteerException extends RuntimeException {
         this.userId = userId;
     }
 
-    public static VolunteerException volunteerNotFound(String UserId) throws Exception {
+    public static VolunteerException volunteerNotFound(String UserId) {
         return new VolunteerException(SaayamStatusCode.VOLUNTEER_NOT_FOUND.toString(), UserId);
     }
 

@@ -31,4 +31,12 @@ public class ResponseBuilder {
     public <T> SaayamResponse<T> buildErrorResponse(int httpStatusCode, SaayamStatusCode statusCode, String message) {
         return SaayamResponse.error(httpStatusCode, statusCode, message);
     }
+
+    public <T> SaayamResponse<T> buildErrorResponse(
+            int httpStatusCode, SaayamStatusCode statusCode, Object[] args, T data) {
+        return SaayamResponse.<T>builder()
+                .success(false).statusCode(httpStatusCode).saayamCode(statusCode.getCode())
+                .message(messageSourceUtil.getMessage(statusCode.getCode(), args))
+                .data(data).timestamp(java.time.ZonedDateTime.now()).build();
+    }
 }

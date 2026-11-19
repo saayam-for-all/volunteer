@@ -7,7 +7,6 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import jakarta.validation.constraints.Null;
 import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
@@ -24,7 +23,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-public class CreateVolunteerHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
+public class CreateVolunteerHandler
+        implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
     private static final VolunteerService volunteerService;
     private static final ObjectMapper objectMapper = new ObjectMapper()
@@ -58,9 +58,8 @@ public class CreateVolunteerHandler implements RequestHandler<APIGatewayProxyReq
 
             SaayamResponse<VolunteerResponse> successResponse = responseBuilder.buildSuccessResponse(
                     SaayamStatusCode.VOLUNTEER_UPDATED,
-                    new Object[]{createVolunteer.userId()},
-                    createVolunteer
-            );
+                    new Object[] { createVolunteer.userId() },
+                    createVolunteer);
 
             String responseBody = objectMapper.writeValueAsString(successResponse);
             response.setBody(responseBody);
@@ -73,7 +72,7 @@ public class CreateVolunteerHandler implements RequestHandler<APIGatewayProxyReq
             Locale locale = Locale.forLanguageTag(lang);
 
             String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
-            int errorCode= 500;
+            int errorCode = 500;
             SaayamStatusCode saayamErrorMsg = SaayamStatusCode.INTERNAL_SERVER_ERROR;
 
             if (e.getMessage() != null) {
@@ -84,14 +83,13 @@ public class CreateVolunteerHandler implements RequestHandler<APIGatewayProxyReq
             SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
                     errorCode,
                     saayamErrorMsg,
-                    errorMessage
-            );
+                    errorMessage);
 
-//            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
-//                    500,
-//                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
-//                    errorMessage
-//            );
+            // SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
+            // 500,
+            // SaayamStatusCode.INTERNAL_SERVER_ERROR,
+            // errorMessage
+            // );
 
             try {
                 String responseBody = objectMapper.writeValueAsString(errorResponse);

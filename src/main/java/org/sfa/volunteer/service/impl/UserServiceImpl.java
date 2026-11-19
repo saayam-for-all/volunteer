@@ -1,41 +1,63 @@
 package org.sfa.volunteer.service.impl;
 
 import jakarta.transaction.Transactional;
+import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
+import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.*;
-import org.sfa.volunteer.exception.CountryNotFoundException;
-import org.sfa.volunteer.exception.UserCategoryNotFoundException;
-import org.sfa.volunteer.exception.UserNotFoundException;
-import org.sfa.volunteer.exception.UserOrganizationNotFoundException;
+import org.sfa.volunteer.exception.*;
+import org.sfa.volunteer.model.AvailabilityFrequency;
 import org.sfa.volunteer.model.Country;
-import org.sfa.volunteer.model.Organization;
 import org.sfa.volunteer.model.State;
 import org.sfa.volunteer.model.User;
-import org.sfa.volunteer.model.UserCategory;
+import org.sfa.volunteer.model.UserAdditionalDetail;
 import org.sfa.volunteer.model.UserSignOffReason;
+import org.sfa.volunteer.model.SkillLevel;
 import org.sfa.volunteer.model.UserStatus;
+import org.sfa.volunteer.model.VolunteerUserAvailability;
 import org.sfa.volunteer.repository.CountryRepository;
-import org.sfa.volunteer.repository.OrganizationRepository;
 import org.sfa.volunteer.repository.StateRepository;
 import org.sfa.volunteer.repository.UserCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserSignOffReasonRepository;
+import org.sfa.volunteer.repository.UserSkillRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
+import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
+import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
 import org.sfa.volunteer.service.ProfileImageStorageService;
 import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.util.AvailabilityTimeConverter;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.UtcSlot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.sfa.volunteer.dto.response.PersonalInfoResponse;
 
+import java.time.DateTimeException;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -47,11 +69,13 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
     public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserStatusRepository userStatusRepository;
-    private final OrganizationRepository organizationRepository;
     private final UserSignOffReasonRepository userSignOffReasonRepository;
     private final UserCategoryRepository userCategoryRepository;
     private final CountryRepository countryRepository;
     private final StateRepository stateRepository;
+    private final UserAdditionalDetailRepository userAdditionalDetailRepository;
+    private final UserSkillRepository userSkillRepository;
+    private final VolunteerUserAvailabilityRepository userAvailabilityRepository;
 
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -62,24 +86,36 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
     private static final Integer VOLUNTEER_CATEGORY_ID = 2; // User Category: volunteer
     private static final String DEFAULT_TIMEZONE = "UTC";
     private static final String DEFAULT_LOCALE = "en_US";
+    // STRICT + "uuuu" so impossible dates such as 02/30/1990 are rejected instead of being
+    // silently moved to the last day of the month (the default SMART style does that)
+    private static final DateTimeFormatter DOB_FORMAT =
+            DateTimeFormatter.ofPattern("MM/dd/uuuu").withResolverStyle(ResolverStyle.STRICT);
+    private static final int MAX_AVAILABILITY_SLOTS = 20;
+    // STRICT so "24:00" is rejected instead of resolving to midnight
+    private static final DateTimeFormatter AVAILABILITY_TIME =
+            DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT);
 
     @Autowired
     public UserServiceImpl(
             UserRepository userRepository,
             UserStatusRepository userStatusRepository,
-            OrganizationRepository organizationRepository,
             UserCategoryRepository userCategoryRepository,
             CountryRepository countryRepository,
             StateRepository stateRepository,
-            UserSignOffReasonRepository userSignOffReasonRepository) {
+            UserSignOffReasonRepository userSignOffReasonRepository,
+            UserAdditionalDetailRepository userAdditionalDetailRepository,
+            UserSkillRepository userSkillRepository,
+            VolunteerUserAvailabilityRepository userAvailabilityRepository) {
 
         this.userRepository = userRepository;
         this.userStatusRepository = userStatusRepository;
-        this.organizationRepository = organizationRepository;
         this.userCategoryRepository = userCategoryRepository;
         this.countryRepository = countryRepository;
         this.stateRepository = stateRepository;
         this.userSignOffReasonRepository = userSignOffReasonRepository;
+        this.userAdditionalDetailRepository = userAdditionalDetailRepository;
+        this.userSkillRepository = userSkillRepository;
+        this.userAvailabilityRepository = userAvailabilityRepository;
     }
 
     @Override
@@ -88,40 +124,35 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
         UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_STATUS_ID));
 
-        // TEMP LOCAL ONLY - commented out until dev DB has user_category_id column
-        // UserCategory userCategory = userCategoryRepository.findById(DEFAULT_USER_CATEGORY_ID)
-        //         .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_CATEGORY_ID));
+        // user_category_id removed -- see issue #165 follow-up.
 
-        Country country = countryRepository.findByCountryName(request.country())
-                .orElseThrow(() -> new CountryNotFoundException(request.country()));
+        // Only fetch country if provided (Google sign-in won't have it)
+        Country country = null;
+        if (request.country() != null && !request.country().isBlank()) {
+            country = countryRepository.findByCountryName(request.country())
+                    .orElseThrow(() -> new CountryNotFoundException(request.country()));
+        }
 
+        String timeZone = (request.timeZone() != null && !request.timeZone().isBlank())
+                ? request.timeZone()
+                : DEFAULT_TIMEZONE;
 
-        String timeZone =
-                (request.timeZone() != null && !request.timeZone().isBlank())
-                        ? request.timeZone()
-                        : DEFAULT_TIMEZONE;
+        String locale = (request.locale() != null && !request.locale().isBlank())
+                ? request.locale()
+                : DEFAULT_LOCALE;
 
-        String locale =
-                (request.locale() != null && !request.locale().isBlank())
-                        ? request.locale()
-                        : DEFAULT_LOCALE;
-
-        // Create a new User entity from the request data
         User user = User.builder()
                 .fullName(request.name())
                 .primaryEmailAddress(request.email())
-                .primaryPhoneNumber(request.phoneNumber())
+                .primaryPhoneNumber(request.phoneNumber())   // null is fine
                 .timeZone(timeZone)
                 .lastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")))
-                // .userCategory(userCategory) // TEMP LOCAL ONLY
                 .userStatus(userStatus)
-                .country(country)
+                .country(country)                            // null is fine
                 .build();
 
-        // Save the User entity to the database
         user = userRepository.save(user);
 
-        // Create a response object from the saved User entity
         return CreateUserResponse.builder()
                 .name(user.getFullName())
                 .email(user.getPrimaryEmailAddress())
@@ -130,30 +161,6 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
                 .userId(user.getId())
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .build();
-    }
-
-    @Override
-    public UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
-
-        // Update all fields from the request without null checks
-        user.setFirstName(request.firstName());
-        user.setMiddleName(request.middleName());
-        user.setLastName(request.lastName());
-        user.setAddressLine1(request.addressLine1());
-        user.setAddressLine2(request.addressLine2());
-        user.setAddressLine3(request.addressLine3());
-        user.setCity(request.cityName());
-        user.setZipCode(request.zipCode());
-        user.setProfilePicturePath(request.profilePicturePath());
-        user.setVolunteerStage(request.volunteerStage());
-        user.setVolunteerUpdateDate(request.volunteerUpdateDate());
-        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-
-        User updatedUser = userRepository.save(user);
-
-        return mapToUserProfileResponse(updatedUser);
     }
 
     @Override
@@ -176,6 +183,52 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
                 .hasNextPage(userPage.hasNext())
                 .hasPreviousPage(userPage.hasPrevious())
                 .build();
+    }
+
+    @Override
+    public PaginationResponse<UserProfileResponse> searchUsers(String query, Integer pageNumber, Integer pageSize) {
+        if (query == null || query.isBlank()) {
+            return PaginationResponse.<UserProfileResponse>builder()
+                    .currentPage(0)
+                    .pageSize(0)
+                    .totalPages(0)
+                    .totalItems(0)
+                    .items(List.of())
+                    .hasNextPage(false)
+                    .hasPreviousPage(false)
+                    .build();
+        }
+
+        int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;
+        int pageSizeNum = (pageSize == null) ? DEFAULT_SIZE : pageSize;
+        Pageable pageable = PageRequest.of(pageNum, pageSizeNum);
+
+        String q = "%" + query.trim().toLowerCase() + "%";
+        Page<User> userPage = userRepository.searchUsers(q, pageable);
+
+        List<UserProfileResponse> userProfiles = userPage.stream()
+                .map(this::mapToUserProfileResponse)
+                .collect(Collectors.toList());
+
+        return PaginationResponse.<UserProfileResponse>builder()
+                .currentPage(userPage.getNumber())
+                .pageSize(userPage.getSize())
+                .totalPages(userPage.getTotalPages())
+                .totalItems(userPage.getTotalElements())
+                .items(userProfiles)
+                .hasNextPage(userPage.hasNext())
+                .hasPreviousPage(userPage.hasPrevious())
+                .build();
+    }
+
+    @Override
+    public boolean isAdminUser(String userId) {
+        if (userId == null || userId.isBlank()) return false;
+
+        // userCategory is no longer mapped on User (see issue #165 follow-up on
+        // the user_category_id schema removal), so admin status can't be
+        // determined here yet. Fail closed (deny admin) rather than throw.
+        return false;
     }
 
     @Override
@@ -262,7 +315,8 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
                 .stateName(user.getState() != null ? user.getState().getStateName() : null)
                 .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
                 .userStatus(user.getUserStatus() != null ? user.getUserStatus().getUserStatus() : null)
-                // .userCategory(user.getUserCategory() != null ? user.getUserCategory().getUserCategory() : null) // TEMP LOCAL ONLY
+                // userCategory no longer mapped on User; see issue #165 follow-up
+                .userCategory(null)
                 .gender(user.getGender())
                 .lastLocation(user.getLastLocation())
                 .language1(user.getLanguage1())
@@ -272,81 +326,46 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
                 .promotionWizardLastUpdateDate(user.getVolunteerUpdateDate())
                 .build();
     }
-
+    
     @Override
-    public OrganizationResponse updateUserOrganization(String userId, UpdateOrganizationRequest request) {
+    public UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
-        Organization organization = organizationRepository.findByUser(user).orElse(null);
-
-        if (organization == null) {
-            organization = new Organization();
-            organization.setUser(user);
+        // Update all fields from the request without null checks
+        user.setFirstName(request.firstName());
+        user.setMiddleName(request.middleName());
+        user.setLastName(request.lastName());
+        user.setAddressLine1(request.addressLine1());
+        user.setAddressLine2(request.addressLine2());
+        user.setAddressLine3(request.addressLine3());
+        user.setCity(request.cityName());
+        user.setZipCode(request.zipCode());
+        if (StringUtils.hasText(request.profilePicturePath())) {
+            user.setProfilePicturePath(request.profilePicturePath());
         }
+        user.setVolunteerStage(request.volunteerStage());
+        user.setVolunteerUpdateDate(request.volunteerUpdateDate());
+        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
 
-        if (request.organizationName() != null) organization.setOrganizationName(request.organizationName());
-        if (request.organizationType() != null) organization.setOrganizationType(request.organizationType());
-        if (request.phoneNumber() != null) organization.setPhoneNumber(request.phoneNumber());
-        if (request.email() != null) organization.setEmail(request.email());
-        if (request.url() != null) organization.setUrl(request.url());
-        if (request.streetAddress1() != null) organization.setStreetAddress1(request.streetAddress1());
-        if (request.streetAddress2() != null) organization.setStreetAddress2(request.streetAddress2());
-        if (request.city() != null) organization.setCity(request.city());
-        if (request.state() != null) organization.setState(request.state());
-        if (request.zipCode() != null) organization.setZipCode(request.zipCode());
+        User updatedUser = userRepository.save(user);
 
-        organization.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        Organization updatedOrganization = organizationRepository.save(organization);
-
-        return OrganizationResponse.builder()
-                .id(updatedOrganization.getId())
-                .organizationName(updatedOrganization.getOrganizationName())
-                .organizationType(updatedOrganization.getOrganizationType())
-                .phoneNumber(updatedOrganization.getPhoneNumber())
-                .email(updatedOrganization.getEmail())
-                .url(updatedOrganization.getUrl())
-                .streetAddress1(updatedOrganization.getStreetAddress1())
-                .streetAddress2(updatedOrganization.getStreetAddress2())
-                .city(updatedOrganization.getCity())
-                .state(updatedOrganization.getState())
-                .zipCode(updatedOrganization.getZipCode())
-                .build();
+        return mapToUserProfileResponse(updatedUser);
     }
 
-    @Override
-    public OrganizationResponse getOrganizationByUserId(String userId) {
-        Organization organization = organizationRepository.findByUserId(userId)
-                .orElseThrow(() -> new UserOrganizationNotFoundException(userId));
-
-        return OrganizationResponse.builder()
-                .id(organization.getId())
-                .organizationName(organization.getOrganizationName())
-                .organizationType(organization.getOrganizationType())
-                .phoneNumber(organization.getPhoneNumber())
-                .email(organization.getEmail())
-                .url(organization.getUrl())
-                .streetAddress1(organization.getStreetAddress1())
-                .streetAddress2(organization.getStreetAddress2())
-                .city(organization.getCity())
-                .state(organization.getState())
-                .zipCode(organization.getZipCode())
-                .build();
-    }
     // Profile Pic Upload
     // S3 URI <-> DB //
     @Override
+    @Transactional
     public void setProfilePicturePath(String userId, String s3Uri) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
-        user.setProfilePicturePath(s3Uri);  // store S3 URI here
-        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        userRepository.save(user);
+        int updated = userRepository.updateProfilePicturePath(userId, s3Uri, ZonedDateTime.now(ZoneId.of("UTC")));
+        if (updated == 0) {
+            throw new UserNotFoundException(userId);
+        }
     }
     @Override
     public Optional<String> getProfilePicturePath(String userId) {
-        return userRepository.findById(userId)
-                .map(User::getProfilePicturePath)
+        return userRepository.findProfilePicturePathById(userId)
                 .filter(Objects::nonNull)
                 .filter(s -> !s.isBlank());
     }
@@ -356,17 +375,221 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
         return userRepository.existsById(userId);
     }
     @Override
-    public String getUserIdByEmailForAuth(String email) {
-        if (email == null || email.isBlank()) {
-            throw new UserNotFoundException("email is blank");
+    public boolean isEmailOwnedByUser(String userId, String email) {
+        if (userId == null || userId.isBlank() || email == null || email.isBlank()) {
+            return false;
         }
-        var userOpt = userRepository.findFirstByPrimaryEmailAddressOrderByLastUpdateDateDesc(email);
-        if (userOpt.isEmpty()) {
-            userOpt = userRepository.findFirstByPrimaryEmailAddressOrderByIdDesc(email);
+        return userRepository.existsByIdAndPrimaryEmailAddressIgnoreCase(userId, email.trim());
+    }
+
+    @Override
+    public UserSkillsResponse getUserSkills(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        if (!userRepository.existsById(userId)) {
+            throw new UserNotFoundException(userId);
         }
 
-        User user = userOpt.orElseThrow(() -> new UserNotFoundException(email));
-        return user.getId();
+        // LinkedHashMap keeps the query's cat_id order and allows null levels
+        Map<String, SkillLevel> skillLevels = new LinkedHashMap<>();
+        userSkillRepository.findByIdUserIdOrderByIdCatIdAsc(userId)
+                .forEach(us -> skillLevels.put(us.getId().getCatId(), us.getSkillLevel()));
+
+        return new UserSkillsResponse(userId, List.copyOf(skillLevels.keySet()), skillLevels);
+    }
+
+    @Override
+    public AvailabilityResponse getAvailability(String userId) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        return toAvailabilityResponse(user, userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
+    }
+
+    @Override
+    public AvailabilityResponse updateAvailability(UpdateAvailabilityRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Request body is required");
+        }
+        String userId = request.getUserId();
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+        ZoneId zone = parseTimezone(request.getTimezone());
+        List<LocalSlot> localSlots = parseSlots(request.getSlots());
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        userRepository.updateAvailabilityTimezone(userId, zone.getId());
+
+        // Vacation fields are accepted but not stored: user_availability has no columns for them yet
+        LocalDate today = LocalDate.now(zone);
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        List<VolunteerUserAvailability> rows = new ArrayList<>();
+        for (LocalSlot slot : localSlots) {
+            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, today);
+            rows.add(VolunteerUserAvailability.builder()
+                    .user(user)
+                    .dayOfWeek(dayName(utc.day()))
+                    .startTime(utc.start())
+                    .endTime(utc.end())
+                    .lastUpdatedAt(now)
+                    .build());
+        }
+
+        // Replace, not merge: flush the deletes so they run before the inserts
+        userAvailabilityRepository.deleteByUser_Id(userId);
+        userAvailabilityRepository.flush();
+        List<VolunteerUserAvailability> saved = userAvailabilityRepository.saveAll(rows);
+
+        return toAvailabilityResponse(userId, zone.getId(), saved);
+    }
+
+    // Checked against the IANA list rather than relying on ZoneId.of() throwing: ZoneId.of() also accepts
+    // fixed offsets such as "+05:30", "UTC+5", "GMT-3" and "Z". Those never follow daylight saving, so slots
+    // saved with one would be an hour off for half the year (BRD NFR-07 asks for an IANA zone).
+    private static ZoneId parseTimezone(String timezone) {
+        if (timezone == null || !ZoneId.getAvailableZoneIds().contains(timezone)) {
+            throw new IllegalArgumentException("timezone must be a valid IANA zone: " + timezone);
+        }
+        return ZoneId.of(timezone);
+    }
+
+    // One local slot per (day, start, end). Several slots on the same day are fine, but they must not overlap;
+    // exact duplicates (e.g. Weekdays 9-17 plus Monday 9-17) are dropped rather than rejected.
+    private static List<LocalSlot> parseSlots(List<AvailabilitySlotRequest> slots) {
+        if (slots == null) {
+            throw new IllegalArgumentException("slots is required");
+        }
+        if (slots.size() > MAX_AVAILABILITY_SLOTS) {
+            throw new IllegalArgumentException("slots cannot have more than " + MAX_AVAILABILITY_SLOTS + " entries");
+        }
+
+        // local slot -> index of the first request entry that produced it
+        Map<LocalSlot, Integer> localSlots = new LinkedHashMap<>();
+        for (int i = 0; i < slots.size(); i++) {
+            AvailabilitySlotRequest slot = slots.get(i);
+            String field = "slots[" + i + "]";
+            if (slot == null) {
+                throw new IllegalArgumentException(field + " is required");
+            }
+            AvailabilityFrequency frequency;
+            try {
+                frequency = AvailabilityFrequency.fromLabel(slot.getFrequency());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(field + ".frequency: " + e.getMessage());
+            }
+            LocalTime start = parseTime(slot.getStartTime(), field + ".startTime");
+            LocalTime end = parseTime(slot.getEndTime(), field + ".endTime");
+            if (start.equals(end)) {
+                throw new IllegalArgumentException(field + ": startTime and endTime must differ");
+            }
+            int index = i;
+            frequency.getDays().forEach(day -> localSlots.putIfAbsent(new LocalSlot(day, start, end), index));
+        }
+        rejectOverlaps(localSlots);
+        return List.copyOf(localSlots.keySet());
+    }
+
+    private static void rejectOverlaps(Map<LocalSlot, Integer> localSlots) {
+        List<Map.Entry<LocalSlot, Integer>> entries = List.copyOf(localSlots.entrySet());
+        for (int a = 0; a < entries.size(); a++) {
+            for (int b = a + 1; b < entries.size(); b++) {
+                Map.Entry<LocalSlot, Integer> first = entries.get(a);
+                Map.Entry<LocalSlot, Integer> second = entries.get(b);
+                // one request entry has a single time range, so it cannot overlap itself
+                if (first.getValue().equals(second.getValue())
+                        || !AvailabilityTimeConverter.overlaps(first.getKey(), second.getKey())) {
+                    continue;
+                }
+                if (second.getValue() < first.getValue()) {
+                    Map.Entry<LocalSlot, Integer> swap = first;
+                    first = second;
+                    second = swap;
+                }
+                throw new IllegalArgumentException("slots[" + first.getValue() + "] and slots[" + second.getValue()
+                        + "] overlap on " + dayName(first.getKey().day()));
+            }
+        }
+    }
+
+    private static LocalTime parseTime(String value, String field) {
+        if (value == null) {
+            throw new IllegalArgumentException(field + " is required");
+        }
+        try {
+            return LocalTime.parse(value, AVAILABILITY_TIME);
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException(field + " must be HH:mm: " + value);
+        }
+    }
+
+    private record TimeRange(LocalTime start, LocalTime end) {}
+
+    private record CollapsedSlot(Integer id, AvailabilityFrequency frequency, TimeRange range) {}
+
+    // Rows are UTC, one per day; convert to the user's zone and group back into Everyday / Weekdays / Weekends
+    private static AvailabilityResponse toAvailabilityResponse(User user, List<VolunteerUserAvailability> rows) {
+        return toAvailabilityResponse(user.getId(), user.getTimeZone(), rows);
+    }
+
+    private static AvailabilityResponse toAvailabilityResponse(String userId, String timezone, List<VolunteerUserAvailability> rows) {
+        ZoneId zone = zoneOrUtc(timezone);
+
+        // time range -> local day -> smallest row id
+        Map<TimeRange, Map<DayOfWeek, Integer>> byRange = new LinkedHashMap<>();
+        LocalDateTime lastUpdatedAt = null;
+        for (VolunteerUserAvailability row : rows) {
+            LocalSlot local = AvailabilityTimeConverter.toLocal(row.getStartTime(), row.getEndTime(), zone);
+            byRange.computeIfAbsent(new TimeRange(local.start(), local.end()), r -> new EnumMap<>(DayOfWeek.class))
+                    .merge(local.day(), row.getId(), Math::min);
+            if (row.getLastUpdatedAt() != null
+                    && (lastUpdatedAt == null || row.getLastUpdatedAt().isAfter(lastUpdatedAt))) {
+                lastUpdatedAt = row.getLastUpdatedAt();
+            }
+        }
+
+        List<CollapsedSlot> collapsed = new ArrayList<>();
+        byRange.forEach((range, dayIds) -> {
+            for (AvailabilityFrequency frequency : AvailabilityTimeConverter.collapse(dayIds.keySet())) {
+                Integer id = frequency.getDays().stream()
+                        .map(dayIds::get)
+                        .filter(Objects::nonNull)
+                        .min(Integer::compare)
+                        .orElse(null);
+                collapsed.add(new CollapsedSlot(id, frequency, range));
+            }
+        });
+        collapsed.sort(Comparator.comparing(CollapsedSlot::frequency)
+                .thenComparing(c -> c.range().start())
+                .thenComparing(c -> c.range().end()));
+
+        List<AvailabilitySlotResponse> slots = collapsed.stream()
+                .map(c -> new AvailabilitySlotResponse(c.id(), c.frequency().getLabel(),
+                        c.range().start().format(AVAILABILITY_TIME), c.range().end().format(AVAILABILITY_TIME)))
+                .toList();
+        return new AvailabilityResponse(userId, zone.getId(), slots, lastUpdatedAt);
+    }
+
+    private static ZoneId zoneOrUtc(String timezone) {
+        if (timezone == null || timezone.isBlank()) {
+            return ZoneId.of(DEFAULT_TIMEZONE);
+        }
+        try {
+            return ZoneId.of(timezone);
+        } catch (DateTimeException e) {
+            return ZoneId.of(DEFAULT_TIMEZONE);
+        }
+    }
+
+    // "MONDAY" -> "Monday", as the day_of_week CHECK constraint expects
+    private static String dayName(DayOfWeek day) {
+        String name = day.name();
+        return name.charAt(0) + name.substring(1).toLowerCase();
     }
 
 
@@ -412,5 +635,132 @@ import org.sfa.volunteer.dto.response.ProfilePageResponse;
         return new SignOffResponse(
                 userId
         );
+    }
+
+    @Override
+    public PersonalInfoResponse getPersonalInfoById(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        UserAdditionalDetail detail = user.getAdditionalDetail();
+
+        return PersonalInfoResponse.builder()
+                .dateOfBirth(user.getDob() != null
+                        ? user.getDob().format(DOB_FORMAT)
+                        : null)
+                .gender(user.getGender())
+                .addressLine1(user.getAddressLine1())
+                .addressLine2(user.getAddressLine2())
+                .city(user.getCity())
+                .state(user.getState() != null ? user.getState().getStateName() : null)
+                .country(user.getCountry() != null ? user.getCountry().getCountryName() : null)
+                .zipCode(user.getZipCode())
+                .secondaryEmail(detail != null ? detail.getSecondaryEmail1() : null)
+                .secondaryPhone(detail != null ? detail.getSecondaryPhone1() : null)
+                .build();
+    }
+
+    @Override
+    public PersonalInfoResponse updatePersonalInfo(UpdatePersonalInfoRequest updateRequest) {
+        User user = userRepository.findById(updateRequest.getUserId())
+                .orElseThrow(() -> new UserNotFoundException(updateRequest.getUserId()));
+
+        // Update user fields (only if not null)
+        if (updateRequest.getDateOfBirth() != null) {
+            try {
+                user.setDob(LocalDate.parse(updateRequest.getDateOfBirth(), DOB_FORMAT));
+            } catch (DateTimeParseException e) {
+                // A client mistake: surface it as a 400 (IllegalArgumentException), not a 500
+                throw new IllegalArgumentException("dateOfBirth must be in MM/dd/yyyy format");
+            }
+        }
+        if (updateRequest.getGender() != null) {
+            user.setGender(updateRequest.getGender());
+        }
+        if (updateRequest.getAddressLine1() != null) {
+            user.setAddressLine1(updateRequest.getAddressLine1());
+        }
+        if (updateRequest.getAddressLine2() != null) {
+            user.setAddressLine2(updateRequest.getAddressLine2());
+        }
+        if (updateRequest.getCity() != null) {
+            user.setCity(updateRequest.getCity());
+        }
+        if (updateRequest.getZipCode() != null) {
+            user.setZipCode(updateRequest.getZipCode());
+        }
+
+        // Handle state - fetch State entity by name
+        if (updateRequest.getState() != null) {
+            State state = stateRepository.findByStateName(updateRequest.getState())
+                    .orElseThrow(() -> new StateNotFoundException(updateRequest.getState()));
+            user.setState(state);
+        }
+
+        // Handle country - fetch Country entity by name
+        if (updateRequest.getCountry() != null) {
+            Country country = countryRepository.findByCountryName(updateRequest.getCountry())
+                    .orElseThrow(() -> new CountryNotFoundException(updateRequest.getCountry()));
+            user.setCountry(country);
+        }
+
+        // Update additional details
+        UserAdditionalDetail detail = user.getAdditionalDetail();
+        if (detail == null) {
+            detail = new UserAdditionalDetail();
+            detail.setUser(user);
+        }
+
+        if (updateRequest.getSecondaryEmail() != null) {
+            detail.setSecondaryEmail1(updateRequest.getSecondaryEmail());
+        }
+        if (updateRequest.getSecondaryPhone() != null) {
+            detail.setSecondaryPhone1(updateRequest.getSecondaryPhone());
+        }
+
+        user.setAdditionalDetail(detail);
+        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
+
+        User updatedUser = userRepository.save(user);
+
+        // Reuse the getter logic
+        return getPersonalInfoById(updatedUser.getId());
+    }
+
+    @Override
+        public UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception {
+        // fetch User by userId
+         User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+
+            // update language prefs
+            user.setLanguage1(request.language1());
+            user.setLanguage2(request.language2());
+            user.setLanguage3(request.language3());
+            userRepository.save(user);
+
+            // fetch UserAdditionalDetail
+            UserAdditionalDetail detail = userAdditionalDetailRepository.findByUserId(user.getId());
+            if(detail == null) {
+                detail = new UserAdditionalDetail();
+                detail.setUser(user);
+            }
+            detail.setSecondaryEmail1(request.secondaryEmail1());
+            detail.setSecondaryEmail2(request.secondaryEmail2());
+            detail.setSecondaryPhone1(request.secondaryPhone1());
+            detail.setSecondaryPhone2(request.secondaryPhone2());
+            userAdditionalDetailRepository.save(detail);
+
+            return UserPreferenceResponse.builder()
+                    .userId(user.getId())
+                    .language1(user.getLanguage1())
+                    .language2(user.getLanguage2())
+                    .language3(user.getLanguage3())
+                    .secondaryEmail1(detail.getSecondaryEmail1())
+                    .secondaryEmail2(detail.getSecondaryEmail2())
+                    .secondaryPhone1(detail.getSecondaryPhone1())
+                    .secondaryPhone2(detail.getSecondaryPhone2())
+                    .build();
     }
 }
