@@ -317,10 +317,9 @@ public class UserController {
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
     }
 
-    @PutMapping("/profilePage/{userId}")
-    public SaayamResponse<ProfilePageResponse> updateProfilePage(
-            @PathVariable String userId,
-            @RequestBody UpdateProfilePageRequest request) {
+    @PostMapping("/profilePage")
+    public SaayamResponse<ProfilePageResponse> updateProfilePage(@RequestBody UpdateProfilePageRequest request) {
+        String userId = request.userId();
         ProfilePageResponse response = userService.updateProfilePage(userId, request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }

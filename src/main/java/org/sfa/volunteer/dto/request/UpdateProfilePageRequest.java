@@ -4,6 +4,7 @@ import lombok.Builder;
 
 @Builder
 public record UpdateProfilePageRequest(
+        String userId,
         String firstName,
         String lastName,
         String phoneNumber,
