@@ -119,6 +119,41 @@ class OnboardingAvailabilityProxyTest {
         assertThat(body(read).path("data")).isEqualTo(data);
     }
 
+    @Test
+    void blankBodiesAreBadRequestsRatherThanInternalErrors() throws Exception {
+        for (String blank : List.of("", " ", "\n\t")) {
+            JsonNode response = invoke("PUT", PATH, blank, ownerClaims(OWNER));
+            assertThat(response.path("statusCode").asInt()).isEqualTo(400);
+            assertThat(body(response).path("saayamCode").asText()).isEqualTo("BAD_REQUEST");
+        }
+    }
+
+
+    @Test
+    void preflightNeedsNoIdentityAndUnsupportedMethodReturnsAnEnvelope() throws Exception {
+        JsonNode preflight = invoke("OPTIONS", PATH, "", null, Map.of(
+                "Origin", List.of("https://example.test"),
+                "Access-Control-Request-Method", List.of("PUT"),
+                "Access-Control-Request-Headers", List.of("content-type,authorization")));
+        assertThat(preflight.path("statusCode").asInt()).isEqualTo(204);
+        assertThat(preflight.path("body").asText()).isBlank();
+        assertThat(preflight.path("multiValueHeaders").toString().toLowerCase(Locale.ROOT))
+                .contains("access-control-allow-origin", "https://example.test");
+        assertThat(invoke("OPTIONS", PATH, "", null).path("statusCode").asInt()).isEqualTo(204);
+        assertFailure(invoke("DELETE", PATH, "", null), 405, "METHOD_NOT_ALLOWED");
+        assertThat(invoke("OPTIONS", PATH, "", null, Map.of(
+                "Origin", List.of("https://unapproved.example.test"),
+                "Access-Control-Request-Method", List.of("PUT"))).path("statusCode").asInt()).isEqualTo(403);
+    }
+
+    private static void assertFailure(JsonNode response, int status, String code) throws Exception {
+        assertThat(response.path("statusCode").asInt()).isEqualTo(status);
+        JsonNode envelope = body(response);
+        assertThat(envelope.path("success").asBoolean()).isFalse();
+        assertThat(envelope.path("statusCode").asInt()).isEqualTo(status);
+        assertThat(envelope.path("saayamCode").asText()).isEqualTo(code);
+        assertThat(envelope.has("data")).isFalse();
+    }
 
     private static Map<String, String> ownerClaims(String email) {
         return Map.of("sub", "verified-subject", "email", email, "email_verified", "true");

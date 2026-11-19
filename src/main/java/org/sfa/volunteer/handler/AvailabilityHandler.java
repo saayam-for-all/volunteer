@@ -136,7 +136,7 @@ public class AvailabilityHandler implements RequestHandler<APIGatewayProxyReques
         return null;
     }
 
-    private static <T> T bean(Class<T> type) {
+    static <T> T bean(Class<T> type) {
         ApplicationContext ctx = springContext;
         if (ctx == null) {
             synchronized (AvailabilityHandler.class) {
