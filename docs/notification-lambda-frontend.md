@@ -96,6 +96,10 @@ subject/message and request number according to the existing notification UI.
 Disable both buttons while either action is in flight. On success or conflict,
 refresh notification details and counts using the team's existing read APIs.
 In a finally block, always clear the pending state even if refresh fails.
+The read APIs omit workflow notifications for requests claimed by another user
+and adjust the bell/pagination counts. Refresh or poll the list and counts for
+other signed-in users too; an already-rendered item is not removed until that
+client fetches the updated list. This change does not deliver push updates.
 
 | Response | Frontend behavior |
 | --- | --- |

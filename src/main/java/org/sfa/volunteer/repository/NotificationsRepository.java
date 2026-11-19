@@ -18,34 +18,28 @@ import org.sfa.volunteer.entities.Notifications;
 public interface NotificationsRepository
         extends JpaRepository<Notifications, Long> {
 
-    @Query("SELECT COUNT(n) FROM Notifications n WHERE n.userId = :userId")
+    // Keep list, pagination totals, and bell counts consistent. Retain workflow
+    // records for history, but hide requests claimed by another volunteer.
+    String VISIBLE_TO_USER = """
+            n.userId = :userId
+            AND (n.actionStatus IS NULL OR (
+                n.actionStatus <> org.sfa.volunteer.enums.ActionStatus.REQUEST_TAKEN
+                AND NOT EXISTS (
+                    SELECT winner.notificationId FROM Notifications winner
+                    WHERE winner.requestId = n.requestId
+                    AND winner.actionStatus = org.sfa.volunteer.enums.ActionStatus.ACCEPTED
+                    AND winner.userId <> n.userId
+                )
+            ))
+            """;
+
+    @Query("SELECT COUNT(n) FROM Notifications n WHERE " + VISIBLE_TO_USER)
     int countAllNotifications(String userId);
 
-    @Query("""
-            SELECT COUNT(n)
-            FROM Notifications n
-            WHERE n.userId = :userId
-            AND n.createDttm > :watermarkTimestamp
-            """)
+    @Query("SELECT COUNT(n) FROM Notifications n WHERE " + VISIBLE_TO_USER
+            + " AND n.createDttm > :watermarkTimestamp")
     int countNewNotifications(String userId, Timestamp watermarkTimestamp);
 
-    /*@Query(value = """
-                SELECT n.notificationId,
-                n.status,
-                nt.typeName,
-                n.message,
-                n.createDttm
-                FROM Notifications n
-                JOIN NotificationTypes nt ON n.typeId = nt.typeId
-                WHERE n.userId = :userId
-                ORDER BY n.createDttm DESC
-            """, countQuery = """
-            SELECT COUNT(*)
-            FROM Notifications n
-            WHERE n.userId = :userId
-            """, nativeQuery = true)
-    Page<Object[]> findNotifications(String userId, Pageable pageable);
-   */
     @Query(
            value = """
            SELECT n.notificationId,
@@ -57,13 +51,9 @@ public interface NotificationsRepository
            n.actionStatus
            FROM Notifications n
            JOIN NotificationTypes nt ON n.typeId = nt.typeId
-           WHERE n.userId = :userId
-           ORDER BY n.createDttm DESC
-        """, countQuery = """
-        SELECT COUNT(n.notificationId)
-        FROM Notifications n
-        WHERE n.userId = :userId
-        """
+           WHERE
+        """ + VISIBLE_TO_USER + " ORDER BY n.createDttm DESC",
+           countQuery = "SELECT COUNT(n) FROM Notifications n WHERE " + VISIBLE_TO_USER
         )
    Page<Object[]> findNotifications(@Param("userId") String userId,Pageable pageable);
 

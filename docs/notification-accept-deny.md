@@ -55,9 +55,15 @@ notifications for other requests are preserved.
 
 Notification list responses now include `requestId` and `actionStatus`, alongside
 the existing `typeName` and `message`, so the frontend can refresh the actions.
-Clients should show buttons only for eligible notification types with `PENDING`
-and hide/disable `REQUEST_TAKEN` notifications. This change does not add a push
-transport or a new Subject field; the existing notification message remains intact.
+The list, pagination totals, and bell counts exclude `REQUEST_TAKEN` notifications
+and other workflow notifications for a request already accepted by another user.
+This also hides a previously denied notification or a late pending notification
+for that claimed request. The winner's notification, unrelated requests, and
+legacy/non-actionable notifications with NULL action status remain visible.
+Records are retained so direct stale Accept attempts still return a conflict.
+Clients should show buttons only for eligible notification types with `PENDING`.
+Refresh or poll notifications and counts for other logged-in users so their
+screens reflect the change; no push transport or new Subject field is added.
 
 ## Local validation
 
