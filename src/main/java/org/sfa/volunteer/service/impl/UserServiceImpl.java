@@ -61,6 +61,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.sfa.volunteer.dto.request.UpdateProfilePageRequest;
+import org.sfa.volunteer.dto.response.ProfilePageResponse;
 
 @Service
 @Transactional
@@ -121,6 +123,8 @@ import java.util.stream.Collectors;
 
         UserStatus userStatus = userStatusRepository.findById(DEFAULT_USER_STATUS_ID)
                 .orElseThrow(() -> new UserCategoryNotFoundException(DEFAULT_USER_STATUS_ID));
+
+        // user_category_id removed -- see issue #165 follow-up.
 
         // Only fetch country if provided (Google sign-in won't have it)
         Country country = null;
@@ -586,6 +590,34 @@ import java.util.stream.Collectors;
     private static String dayName(DayOfWeek day) {
         String name = day.name();
         return name.charAt(0) + name.substring(1).toLowerCase();
+    }
+
+
+    @Override
+    public ProfilePageResponse getProfilePage(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        return ProfilePageResponse.builder()
+                .userId(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .emailAddress(user.getPrimaryEmailAddress())
+                .phoneNumber(user.getPrimaryPhoneNumber())
+                .countryName(user.getCountry() != null ? user.getCountry().getCountryName() : null)
+                .build();
+    }
+
+    @Transactional
+    @Override
+    public ProfilePageResponse updateProfilePage(String userId, UpdateProfilePageRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        if (request.firstName() != null) user.setFirstName(request.firstName());
+        if (request.lastName() != null) user.setLastName(request.lastName());
+        if (request.phoneNumber() != null) user.setPrimaryPhoneNumber(request.phoneNumber());
+        user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
+        userRepository.save(user);
+        return getProfilePage(userId);
     }
 
     @Transactional

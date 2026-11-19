@@ -32,7 +32,7 @@ public class UserStatus {
     @Column(name = "user_status_desc")
     private String userStatusDesc;
 
-    @Column(name = "last_update_date")
+    @Column(name = "last_updated_at")
     private ZonedDateTime lastUpdateDate;
 
 }

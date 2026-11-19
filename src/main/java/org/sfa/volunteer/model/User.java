@@ -78,7 +78,7 @@ public class User {
     @Column(name = "gender")
     private String gender;
 
-    @Column(name = "last_location")
+    @Transient
     private String lastLocation;
 
     @Column(name = "language_1")

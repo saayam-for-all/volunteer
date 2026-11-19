@@ -10,6 +10,7 @@ import org.sfa.volunteer.dto.response.AddressStatusResponse;
 import org.sfa.volunteer.dto.response.CreateUserResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.SignOffResponse;
+import org.sfa.volunteer.dto.response.ProfilePageResponse;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.dto.response.WizardStatusResponse;
 import org.sfa.volunteer.dto.response.*;
@@ -307,6 +308,20 @@ public class UserController {
     public SaayamResponse<UserPreferenceResponse> updateUserPreferences(@PathVariable String userId, @Valid @RequestBody UserPreferenceRequest request) throws Exception {
         UserPreferenceResponse response = userService.updateUserPreferences(userId,request);
         return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+
+    @GetMapping("/profilePage/{userId}")
+    public SaayamResponse<ProfilePageResponse> getProfilePage(@PathVariable String userId) {
+        ProfilePageResponse response = userService.getProfilePage(userId);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{userId}, response);
+    }
+
+    @PostMapping("/profilePage")
+    public SaayamResponse<ProfilePageResponse> updateProfilePage(@RequestBody UpdateProfilePageRequest request) {
+        String userId = request.userId();
+        ProfilePageResponse response = userService.updateProfilePage(userId, request);
+        return responseBuilder.buildSuccessResponse(SaayamStatusCode.USER_ACCOUNT_UPDATED, new Object[]{userId}, response);
     }
 
 }
