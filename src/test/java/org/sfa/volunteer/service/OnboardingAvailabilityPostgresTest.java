@@ -292,4 +292,145 @@ class OnboardingAvailabilityPostgresTest {
         assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
     }
 
+    @Test
+    void springForwardGapCannotSilentlyChangeAnEnteredOnboardingTime() {
+        clock.set(Instant.parse("2026-03-07T12:00:00Z"));
+        jdbc.update("UPDATE users SET time_zone='America/Chicago' WHERE user_id='SID-T2'");
+        var before = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), false));
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Sunday", "02:30", "04:00")), true)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getHttpStatus()).isEqualTo(400));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+    }
+
+    @Test
+    void aSaveCrossingLocalMidnightKeepsTheValidatedSundayOccurrence() {
+        jdbc.update("UPDATE users SET time_zone='America/New_York' WHERE user_id='SID-T2'");
+        // After midnight the next Sunday is March 8, when 02:30 is in the spring-forward gap.
+        clock.set(Instant.parse("2026-03-02T04:59:59Z"));
+        clock.advanceAfterNextRead(Instant.parse("2026-03-02T05:00:00Z"));
+
+        var saved = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Sunday", "02:30", "04:00")), true));
+
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(saved);
+        assertThat(saved.availability()).extracting(OnboardingAvailabilitySlotResponse::dayOfWeek,
+                OnboardingAvailabilitySlotResponse::startTime, OnboardingAvailabilitySlotResponse::endTime)
+                .containsExactly(tuple("Sunday", "02:30", "04:00"));
+    }
+
+    @Test
+    void normalSlotsRoundTripAcrossTheFallTransitionAndUtcDayBoundary() {
+        clock.set(Instant.parse("2026-10-31T12:00:00Z"));
+        jdbc.update("UPDATE users SET time_zone='America/Chicago' WHERE user_id='SID-T2'");
+        var saved = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4, List.of(
+                new OnboardingAvailabilitySlot("Everyday", "09:00", "10:00"),
+                new OnboardingAvailabilitySlot("Saturday", "22:00", "23:00")), true));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(saved);
+        assertThat(saved.availability()).hasSize(8);
+        assertThat(saved.availability().stream().filter(slot -> slot.startTime().equals("09:00")))
+                .hasSize(7).allSatisfy(slot -> assertThat(slot.endTime()).isEqualTo("10:00"));
+        assertThat(saved.availability().stream().filter(slot -> slot.startTime().equals("22:00")))
+                .extracting(OnboardingAvailabilitySlotResponse::dayOfWeek, OnboardingAvailabilitySlotResponse::endTime)
+                .containsExactly(tuple("Saturday", "23:00"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void missingAccountOrVolunteerReturnsANotFoundFailure(boolean removeAccount) {
+        jdbc.update("DELETE FROM volunteer_details WHERE user_id='SID-T2'");
+        if (removeAccount) {
+            jdbc.update("DELETE FROM users WHERE user_id='SID-T2'");
+        }
+        String code = removeAccount ? "USER_NOT_FOUND" : "VOLUNTEER_NOT_FOUND";
+        assertThatThrownBy(() -> onboarding.getOnboardingAvailability("SID-T2"))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure -> {
+                    assertThat(failure.getHttpStatus()).isEqualTo(404);
+                    assertThat(failure.getErrorCode()).isEqualTo(code);
+                });
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), false)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getHttpStatus()).isEqualTo(404));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isZero();
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"Not/AZone", "+05:30", "UTC+5"})
+    void anUnusableStoredTimezoneRequiresAccountRemediationWithoutWrites(String timezone) {
+        jdbc.update("UPDATE users SET time_zone = ? WHERE user_id='SID-T2'", timezone);
+        assertThatThrownBy(() -> onboarding.getOnboardingAvailability("SID-T2"))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure -> {
+                    assertThat(failure.getHttpStatus()).isEqualTo(409);
+                    assertThat(failure.getErrorCode()).isEqualTo("ACCOUNT_TIMEZONE_REQUIRED");
+                });
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getHttpStatus()).isEqualTo(409));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users WHERE user_id='SID-T2'", Integer.class))
+                .isEqualTo(3);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "ALTER TABLE user_availability DROP COLUMN start_time",
+            "ALTER TABLE user_availability ALTER COLUMN end_time TYPE timestamp with time zone",
+            "ALTER TABLE user_availability ALTER COLUMN last_updated_at TYPE time USING last_updated_at::time",
+            "ALTER TABLE users RENAME COLUMN promotion_wizard_last_updated_at TO promotion_wizard_last_update_date",
+            "ALTER TABLE users ALTER COLUMN is_emergency_available DROP NOT NULL",
+            "DROP TABLE volunteer_details"
+    })
+    void anIncompatibleAvailabilitySchemaFailsBeforeAnyStateWrite(String fixtureChange) {
+        jdbc.execute(fixtureChange);
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure -> {
+                    assertThat(failure.getHttpStatus()).isEqualTo(503);
+                    assertThat(failure.getErrorCode()).isEqualTo("FEATURE_UNAVAILABLE");
+                });
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users WHERE user_id='SID-T2'", Integer.class))
+                .isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isZero();
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(ints = {5})
+    void replacementPersistsEmergencyFalseRemovesOldSlotsAndNeverRegressesProgress(Integer previousStage) {
+        jdbc.update("UPDATE users SET promotion_wizard_stage = ? WHERE user_id='SID-T2'", previousStage);
+        onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true));
+        var replaced = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Tuesday", "14:00", "17:00")), false));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(replaced);
+        assertThat(replaced.isEmergencyAvailable()).isFalse();
+        assertThat(replaced.promotionWizardStage()).isEqualTo(previousStage == null ? 4 : 5);
+        assertThat(replaced.availability()).extracting(OnboardingAvailabilitySlotResponse::dayOfWeek,
+                OnboardingAvailabilitySlotResponse::startTime, OnboardingAvailabilitySlotResponse::endTime)
+                .containsExactly(tuple("Tuesday", "14:00", "17:00"));
+    }
+
+    @Test
+    void anExistingVolunteerWithoutASavedScheduleCanReadItsEmptyState() {
+        var empty = onboarding.getOnboardingAvailability("SID-T2");
+        assertThat(empty.availability()).isEmpty();
+        assertThat(empty.isEmergencyAvailable()).isFalse();
+        assertThat(empty.promotionWizardStage()).isEqualTo(3);
+    }
+
+    @Test
+    void aTimezoneAwareProgressColumnStillRecordsTheActualUtcInstant() {
+        jdbc.execute("ALTER TABLE users ALTER COLUMN promotion_wizard_last_updated_at TYPE timestamp with time zone");
+        onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true));
+        var timestamp = jdbc.queryForObject("SELECT promotion_wizard_last_updated_at FROM users WHERE user_id='SID-T2'",
+                OffsetDateTime.class);
+        assertThat(timestamp.toInstant()).isEqualTo(Instant.parse("2026-07-06T12:00:00Z"));
+    }
+
 }

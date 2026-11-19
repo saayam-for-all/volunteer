@@ -38,15 +38,41 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query(value = "SELECT is_emergency_available FROM users WHERE user_id = :userId", nativeQuery = true)
     boolean isEmergencyAvailable(@Param("userId") String userId);
 
+    @Query(value = """
+            SELECT data_type FROM information_schema.columns WHERE table_schema = current_schema()
+              AND table_name = 'users' AND column_name = 'promotion_wizard_last_updated_at'
+            """, nativeQuery = true)
+    String wizardProgressTimestampType();
+
+    // Both deployed timestamp layouts must preserve the UTC instant even with a non-UTC session timezone.
+    default void saveOnboardingAvailabilityState(String userId, boolean emergency, java.time.LocalDateTime updatedAt) {
+        var instant = updatedAt.atOffset(java.time.ZoneOffset.UTC);
+        if ("timestamp with time zone".equals(wizardProgressTimestampType())) {
+            saveOnboardingStateWithTimezone(userId, emergency, instant);
+        } else {
+            saveOnboardingStateWithoutTimezone(userId, emergency, instant);
+        }
+    }
+
     @Modifying
     @Query(value = """
             UPDATE users SET is_emergency_available = :emergency,
               promotion_wizard_stage = GREATEST(COALESCE(promotion_wizard_stage, 0), 4),
-              promotion_wizard_last_updated_at = :updatedAt WHERE user_id = :userId
+              promotion_wizard_last_updated_at = CAST(:updatedAt AS timestamp with time zone)
+            WHERE user_id = :userId
             """, nativeQuery = true)
-    void saveOnboardingAvailabilityState(@Param("userId") String userId, @Param("emergency") boolean emergency,
-            @Param("updatedAt") java.time.LocalDateTime updatedAt);
+    void saveOnboardingStateWithTimezone(@Param("userId") String userId, @Param("emergency") boolean emergency,
+            @Param("updatedAt") java.time.OffsetDateTime updatedAt);
 
+    @Modifying
+    @Query(value = """
+            UPDATE users SET is_emergency_available = :emergency,
+              promotion_wizard_stage = GREATEST(COALESCE(promotion_wizard_stage, 0), 4),
+              promotion_wizard_last_updated_at = (CAST(:updatedAt AS timestamp with time zone) AT TIME ZONE 'UTC')
+            WHERE user_id = :userId
+            """, nativeQuery = true)
+    void saveOnboardingStateWithoutTimezone(@Param("userId") String userId, @Param("emergency") boolean emergency,
+            @Param("updatedAt") java.time.OffsetDateTime updatedAt);
 
     List<User> findByPrimaryEmailAddress(String email);
 

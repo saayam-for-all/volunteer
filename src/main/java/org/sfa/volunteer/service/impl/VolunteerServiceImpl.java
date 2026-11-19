@@ -113,9 +113,10 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (!volunteerRepository.existsById(request.userId())) {
             throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
         }
-        ZoneId zone = ZoneId.of(account.getTimeZone());
-        var rows = userService.replaceAvailabilityRows(request.userId(), zone, slots,
-                LocalDate.now(availabilityClock.withZone(zone)));
+        ZoneId zone = storedAvailabilityZone(account.getTimeZone());
+        LocalDate anchorDate = LocalDate.now(availabilityClock.withZone(zone));
+        requireRepresentableOnboardingTimes(slots, zone, anchorDate);
+        var rows = userService.replaceAvailabilityRows(request.userId(), zone, slots, anchorDate);
         userRepository.saveOnboardingAvailabilityState(request.userId(), request.isEmergencyAvailable(),
                 LocalDateTime.ofInstant(availabilityClock.instant(), java.time.ZoneOffset.UTC));
         return onboardingResponse(request.userId(), request.isEmergencyAvailable(),
@@ -132,7 +133,7 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
         }
         return onboardingResponse(userId, userRepository.isEmergencyAvailable(userId),
-                account.getPromotionWizardStage(), ZoneId.of(account.getTimeZone()),
+                account.getPromotionWizardStage(), storedAvailabilityZone(account.getTimeZone()),
                 userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
     }
 
@@ -183,6 +184,22 @@ public class VolunteerServiceImpl implements VolunteerService {
         return false;
     }
 
+    private static void requireRepresentableOnboardingTimes(List<LocalSlot> slots, ZoneId zone, LocalDate anchorDate) {
+        for (LocalSlot slot : slots) {
+            try {
+                var utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, anchorDate);
+                if (!slot.equals(AvailabilityTimeConverter.toLocal(utc.start(), utc.end(), zone))
+                        || !utc.end().isAfter(utc.start())) throw invalidAvailabilityOccurrence();
+            } catch (IllegalArgumentException invalidTime) {
+                throw invalidAvailabilityOccurrence();
+            }
+        }
+    }
+
+    private static OnboardingAvailabilityException invalidAvailabilityOccurrence() {
+        return availabilityBadRequest("Availability times must exist in the account timezone on their next occurrence");
+    }
+
     private static Set<DayOfWeek> onboardingDays(String value) {
         if ("Everyday".equalsIgnoreCase(value)) return EnumSet.allOf(DayOfWeek.class);
         if (value != null) {
@@ -200,6 +217,14 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw availabilityBadRequest("startTime and endTime must use local HH:mm without dates, seconds or offsets");
         }
         return LocalTime.parse(value);
+    }
+
+    private static ZoneId storedAvailabilityZone(String timezone) {
+        if (timezone == null || !ZoneId.getAvailableZoneIds().contains(timezone)) {
+            throw new OnboardingAvailabilityException(409, "ACCOUNT_TIMEZONE_REQUIRED",
+                    "Set a valid account timezone before using onboarding availability");
+        }
+        return ZoneId.of(timezone);
     }
 
     private static void requireAvailabilityUserId(String userId) {
