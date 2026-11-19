@@ -4,7 +4,21 @@ import org.springframework.http.HttpStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.sfa.volunteer.dto.request.OnboardingAvailabilitySaveRequest;
+import org.sfa.volunteer.dto.response.OnboardingAvailabilityResponse;
+import org.sfa.volunteer.dto.response.OnboardingAvailabilitySlotResponse;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
+import org.sfa.volunteer.model.VolunteerUserAvailability;
+import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
+import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.util.AvailabilityTimeConverter;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
+import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.PaginationResponse;
@@ -38,7 +52,31 @@ public class VolunteerServiceImpl implements VolunteerService {
     private final VolunteerRepository volunteerRepository;
     private final UserRepository userRepository;
 
-    // private final UserVolunteerSkillsRepository userVolunteerSkillsRepository;
+    @Autowired private UserService userService;
+    @Autowired private VolunteerUserAvailabilityRepository userAvailabilityRepository;
+    @Autowired private JdbcTemplate availabilityJdbc;
+    @Autowired private Clock availabilityClock = Clock.systemUTC();
+
+    private static final Set<String> TEXT = Set.of("character varying", "text", "character");
+    private static final Set<String> INTEGER = Set.of("integer", "smallint");
+    private static final Set<String> TIMESTAMP = Set.of("timestamp without time zone");
+    private static final Map<String, Set<String>> REQUIRED = Map.ofEntries(
+            Map.entry("users.user_id", TEXT),
+            Map.entry("users.time_zone", TEXT),
+            Map.entry("users.primary_email_address", TEXT),
+            Map.entry("users.promotion_wizard_stage", INTEGER),
+            Map.entry("users.promotion_wizard_last_updated_at",
+                    Set.of("timestamp without time zone", "timestamp with time zone")),
+            Map.entry("users.is_emergency_available", Set.of("boolean")),
+            Map.entry("volunteer_details.user_id", TEXT),
+            Map.entry("volunteer_details.availability_days", Set.of("json", "jsonb")),
+            Map.entry("volunteer_details.availability_times", Set.of("json", "jsonb")),
+            Map.entry("user_availability.user_availability_id", INTEGER),
+            Map.entry("user_availability.user_id", TEXT),
+            Map.entry("user_availability.day_of_week", TEXT),
+            Map.entry("user_availability.start_time", TIMESTAMP),
+            Map.entry("user_availability.end_time", TIMESTAMP),
+            Map.entry("user_availability.last_updated_at", TIMESTAMP));
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int DEFAULT_PAGE = 0;
@@ -49,6 +87,76 @@ public class VolunteerServiceImpl implements VolunteerService {
         this.userRepository = userRepository;
         this.volunteerRepository = volunteerRepository;
         // this.userVolunteerSkillsRepository = userVolunteerSkillsRepository;
+    }
+
+    @Override
+    public OnboardingAvailabilityResponse updateVolunteerStep4(OnboardingAvailabilitySaveRequest request) {
+        requireOnboardingAvailabilityReady();
+        var account = userRepository.lockAvailabilityAccountById(request.userId())
+                .orElseThrow(() -> new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found"));
+        if (!volunteerRepository.existsById(request.userId())) {
+            throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
+        }
+        ZoneId zone = ZoneId.of(account.getTimeZone());
+        List<LocalSlot> slots = request.availability().stream().map(slot -> new LocalSlot(
+                DayOfWeek.valueOf(slot.dayOfWeek().toUpperCase(Locale.ROOT)),
+                LocalTime.parse(slot.startTime()), LocalTime.parse(slot.endTime()))).toList();
+        var rows = userService.replaceAvailabilityRows(request.userId(), zone, slots,
+                LocalDate.now(availabilityClock.withZone(zone)));
+        userRepository.saveOnboardingAvailabilityState(request.userId(), request.isEmergencyAvailable(),
+                LocalDateTime.ofInstant(availabilityClock.instant(), java.time.ZoneOffset.UTC));
+        return onboardingResponse(request.userId(), request.isEmergencyAvailable(),
+                Math.max(account.getPromotionWizardStage() == null ? 0 : account.getPromotionWizardStage(), 4), zone, rows);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public OnboardingAvailabilityResponse getOnboardingAvailability(String userId) {
+        requireOnboardingAvailabilityReady();
+        var account = userRepository.findAvailabilityAccountById(userId)
+                .orElseThrow(() -> new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found"));
+        if (!volunteerRepository.existsById(userId)) {
+            throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
+        }
+        return onboardingResponse(userId, userRepository.isEmergencyAvailable(userId),
+                account.getPromotionWizardStage(), ZoneId.of(account.getTimeZone()),
+                userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
+    }
+
+    @Override
+    public void requireOnboardingAvailabilityReady() {
+        Map<String, String> types = new HashMap<>();
+        Map<String, String> nullable = new HashMap<>();
+        availabilityJdbc.query("""
+                SELECT table_name, column_name, data_type, is_nullable FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name IN ('users', 'user_availability', 'volunteer_details')
+                """, (org.springframework.jdbc.core.RowCallbackHandler) row -> {
+            String key = row.getString("table_name") + "." + row.getString("column_name");
+            types.put(key, row.getString("data_type"));
+            nullable.put(key, row.getString("is_nullable"));
+        });
+        boolean ready = REQUIRED.entrySet().stream()
+                .allMatch(field -> field.getValue().contains(types.getOrDefault(field.getKey(), "")))
+                && "NO".equals(nullable.get("users.is_emergency_available"));
+        if (!ready) {
+            throw new OnboardingAvailabilityException(503, "FEATURE_UNAVAILABLE",
+                    "Onboarding availability is not ready in this environment");
+        }
+    }
+
+    private static OnboardingAvailabilityResponse onboardingResponse(String userId, boolean emergency, Integer stage,
+            ZoneId zone, List<VolunteerUserAvailability> rows) {
+        var slots = rows.stream().map(row -> {
+            var local = AvailabilityTimeConverter.toLocal(row.getStartTime(), row.getEndTime(), zone);
+            String day = local.day().name().charAt(0) + local.day().name().substring(1).toLowerCase(Locale.ROOT);
+            return new OnboardingAvailabilitySlotResponse(row.getId(), day,
+                    local.start().toString(), local.end().toString());
+        }).sorted(Comparator.comparing((OnboardingAvailabilitySlotResponse slot) ->
+                DayOfWeek.valueOf(slot.dayOfWeek().toUpperCase(Locale.ROOT)))
+                .thenComparing(OnboardingAvailabilitySlotResponse::startTime)
+                .thenComparing(OnboardingAvailabilitySlotResponse::endTime)).toList();
+        return new OnboardingAvailabilityResponse(userId, emergency, stage, slots);
     }
 
     private void updateUser(User user, Integer step) {
@@ -215,7 +323,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     // }
 
     @Override
-    public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) throws Exception {
+    public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) {
         User user = userRepository.findById(request.userId())
                 .orElseThrow(() -> new UserNotFoundException(request.userId()));
 

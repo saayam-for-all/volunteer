@@ -66,6 +66,10 @@ import java.util.stream.Collectors;
 @Transactional
     public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+    @Autowired
+    private java.time.Clock availabilityClock = java.time.Clock.systemUTC();
     private final UserStatusRepository userStatusRepository;
     private final UserSignOffReasonRepository userSignOffReasonRepository;
     private final UserCategoryRepository userCategoryRepository;
@@ -443,6 +447,23 @@ import java.util.stream.Collectors;
         List<VolunteerUserAvailability> saved = userAvailabilityRepository.saveAll(rows);
 
         return toAvailabilityResponse(userId, zone.getId(), saved);
+    }
+
+    @Override
+    public List<VolunteerUserAvailability> replaceAvailabilityRows(String userId, ZoneId zone,
+            List<LocalSlot> localSlots, LocalDate anchorDate) {
+        userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        User user = entityManager.getReference(User.class, userId);
+        LocalDateTime now = LocalDateTime.ofInstant(availabilityClock.instant(), ZoneOffset.UTC);
+        List<VolunteerUserAvailability> rows = new ArrayList<>();
+        for (LocalSlot slot : localSlots) {
+            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, anchorDate);
+            rows.add(VolunteerUserAvailability.builder().user(user).dayOfWeek(dayName(utc.day()))
+                    .startTime(utc.start()).endTime(utc.end()).lastUpdatedAt(now).build());
+        }
+        userAvailabilityRepository.deleteByUser_Id(userId);
+        userAvailabilityRepository.flush();
+        return userAvailabilityRepository.saveAll(rows);
     }
 
     // Checked against the IANA list rather than relying on ZoneId.of() throwing: ZoneId.of() also accepts

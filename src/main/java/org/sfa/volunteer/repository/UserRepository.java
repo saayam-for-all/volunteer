@@ -15,6 +15,38 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
+    interface AvailabilityAccount {
+        String getUserId();
+        String getTimeZone();
+        String getPrimaryEmailAddress();
+        Integer getPromotionWizardStage();
+    }
+
+    String AVAILABILITY_ACCOUNT = """
+            SELECT user_id AS "userId", time_zone AS "timeZone",
+                   primary_email_address AS "primaryEmailAddress",
+                   promotion_wizard_stage AS "promotionWizardStage"
+            FROM users WHERE user_id = :userId
+            """;
+
+    @Query(value = AVAILABILITY_ACCOUNT, nativeQuery = true)
+    Optional<AvailabilityAccount> findAvailabilityAccountById(@Param("userId") String userId);
+
+    @Query(value = AVAILABILITY_ACCOUNT + " FOR UPDATE", nativeQuery = true)
+    Optional<AvailabilityAccount> lockAvailabilityAccountById(@Param("userId") String userId);
+
+    @Query(value = "SELECT is_emergency_available FROM users WHERE user_id = :userId", nativeQuery = true)
+    boolean isEmergencyAvailable(@Param("userId") String userId);
+
+    @Modifying
+    @Query(value = """
+            UPDATE users SET is_emergency_available = :emergency,
+              promotion_wizard_stage = GREATEST(COALESCE(promotion_wizard_stage, 0), 4),
+              promotion_wizard_last_updated_at = :updatedAt WHERE user_id = :userId
+            """, nativeQuery = true)
+    void saveOnboardingAvailabilityState(@Param("userId") String userId, @Param("emergency") boolean emergency,
+            @Param("updatedAt") java.time.LocalDateTime updatedAt);
+
 
     List<User> findByPrimaryEmailAddress(String email);
 

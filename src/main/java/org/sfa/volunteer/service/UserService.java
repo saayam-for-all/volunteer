@@ -8,8 +8,13 @@ import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.UserPreferenceResponse;
 import org.sfa.volunteer.dto.response.*;
 import org.springframework.stereotype.Service;
+import java.util.List;
 
 public interface UserService {
+    List<org.sfa.volunteer.model.VolunteerUserAvailability> replaceAvailabilityRows(String userId,
+            java.time.ZoneId zone, List<org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot> slots,
+            java.time.LocalDate anchorDate);
+
 
     PaginationResponse<UserProfileResponse> findAllUsersWithPagination(Integer pageNumber, Integer pageSize);
 

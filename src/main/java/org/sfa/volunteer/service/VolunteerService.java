@@ -5,6 +5,8 @@ import org.sfa.volunteer.dto.response.VolunteerResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import java.time.LocalDate;
+import org.sfa.volunteer.dto.request.OnboardingAvailabilitySaveRequest;
+import org.sfa.volunteer.dto.response.OnboardingAvailabilityResponse;
 
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
 //import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
@@ -12,6 +14,11 @@ import java.time.LocalDate;
 
 
 public interface VolunteerService {
+    OnboardingAvailabilityResponse updateVolunteerStep4(OnboardingAvailabilitySaveRequest request);
+
+    OnboardingAvailabilityResponse getOnboardingAvailability(String userId);
+
+    void requireOnboardingAvailabilityReady();
 
     PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize);
     
@@ -30,7 +37,7 @@ public interface VolunteerService {
 
     VolunteerResponse updateVolunteerStep4(VolunteerRequest volunteerRequest) throws Exception;
 
-    VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest) throws Exception;
+    VolunteerResponse updateVolunteerCompletion(VolunteerRequest volunteerRequest);
 
     VolunteerResponse getVolunteerByUserId(String userId) throws Exception;
     

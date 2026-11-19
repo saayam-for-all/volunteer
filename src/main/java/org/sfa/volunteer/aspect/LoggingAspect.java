@@ -11,7 +11,12 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class LoggingAspect {
 
-    @Around("execution(* org.sfa.volunteer.service.*.*(..))")
+    @Around("execution(* org.sfa.volunteer.service.*.*(..))"
+            + " && !execution(* org.sfa.volunteer.service.VolunteerService*.updateVolunteerStep4(..))"
+            + " && !execution(* org.sfa.volunteer.service.VolunteerService*.getOnboardingAvailability(..))"
+            + " && !execution(* org.sfa.volunteer.service.VolunteerService*.requireOnboardingAvailabilityReady(..))"
+            + " && !execution(* org.sfa.volunteer.service.VolunteerService*.updateVolunteerCompletion(..))"
+            + " && !execution(* org.sfa.volunteer.service.VolunteerService*.updateVolunteer(..))")
     public Object logServiceMethods(ProceedingJoinPoint joinPoint) throws Throwable {
         String methodName = joinPoint.getSignature().getName();
         Object[] args = joinPoint.getArgs();
