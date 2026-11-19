@@ -13,11 +13,11 @@ public class OnboardingAvailabilityAuthorization {
     public record Caller(String subject, String email, boolean emailVerified) {}
 
     private final UserRepository accounts;
-    private final VolunteerService schema;
+    private final VolunteerService volunteers;
 
-    public OnboardingAvailabilityAuthorization(UserRepository accounts, VolunteerService schema) {
+    public OnboardingAvailabilityAuthorization(UserRepository accounts, VolunteerService volunteers) {
         this.accounts = accounts;
-        this.schema = schema;
+        this.volunteers = volunteers;
     }
 
     public void requireOwner(String userId, HttpServletRequest request) {
@@ -40,7 +40,7 @@ public class OnboardingAvailabilityAuthorization {
             throw forbidden();
         }
         if (userId == null || userId.isBlank()) throw new OnboardingAvailabilityException(400, "BAD_REQUEST", "userId is required");
-        schema.requireOnboardingAvailabilityReady();
+        volunteers.requireOnboardingAvailabilityReady();
         var account = accounts.findAvailabilityAccountById(userId).orElseThrow(() ->
                 new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found"));
         if (account.getPrimaryEmailAddress() == null || !account.getPrimaryEmailAddress().strip().equalsIgnoreCase(caller.email().strip())) {
