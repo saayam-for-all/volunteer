@@ -235,4 +235,61 @@ class OnboardingAvailabilityPostgresTest {
         assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
     }
 
+    static Stream<List<OnboardingAvailabilitySlot>> duplicateOrGroupedOverlaps() {
+        return Stream.of(
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00"),
+                        new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")),
+                List.of(new OnboardingAvailabilitySlot("Everyday", "09:00", "12:00"),
+                        new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")),
+                List.of(new OnboardingAvailabilitySlot("Everyday", "09:00", "12:00"),
+                        new OnboardingAvailabilitySlot("Sunday", "10:00", "11:00")));
+    }
+
+    @ParameterizedTest
+    @MethodSource("duplicateOrGroupedOverlaps")
+    void duplicateAndEverydayIntersectionsAreRejectedAfterExpansion(List<OnboardingAvailabilitySlot> intervals) {
+        var before = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "14:00", "16:00")), false));
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4, intervals, true)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure -> {
+                    assertThat(failure.getHttpStatus()).isEqualTo(400);
+                    assertThat(failure.getMessage()).contains("overlap");
+                });
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+    }
+
+    @Test
+    void adjacentSlotsAndIdenticalTimesOnDifferentDaysAreIndependentAndSorted() {
+        var saved = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4, List.of(
+                new OnboardingAvailabilitySlot("Monday", "12:00", "14:00"),
+                new OnboardingAvailabilitySlot("Tuesday", "09:00", "12:00"),
+                new OnboardingAvailabilitySlot("Sunday", "00:00", "23:59"),
+                new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), false));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(saved);
+        assertThat(saved.availability()).extracting(OnboardingAvailabilitySlotResponse::dayOfWeek,
+                OnboardingAvailabilitySlotResponse::startTime, OnboardingAvailabilitySlotResponse::endTime)
+                .containsExactly(tuple("Monday", "09:00", "12:00"), tuple("Monday", "12:00", "14:00"),
+                        tuple("Tuesday", "09:00", "12:00"), tuple("Sunday", "00:00", "23:59"));
+    }
+
+    private static List<OnboardingAvailabilitySlot> everydayInputs(int count) {
+        return IntStream.range(0, count).mapToObj(index -> new OnboardingAvailabilitySlot("Everyday",
+                LocalTime.MIDNIGHT.plusMinutes(index * 2L).toString(),
+                LocalTime.MIDNIGHT.plusMinutes(index * 2L + 1).toString())).toList();
+    }
+
+    @Test
+    void theProposedLimitAppliesToInputEntriesRatherThanExpandedRows() {
+        var before = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4, everydayInputs(20), false));
+        assertThat(before.availability()).hasSize(140);
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                everydayInputs(21), true)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure -> {
+                    assertThat(failure.getHttpStatus()).isEqualTo(400);
+                    assertThat(failure.getMessage()).contains("20");
+                });
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+    }
+
 }

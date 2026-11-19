@@ -100,9 +100,13 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (request.availability() == null || request.availability().isEmpty()) {
             throw availabilityBadRequest("At least one availability interval is required");
         }
+        if (request.availability().size() > 20) {
+            throw availabilityBadRequest("availability must contain at most 20 input intervals");
+        }
         if (request.availability().stream().anyMatch(Objects::isNull)) {
             throw availabilityBadRequest("Each availability interval is required");
         }
+        List<LocalSlot> slots = normalizeOnboardingIntervals(request);
         requireOnboardingAvailabilityReady();
         var account = userRepository.lockAvailabilityAccountById(request.userId())
                 .orElseThrow(() -> new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found"));
@@ -110,7 +114,6 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
         }
         ZoneId zone = ZoneId.of(account.getTimeZone());
-        List<LocalSlot> slots = normalizeOnboardingIntervals(request);
         var rows = userService.replaceAvailabilityRows(request.userId(), zone, slots,
                 LocalDate.now(availabilityClock.withZone(zone)));
         userRepository.saveOnboardingAvailabilityState(request.userId(), request.isEmergencyAvailable(),
@@ -165,7 +168,19 @@ public class VolunteerServiceImpl implements VolunteerService {
                 slots.add(new LocalSlot(day, start, end));
             }
         }
+        if (hasAvailabilityOverlap(slots)) {
+            throw availabilityBadRequest("Availability intervals must not overlap on the same day");
+        }
         return List.copyOf(slots);
+    }
+
+    private static boolean hasAvailabilityOverlap(List<LocalSlot> slots) {
+        for (int first = 0; first < slots.size(); first++) {
+            for (int second = first + 1; second < slots.size(); second++) {
+                if (AvailabilityTimeConverter.overlaps(slots.get(first), slots.get(second))) return true;
+            }
+        }
+        return false;
     }
 
     private static Set<DayOfWeek> onboardingDays(String value) {
