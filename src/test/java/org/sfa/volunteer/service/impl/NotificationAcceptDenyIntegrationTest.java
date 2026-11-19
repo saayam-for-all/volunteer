@@ -84,6 +84,7 @@ class NotificationAcceptDenyIntegrationTest {
 
     @Autowired private NotificationService service;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private NotificationsRepository repository;
 
     @BeforeEach
     void reset() {
@@ -174,15 +175,62 @@ class NotificationAcceptDenyIntegrationTest {
     }
 
     @Test
-    void listingExposesRequestReferenceAndCommittedActionStatuses() {
+    void acceptanceRemovesOthersNotificationFromListsAndCountsButRetainsHistory() {
         insert(1, "user-1", "req-1", "PENDING");
         insert(2, "user-2", "req-1", "PENDING");
         service.acceptNotification(1, "user-1");
+        var otherRequest = GetNotificationsRequest.builder().userId("user-2").rowStart(0).rowEnd(9).build();
+        var otherList = service.getNotifications(otherRequest);
+        assertThat(otherList.notifications()).isEmpty();
+        assertThat(otherList.totalCount()).isZero();
+        assertThat(otherList.newNotificationsCount()).isZero();
+        assertThat(service.getNotificationCounts(otherRequest).totalCount()).isZero();
+        assertThat(repository.countNewNotifications("user-2", java.sql.Timestamp.valueOf("1970-01-01 00:00:00")))
+                .isZero();
+        assertThat(status(2)).isEqualTo("REQUEST_TAKEN");
+        assertThat(service.acceptNotification(2, "user-2").actionStatus()).isEqualTo(ActionStatus.REQUEST_TAKEN);
+
         var items = service.getNotifications(GetNotificationsRequest.builder()
-                .userId("user-2").rowStart(0).rowEnd(9).build()).notifications();
+                .userId("user-1").rowStart(0).rowEnd(9).build()).notifications();
         assertThat(items).hasSize(1);
         assertThat(items.get(0).requestId()).isEqualTo("req-1");
-        assertThat(items.get(0).actionStatus()).isEqualTo(ActionStatus.REQUEST_TAKEN);
+        assertThat(items.get(0).actionStatus()).isEqualTo(ActionStatus.ACCEPTED);
+    }
+
+    @Test
+    void hidesPreviouslyDeniedAndLatePendingWorkflowNotificationsAfterAnotherVolunteerWins() {
+        insert(1, "user-1", "req-1", "PENDING");
+        insert(2, "user-2", "req-1", "PENDING");
+        service.denyNotification(2, "user-2");
+        service.acceptNotification(1, "user-1");
+        insert(3, "user-3", "req-1", "PENDING");
+        for (String user : List.of("user-2", "user-3")) {
+            assertThat(repository.countAllNotifications(user)).isZero();
+            assertThat(repository.findNotifications(user, org.springframework.data.domain.PageRequest.of(0, 1)))
+                    .isEmpty();
+        }
+        assertThat(status(2)).isEqualTo("DENIED");
+        assertThat(service.acceptNotification(3, "user-3").actionStatus()).isEqualTo(ActionStatus.REQUEST_TAKEN);
+    }
+
+    @Test
+    void visibilityKeepsUnrelatedAndLegacyNotificationsAndPaginationTotalsConsistent() {
+        insert(1, "winner", "req-1", "PENDING");
+        insert(2, "other", "req-1", "PENDING");
+        insert(3, "other", "req-2", "PENDING");
+        insert(4, "other", "req-1", null);
+        insert(5, "other", null, null);
+        service.acceptNotification(1, "winner");
+        var page = repository.findNotifications("other", org.springframework.data.domain.PageRequest.of(0, 1));
+        assertThat(page.getNumberOfElements()).isEqualTo(1);
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(repository.countAllNotifications("other")).isEqualTo(3);
+        assertThat(repository.countNewNotifications("other", java.sql.Timestamp.valueOf("1970-01-01 00:00:00")))
+                .isEqualTo(3);
+        assertThat(status(2)).isEqualTo("REQUEST_TAKEN");
+        assertThat(status(3)).isEqualTo("PENDING");
+        assertThat(status(4)).isNull();
+        assertThat(status(5)).isNull();
     }
 
     @Test
