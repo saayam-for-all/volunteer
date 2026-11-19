@@ -433,4 +433,26 @@ class OnboardingAvailabilityPostgresTest {
         assertThat(timestamp.toInstant()).isEqualTo(Instant.parse("2026-07-06T12:00:00Z"));
     }
 
+    @Test
+    void genericServiceLoggingDoesNotExposeTheAvailabilityRequestOrSchedule() {
+        Logger logger = (Logger) LoggerFactory.getLogger(LoggingAspect.class);
+        ListAppender<ILoggingEvent> captured = new ListAppender<>();
+        captured.start();
+        logger.addAppender(captured);
+        try {
+            onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                    List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true));
+            onboarding.getOnboardingAvailability("SID-T2");
+            profiles.updateAvailability(new UpdateAvailabilityRequest("SID-T2", "Asia/Kolkata",
+                    List.of(new AvailabilitySlotRequest("Tuesday", "09:00", "12:00")), null, null, null));
+            profiles.getAvailability("SID-T2");
+            assertThat(captured.list).extracting(ILoggingEvent::getFormattedMessage)
+                    .allSatisfy(message -> assertThat(message)
+                            .doesNotContain("SID-T2", "09:00", "12:00", "isEmergencyAvailable"));
+        } finally {
+            logger.detachAppender(captured);
+            captured.stop();
+        }
+    }
+
 }

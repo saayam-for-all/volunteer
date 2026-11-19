@@ -400,14 +400,15 @@ import java.util.stream.Collectors;
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true,
+            isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public AvailabilityResponse getAvailability(String userId) {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("userId is required");
         }
-        User user = userRepository.findById(userId)
+        var account = userRepository.findAvailabilityAccountById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-
-        return toAvailabilityResponse(user, userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
+        return toAvailabilityResponse(userId, account.getTimeZone(), userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
     }
 
     @Override
@@ -422,31 +423,10 @@ import java.util.stream.Collectors;
         ZoneId zone = parseTimezone(request.getTimezone());
         List<LocalSlot> localSlots = parseSlots(request.getSlots());
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+        userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
         userRepository.updateAvailabilityTimezone(userId, zone.getId());
-
-        // Vacation fields are accepted but not stored: user_availability has no columns for them yet
-        LocalDate today = LocalDate.now(zone);
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        List<VolunteerUserAvailability> rows = new ArrayList<>();
-        for (LocalSlot slot : localSlots) {
-            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, today);
-            rows.add(VolunteerUserAvailability.builder()
-                    .user(user)
-                    .dayOfWeek(dayName(utc.day()))
-                    .startTime(utc.start())
-                    .endTime(utc.end())
-                    .lastUpdatedAt(now)
-                    .build());
-        }
-
-        // Replace, not merge: flush the deletes so they run before the inserts
-        userAvailabilityRepository.deleteByUser_Id(userId);
-        userAvailabilityRepository.flush();
-        List<VolunteerUserAvailability> saved = userAvailabilityRepository.saveAll(rows);
-
-        return toAvailabilityResponse(userId, zone.getId(), saved);
+        LocalDate anchorDate = LocalDate.now(availabilityClock.withZone(zone));
+        return toAvailabilityResponse(userId, zone.getId(), replaceAvailabilityRows(userId, zone, localSlots, anchorDate));
     }
 
     @Override

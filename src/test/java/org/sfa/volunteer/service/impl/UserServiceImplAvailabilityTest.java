@@ -1,6 +1,9 @@
 package org.sfa.volunteer.service.impl;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import jakarta.persistence.EntityManager;
+import org.sfa.volunteer.repository.UserRepository.AvailabilityAccount;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -41,6 +44,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplAvailabilityTest {
@@ -55,6 +59,28 @@ class UserServiceImplAvailabilityTest {
 
     @InjectMocks
     private UserServiceImpl userService;
+
+    @Mock private EntityManager entityManager;
+
+    @BeforeEach
+    void lazyAccountReference() {
+        org.springframework.test.util.ReflectionTestUtils.setField(userService, "entityManager", entityManager);
+        lenient().when(entityManager.getReference(User.class, USER_ID)).thenReturn(user("UTC"));
+    }
+
+    private static AvailabilityAccount account(String timezone) {
+        return new AvailabilityAccount() {
+            public String getUserId() { return USER_ID; }
+            public String getTimeZone() { return timezone; }
+            public String getPrimaryEmailAddress() { return "profile@example.test"; }
+            public Integer getPromotionWizardStage() { return 3; }
+        };
+    }
+
+    private void stubAccount(String timezone) {
+        lenient().when(userRepository.findAvailabilityAccountById(USER_ID)).thenReturn(Optional.of(account(timezone)));
+        lenient().when(userRepository.lockAvailabilityAccountById(USER_ID)).thenReturn(Optional.of(account(timezone)));
+    }
 
     private static User user(String timeZone) {
         return User.builder().id(USER_ID).timeZone(timeZone).build();
@@ -102,7 +128,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void getReturnsEmptySlotsWhenNothingSaved() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("America/Chicago")));
+        stubAccount("America/Chicago");
         when(userAvailabilityRepository.findByUser_IdOrderByIdAsc(USER_ID)).thenReturn(List.of());
 
         AvailabilityResponse response = userService.getAvailability(USER_ID);
@@ -125,7 +151,7 @@ class UserServiceImplAvailabilityTest {
         }
         rows.add(row(id, DayOfWeek.SATURDAY, "22:00", "02:00", newer));
         Collections.reverse(rows);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("America/Chicago")));
+        stubAccount("America/Chicago");
         when(userAvailabilityRepository.findByUser_IdOrderByIdAsc(USER_ID)).thenReturn(rows);
 
         AvailabilityResponse response = userService.getAvailability(USER_ID);
@@ -138,7 +164,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void getFallsBackToUtcWhenStoredTimezoneIsInvalid() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("Not/AZone")));
+        stubAccount("Not/AZone");
         when(userAvailabilityRepository.findByUser_IdOrderByIdAsc(USER_ID)).thenReturn(List.of());
 
         assertThat(userService.getAvailability(USER_ID).getTimezone()).isEqualTo("UTC");
@@ -154,7 +180,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void getThrowsWhenUserDoesNotExist() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+
 
         assertThatThrownBy(() -> userService.getAvailability(USER_ID)).isInstanceOf(UserNotFoundException.class);
         verifyNoInteractions(userAvailabilityRepository);
@@ -165,7 +191,8 @@ class UserServiceImplAvailabilityTest {
     @Test
     void updateReplacesRowsInUtcAndSavesTimezone() {
         User user = user("UTC");
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        stubAccount(user.getTimeZone());
+        when(entityManager.getReference(User.class, USER_ID)).thenReturn(user);
         saveAllAssignsIds();
         UpdateAvailabilityRequest request = update("America/Chicago", List.of(
                 slot("Weekdays", "09:00", "17:00"),
@@ -207,7 +234,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void updateExpandsEverydayToSevenRows() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        stubAccount("UTC");
         saveAllAssignsIds();
 
         AvailabilityResponse response =
@@ -219,7 +246,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void updateDropsExactDuplicateDays() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        stubAccount("UTC");
         saveAllAssignsIds();
 
         userService.updateAvailability(update("UTC", List.of(
@@ -231,7 +258,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void updateAllowsSeveralSlotsOnTheSameDay() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        stubAccount("UTC");
         saveAllAssignsIds();
 
         AvailabilityResponse response = userService.updateAvailability(update("America/Chicago", List.of(
@@ -248,7 +275,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void updateAllowsAnExtraSlotOnADayAlreadyCoveredByWeekdays() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        stubAccount("UTC");
         saveAllAssignsIds();
 
         AvailabilityResponse response = userService.updateAvailability(update("America/Chicago", List.of(
@@ -265,7 +292,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void updateAllowsTouchingSlots() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        stubAccount("UTC");
         saveAllAssignsIds();
 
         userService.updateAvailability(update("UTC", List.of(
@@ -315,7 +342,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void updateWithNoSlotsClearsAvailability() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user("UTC")));
+        stubAccount("UTC");
         saveAllAssignsIds();
 
         AvailabilityResponse response = userService.updateAvailability(update("Asia/Kolkata", List.of()));
@@ -328,7 +355,7 @@ class UserServiceImplAvailabilityTest {
 
     @Test
     void updateThrowsWhenUserDoesNotExist() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+
 
         assertThatThrownBy(() -> userService.updateAvailability(update("UTC", List.of())))
                 .isInstanceOf(UserNotFoundException.class);

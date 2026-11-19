@@ -22,6 +22,7 @@ public class LoggingAspect {
             + " && !execution(* org.sfa.volunteer.service.StewardService+.getVolunteers(..))"
             + " && !execution(* org.sfa.volunteer.service.UserService+.getAvailability(..))"
             + " && !execution(* org.sfa.volunteer.service.UserService+.updateAvailability(..))"
+            + " && !execution(* org.sfa.volunteer.service.UserService+.replaceAvailabilityRows(..))"
             + " && !execution(* org.sfa.volunteer.service.UserService+.readAvailabilityRows(..))")
     public Object logServiceMethods(ProceedingJoinPoint joinPoint) throws Throwable {
         String methodName = joinPoint.getSignature().getName();
