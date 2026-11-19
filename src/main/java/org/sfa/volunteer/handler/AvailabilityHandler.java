@@ -16,6 +16,7 @@ import org.sfa.volunteer.dto.request.AvailabilityUserRequest;
 import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.response.AvailabilityResponse;
 import org.sfa.volunteer.exception.UserNotFoundException;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.Cors;
 import org.sfa.volunteer.util.AvailabilityAuthorization;
@@ -102,6 +103,8 @@ public class AvailabilityHandler implements RequestHandler<APIGatewayProxyReques
             SaayamResponse<AvailabilityResponse> success =
                     responseBuilder.buildSuccessResponse(SaayamStatusCode.SUCCESS, new Object[]{ userId }, availability);
             return response.withStatusCode(200).withBody(OBJECT_MAPPER.writeValueAsString(success));
+        } catch (OnboardingAvailabilityException e) {
+            return error(response, ResponseBuilder.availabilityError(e.getHttpStatus(), e.getErrorCode(), e.getMessage()));
         } catch (ResponseStatusException e) {
             return error(response, e.getStatusCode().value(), SaayamStatusCode.BAD_REQUEST, e.getReason());
         } catch (IllegalArgumentException e) {
@@ -171,7 +174,11 @@ public class AvailabilityHandler implements RequestHandler<APIGatewayProxyReques
 
     private APIGatewayProxyResponseEvent error(APIGatewayProxyResponseEvent response, int status,
                                                SaayamStatusCode code, String message) {
-        SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(status, code, message);
+        return error(response, responseBuilder.buildErrorResponse(status, code, message));
+    }
+
+    private APIGatewayProxyResponseEvent error(APIGatewayProxyResponseEvent response, SaayamResponse<Void> errorResponse) {
+        int status = errorResponse.statusCode();
         try {
             return response.withStatusCode(status).withBody(OBJECT_MAPPER.writeValueAsString(errorResponse));
         } catch (JsonProcessingException jsonException) {
