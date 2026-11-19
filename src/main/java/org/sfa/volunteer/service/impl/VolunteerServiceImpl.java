@@ -47,7 +47,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@Transactional
+@Transactional(rollbackFor = Exception.class)
 public class VolunteerServiceImpl implements VolunteerService {
     private final VolunteerRepository volunteerRepository;
     private final UserRepository userRepository;
@@ -91,6 +91,18 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public OnboardingAvailabilityResponse updateVolunteerStep4(OnboardingAvailabilitySaveRequest request) {
+        if (request == null) throw availabilityBadRequest("Request body is required");
+        requireAvailabilityUserId(request.userId());
+        if (!Integer.valueOf(4).equals(request.step())) throw availabilityBadRequest("step must be 4");
+        if (request.isEmergencyAvailable() == null) {
+            throw availabilityBadRequest("isEmergencyAvailable must be an explicit boolean");
+        }
+        if (request.availability() == null || request.availability().isEmpty()) {
+            throw availabilityBadRequest("At least one availability interval is required");
+        }
+        if (request.availability().stream().anyMatch(Objects::isNull)) {
+            throw availabilityBadRequest("Each availability interval is required");
+        }
         requireOnboardingAvailabilityReady();
         var account = userRepository.lockAvailabilityAccountById(request.userId())
                 .orElseThrow(() -> new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found"));
@@ -98,9 +110,7 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
         }
         ZoneId zone = ZoneId.of(account.getTimeZone());
-        List<LocalSlot> slots = request.availability().stream().map(slot -> new LocalSlot(
-                DayOfWeek.valueOf(slot.dayOfWeek().toUpperCase(Locale.ROOT)),
-                LocalTime.parse(slot.startTime()), LocalTime.parse(slot.endTime()))).toList();
+        List<LocalSlot> slots = normalizeOnboardingIntervals(request);
         var rows = userService.replaceAvailabilityRows(request.userId(), zone, slots,
                 LocalDate.now(availabilityClock.withZone(zone)));
         userRepository.saveOnboardingAvailabilityState(request.userId(), request.isEmergencyAvailable(),
@@ -143,6 +153,46 @@ public class VolunteerServiceImpl implements VolunteerService {
             throw new OnboardingAvailabilityException(503, "FEATURE_UNAVAILABLE",
                     "Onboarding availability is not ready in this environment");
         }
+    }
+
+    private static List<LocalSlot> normalizeOnboardingIntervals(OnboardingAvailabilitySaveRequest request) {
+        List<LocalSlot> slots = new ArrayList<>();
+        for (var slot : request.availability()) {
+            LocalTime start = parseOnboardingTime(slot.startTime());
+            LocalTime end = parseOnboardingTime(slot.endTime());
+            if (!end.isAfter(start)) throw availabilityBadRequest("endTime must be later than startTime on the same day");
+            for (DayOfWeek day : onboardingDays(slot.dayOfWeek())) {
+                slots.add(new LocalSlot(day, start, end));
+            }
+        }
+        return List.copyOf(slots);
+    }
+
+    private static Set<DayOfWeek> onboardingDays(String value) {
+        if ("Everyday".equalsIgnoreCase(value)) return EnumSet.allOf(DayOfWeek.class);
+        if (value != null) {
+            try {
+                return EnumSet.of(DayOfWeek.valueOf(value.toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException ignored) {
+                // Group labels other than Everyday are not onboarding choices.
+            }
+        }
+        throw availabilityBadRequest("dayOfWeek must be Monday through Sunday or Everyday");
+    }
+
+    private static LocalTime parseOnboardingTime(String value) {
+        if (value == null || !value.matches("(?:[01][0-9]|2[0-3]):[0-5][0-9]")) {
+            throw availabilityBadRequest("startTime and endTime must use local HH:mm without dates, seconds or offsets");
+        }
+        return LocalTime.parse(value);
+    }
+
+    private static void requireAvailabilityUserId(String userId) {
+        if (userId == null || userId.isBlank()) throw availabilityBadRequest("userId is required");
+    }
+
+    private static OnboardingAvailabilityException availabilityBadRequest(String message) {
+        return new OnboardingAvailabilityException(400, "BAD_REQUEST", message);
     }
 
     private static OnboardingAvailabilityResponse onboardingResponse(String userId, boolean emergency, Integer stage,

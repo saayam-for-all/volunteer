@@ -171,4 +171,68 @@ class OnboardingAvailabilityPostgresTest {
                 .isEqualTo(3);
     }
 
+    static Stream<OnboardingAvailabilitySaveRequest> invalidEnvelopes() {
+        var valid = List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00"));
+        return Stream.of((OnboardingAvailabilitySaveRequest) null,
+                new OnboardingAvailabilitySaveRequest(null, 4, valid, false),
+                new OnboardingAvailabilitySaveRequest(" ", 4, valid, false),
+                new OnboardingAvailabilitySaveRequest("SID-T2", null, valid, false),
+                new OnboardingAvailabilitySaveRequest("SID-T2", 3, valid, false),
+                new OnboardingAvailabilitySaveRequest("SID-T2", 4, valid, null),
+                new OnboardingAvailabilitySaveRequest("SID-T2", 4, null, true),
+                new OnboardingAvailabilitySaveRequest("SID-T2", 4, List.of(), true),
+                new OnboardingAvailabilitySaveRequest("SID-T2", 4, Collections.singletonList(null), false));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidEnvelopes")
+    void incompleteOrWrongStepRequestsCannotChangeSavedOnboardingState(OnboardingAvailabilitySaveRequest request) {
+        var before = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true));
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(request))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getHttpStatus()).isEqualTo(400));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+    }
+
+    static Stream<OnboardingAvailabilitySlot> invalidLocalIntervals() {
+        return Stream.of(
+                new OnboardingAvailabilitySlot(null, "09:00", "12:00"),
+                new OnboardingAvailabilitySlot("", "09:00", "12:00"),
+                new OnboardingAvailabilitySlot(" Monday", "09:00", "12:00"),
+                new OnboardingAvailabilitySlot("Weekdays", "09:00", "12:00"),
+                new OnboardingAvailabilitySlot("Weekends", "09:00", "12:00"),
+                new OnboardingAvailabilitySlot("Holiday", "09:00", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", null, "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:00", null),
+                new OnboardingAvailabilitySlot("Monday", "", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:00", ""),
+                new OnboardingAvailabilitySlot("Monday", "9:00", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:0", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", " 09:00", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:00", "12:00 "),
+                new OnboardingAvailabilitySlot("Monday", "09:00:00", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:00", "12:00:00"),
+                new OnboardingAvailabilitySlot("Monday", "2026-07-06T09:00:00", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:00Z", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:00+05:30", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "24:00", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:00", "24:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:60", "12:00"),
+                new OnboardingAvailabilitySlot("Monday", "09:00", "09:00"),
+                new OnboardingAvailabilitySlot("Monday", "22:00", "02:00"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidLocalIntervals")
+    void onlyCompleteSameDayMinutePrecisionIntervalsCanReplaceASchedule(OnboardingAvailabilitySlot interval) {
+        var before = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), false));
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(interval), true)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getHttpStatus()).isEqualTo(400));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+    }
+
 }
