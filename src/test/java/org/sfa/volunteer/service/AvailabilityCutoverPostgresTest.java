@@ -166,4 +166,54 @@ class AvailabilityCutoverPostgresTest {
             assertThat(failure.getHttpStatus()).isEqualTo(409);
             assertThat(failure.getErrorCode()).isEqualTo("LEGACY_AVAILABILITY_MIGRATION_REQUIRED");
         });
-    }}
+    }    @Test
+    void obsoleteInternalStepFourCannotWriteLegacyJsonOrAdvanceProgress() {
+        var obsolete = VolunteerRequest.builder().userId(USER).step(4).availability(List.of()).build();
+        assertThatThrownBy(() -> volunteers.updateVolunteer(obsolete))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getHttpStatus()).isEqualTo(400));
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users", Integer.class)).isEqualTo(3);
+        assertMigrationRequired(() -> onboarding.getOnboardingAvailability(USER));
+    }
+
+    @Test
+    void staleIdentityDocumentWriterCannotRestoreClearedLegacyJson() throws Exception {
+        new TransactionTemplate(transactions).executeWithoutResult(outer -> {
+            var stale = entityManager.find(Volunteer.class, USER);
+            assertThat(stale.getAvailabilityDays().get(0).asText()).isEqualTo("Friday");
+            independently(() -> profiles.updateAvailability(
+                    new UpdateAvailabilityRequest(USER, "Asia/Kolkata", List.of(), null, null, null)));
+            assertThatCode(() -> {
+                volunteers.updateGovtIdPath(USER, 1, "s3://local-fixture/document");
+                volunteers.updateGovtIdMetadata(USER, 1, "document.pdf", LocalDate.of(2027, 1, 1));
+            }).doesNotThrowAnyException();
+        });
+
+        assertThat(profiles.getAvailability(USER).getSlots()).isEmpty();
+        assertThat(volunteers.getVolunteerByUserId(USER).availabilityMigrationRequired()).isFalse();
+        assertThat(volunteers.getGovtIdPath(USER, 1)).isEqualTo("s3://local-fixture/document");
+        assertThat(volunteers.getIdentityDocumentMetadata(USER, 1).documentName()).isEqualTo("document.pdf");
+    }
+
+    @Test
+    void failedOnboardingSaveRollsBackLegacyJsonCleanup() throws Exception {
+        jdbc.execute("ALTER TABLE users ADD CONSTRAINT cutover_force_rollback CHECK (NOT is_emergency_available)");
+
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest(USER, 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true)))
+                .isInstanceOf(DataAccessException.class);
+
+        assertMigrationRequired(() -> onboarding.getOnboardingAvailability(USER));
+        var legacy = volunteers.getVolunteerByUserId(USER);
+        assertThat(legacy.availabilityMigrationRequired()).isTrue();
+        assertThat(legacy.availabilityDays().get(0).asText()).isEqualTo("Friday");
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users", Integer.class)).isEqualTo(3);
+    }
+
+    private void independently(Runnable operation) {
+        TransactionTemplate separate = new TransactionTemplate(transactions);
+        separate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        separate.executeWithoutResult(ignored -> operation.run());
+    }
+
+}

@@ -426,40 +426,9 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     @Override
-    public VolunteerResponse updateVolunteerStep4(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
-
-        if (request.step() != 4) throw VolunteerException.volunteerInvalidStep(request.userId());
-
-        volunteer.setUser(user);
-
-        // Convert request.availability -> availability_days + availability_times JSONB
-        List<VolunteerUserAvailabilityRequest> avail = Optional.ofNullable(request.availability())
-                .orElse(Collections.emptyList());
-
-        ArrayNode days = MAPPER.createArrayNode();
-        Set<String> uniqueDays = new LinkedHashSet<>();
-        for (var a : avail) {
-            if (a != null && a.dayOfWeek() != null) uniqueDays.add(a.dayOfWeek());
-        }
-        uniqueDays.forEach(days::add);
-
-        // Store full availability items as JSON array
-        JsonNode times = MAPPER.valueToTree(avail);
-
-        volunteer.setAvailabilityDays(days);
-        volunteer.setAvailabilityTimes(times);
-
-        volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
-
-        return mapToVolunteerResponse(volunteer);
+    public VolunteerResponse updateVolunteerStep4(VolunteerRequest request) {
+        throw availabilityBadRequest("Step 4 requires local HH:mm availability and an explicit emergency preference");
     }
-
 
     // @Override
     // public UserVolunteerSkillsResponse findSkillsList() throws Exception {
