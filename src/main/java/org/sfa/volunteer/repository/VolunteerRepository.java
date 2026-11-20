@@ -1,10 +1,12 @@
 package org.sfa.volunteer.repository;
 
+import java.util.Optional;
 import org.sfa.volunteer.model.Volunteer;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.util.Optional;
 
 @Repository
 public interface VolunteerRepository extends JpaRepository<Volunteer, String> {
@@ -13,18 +15,18 @@ public interface VolunteerRepository extends JpaRepository<Volunteer, String> {
         String getTimes();
     }
 
-    @org.springframework.data.jpa.repository.Query(value = """
+    @Query(value = """
             SELECT CAST(availability_days AS text) AS "days", CAST(availability_times AS text) AS "times"
             FROM volunteer_details WHERE user_id = :userId
             """, nativeQuery = true)
-    Optional<LegacyAvailability> findLegacyAvailabilityById(@org.springframework.data.repository.query.Param("userId") String userId);
+    Optional<LegacyAvailability> findLegacyAvailabilityById(@Param("userId") String userId);
 
-    @org.springframework.data.jpa.repository.Modifying
-    @org.springframework.data.jpa.repository.Query(value = """
+    @Modifying
+    @Query(value = """
             UPDATE volunteer_details SET availability_days = NULL, availability_times = NULL
             WHERE user_id = :userId AND (availability_days IS NOT NULL OR availability_times IS NOT NULL)
             """, nativeQuery = true)
-    void clearLegacyAvailability(@org.springframework.data.repository.query.Param("userId") String userId);
+    void clearLegacyAvailability(@Param("userId") String userId);
 
 
     Volunteer findVolunteerByUserId(String userId);

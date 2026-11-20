@@ -1,9 +1,21 @@
 package org.sfa.volunteer.service.impl;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
 import jakarta.persistence.EntityManager;
-import org.sfa.volunteer.repository.UserRepository.AvailabilityAccount;
+import java.time.Clock;
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -19,32 +31,23 @@ import org.sfa.volunteer.dto.response.AvailabilitySlotResponse;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.VolunteerUserAvailability;
+import org.sfa.volunteer.repository.UserRepository.AvailabilityAccount;
 import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.repository.VolunteerRepository;
 import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
-import org.sfa.volunteer.util.AvailabilityTimeConverter;
 import org.sfa.volunteer.util.AvailabilityTimeConverter.UtcSlot;
-
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
-
+import org.sfa.volunteer.util.AvailabilityTimeConverter;
+import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplAvailabilityTest {
@@ -61,12 +64,14 @@ class UserServiceImplAvailabilityTest {
     private UserServiceImpl userService;
 
     @Mock private EntityManager entityManager;
-    @Mock private org.sfa.volunteer.repository.VolunteerRepository volunteerRepository;
+    @Mock private VolunteerRepository volunteerRepository;
 
     @BeforeEach
     void lazyAccountReference() {
-        org.springframework.test.util.ReflectionTestUtils.setField(userService, "entityManager", entityManager);
-        org.springframework.test.util.ReflectionTestUtils.setField(userService, "volunteerRepository", volunteerRepository);
+        ReflectionTestUtils.setField(userService, "availabilityClock",
+                Clock.fixed(Instant.parse("2026-07-06T12:00:00Z"), ZoneOffset.UTC));
+        ReflectionTestUtils.setField(userService, "entityManager", entityManager);
+        ReflectionTestUtils.setField(userService, "volunteerRepository", volunteerRepository);
         lenient().when(entityManager.getReference(User.class, USER_ID)).thenReturn(user("UTC"));
     }
 

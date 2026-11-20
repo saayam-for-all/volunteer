@@ -1,12 +1,16 @@
 package org.sfa.volunteer.service;
 
-import org.sfa.volunteer.dto.request.VolunteerRequest;
-import org.sfa.volunteer.dto.response.VolunteerResponse;
-import org.sfa.volunteer.dto.response.PaginationResponse;
-import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import org.sfa.volunteer.dto.request.OnboardingAvailabilitySaveRequest;
+import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.dto.response.OnboardingAvailabilityResponse;
+import org.sfa.volunteer.dto.response.PaginationResponse;
+import org.sfa.volunteer.dto.response.VolunteerResponse;
+import org.sfa.volunteer.model.Volunteer;
 
 //import org.sfa.volunteer.dto.request.UserVolunteerSkillsRequest;
 //import org.sfa.volunteer.dto.response.UserVolunteerSkillsResponse;
@@ -14,10 +18,10 @@ import org.sfa.volunteer.dto.response.OnboardingAvailabilityResponse;
 
 
 public interface VolunteerService {
-    record AvailabilityView(Integer stage, com.fasterxml.jackson.databind.JsonNode days,
-            com.fasterxml.jackson.databind.JsonNode times, boolean migrationRequired) {}
+    record AvailabilityView(Integer stage, JsonNode days,
+            JsonNode times, boolean migrationRequired) {}
 
-    java.util.Map<String, AvailabilityView> getAvailabilityViews(java.util.List<org.sfa.volunteer.model.Volunteer> volunteers);
+    Map<String, AvailabilityView> getAvailabilityViews(List<Volunteer> volunteers);
 
     OnboardingAvailabilityResponse updateVolunteerStep4(OnboardingAvailabilitySaveRequest request);
 

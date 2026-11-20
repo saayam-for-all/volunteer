@@ -1,5 +1,16 @@
 package org.sfa.volunteer.service.impl;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -7,36 +18,22 @@ import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
 import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.response.AvailabilitySlotResponse;
 import org.sfa.volunteer.support.PostgresTestDatabase;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.SpyBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import org.springframework.jdbc.core.RowMapper;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 
 /** Native PostgreSQL fixture intentionally omits unrelated legacy User and emergency columns. */
 @DataJpaTest
@@ -46,7 +43,7 @@ import static org.mockito.Mockito.doAnswer;
 @EnabledIfSystemProperty(named = "ba33.pg.enabled", matches = "true")
 class ProfileAvailabilityPostgresTest {
     @TestConfiguration
-    @org.springframework.context.annotation.EnableAspectJAutoProxy
+    @EnableAspectJAutoProxy
     static class FrozenTime {
         @Bean SnapshotReadBarrier snapshotReadBarrier() { return new SnapshotReadBarrier(); }
         @Bean @Primary Clock fixedAvailabilityClock() {
@@ -54,11 +51,11 @@ class ProfileAvailabilityPostgresTest {
         }
     }
 
-    @org.aspectj.lang.annotation.Aspect
+    @Aspect
     static class SnapshotReadBarrier {
         volatile Runnable afterRead = () -> {};
-        @org.aspectj.lang.annotation.Around("execution(* org.sfa.volunteer.repository.UserRepository.findAvailabilityAccountById(..))")
-        public Object read(org.aspectj.lang.ProceedingJoinPoint invocation) throws Throwable {
+        @Around("execution(* org.sfa.volunteer.repository.UserRepository.findAvailabilityAccountById(..))")
+        public Object read(ProceedingJoinPoint invocation) throws Throwable {
             Object result = invocation.proceed();
             if (Thread.currentThread().getName().equals("ba33-snapshot-reader")) afterRead.run();
             return result;
@@ -70,7 +67,7 @@ class ProfileAvailabilityPostgresTest {
         PostgresTestDatabase.configure(properties, "ba33_t1");
     }
 
-    @SpyBean JdbcTemplate jdbc;
+    @Autowired JdbcTemplate jdbc;
     @Autowired SnapshotReadBarrier readBarrier;
     @Autowired UserServiceImpl users;
 
@@ -152,7 +149,6 @@ class ProfileAvailabilityPostgresTest {
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
     void readingDuringAConcurrentTimezoneReplacementReturnsOneConsistentSchedule() throws Exception {
         var before = users.updateAvailability(new UpdateAvailabilityRequest("SID-T1", "UTC",
                 List.of(new AvailabilitySlotRequest("Monday", "09:00", "17:00")), null, null, null));

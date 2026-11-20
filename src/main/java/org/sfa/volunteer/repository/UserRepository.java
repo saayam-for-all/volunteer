@@ -1,5 +1,12 @@
 package org.sfa.volunteer.repository;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import org.sfa.volunteer.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -8,10 +15,6 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
-import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
@@ -38,7 +41,7 @@ public interface UserRepository extends JpaRepository<User, String> {
                    promotion_wizard_stage AS "promotionWizardStage"
             FROM users WHERE user_id IN (:userIds)
             """, nativeQuery = true)
-    List<AvailabilityAccount> findAvailabilityAccountsByIds(@Param("userIds") java.util.Collection<String> userIds);
+    List<AvailabilityAccount> findAvailabilityAccountsByIds(@Param("userIds") Collection<String> userIds);
 
     @Query(value = AVAILABILITY_ACCOUNT + " FOR UPDATE", nativeQuery = true)
     Optional<AvailabilityAccount> lockAvailabilityAccountById(@Param("userId") String userId);
@@ -53,8 +56,8 @@ public interface UserRepository extends JpaRepository<User, String> {
     String wizardProgressTimestampType();
 
     // Both deployed timestamp layouts must preserve the UTC instant even with a non-UTC session timezone.
-    default void saveOnboardingAvailabilityState(String userId, boolean emergency, java.time.LocalDateTime updatedAt) {
-        var instant = updatedAt.atOffset(java.time.ZoneOffset.UTC);
+    default void saveOnboardingAvailabilityState(String userId, boolean emergency, LocalDateTime updatedAt) {
+        var instant = updatedAt.atOffset(ZoneOffset.UTC);
         if ("timestamp with time zone".equals(wizardProgressTimestampType())) {
             saveOnboardingStateWithTimezone(userId, emergency, instant);
         } else {
@@ -70,7 +73,7 @@ public interface UserRepository extends JpaRepository<User, String> {
             WHERE user_id = :userId
             """, nativeQuery = true)
     void saveOnboardingStateWithTimezone(@Param("userId") String userId, @Param("emergency") boolean emergency,
-            @Param("updatedAt") java.time.OffsetDateTime updatedAt);
+            @Param("updatedAt") OffsetDateTime updatedAt);
 
     @Modifying
     @Query(value = """
@@ -80,10 +83,10 @@ public interface UserRepository extends JpaRepository<User, String> {
             WHERE user_id = :userId
             """, nativeQuery = true)
     void saveOnboardingStateWithoutTimezone(@Param("userId") String userId, @Param("emergency") boolean emergency,
-            @Param("updatedAt") java.time.OffsetDateTime updatedAt);
+            @Param("updatedAt") OffsetDateTime updatedAt);
 
-    default void advanceWizardProgress(String userId, int step, java.time.LocalDateTime updatedAt) {
-        var instant = updatedAt.atOffset(java.time.ZoneOffset.UTC);
+    default void advanceWizardProgress(String userId, int step, LocalDateTime updatedAt) {
+        var instant = updatedAt.atOffset(ZoneOffset.UTC);
         if ("timestamp with time zone".equals(wizardProgressTimestampType())) {
             advanceWizardProgressWithTimezone(userId, step, instant);
         } else {
@@ -98,7 +101,7 @@ public interface UserRepository extends JpaRepository<User, String> {
             WHERE user_id = :userId AND COALESCE(promotion_wizard_stage, 0) < :step
             """, nativeQuery = true)
     void advanceWizardProgressWithTimezone(@Param("userId") String userId, @Param("step") int step,
-            @Param("updatedAt") java.time.OffsetDateTime updatedAt);
+            @Param("updatedAt") OffsetDateTime updatedAt);
 
     @Modifying
     @Query(value = """
@@ -107,7 +110,7 @@ public interface UserRepository extends JpaRepository<User, String> {
             WHERE user_id = :userId AND COALESCE(promotion_wizard_stage, 0) < :step
             """, nativeQuery = true)
     void advanceWizardProgressWithoutTimezone(@Param("userId") String userId, @Param("step") int step,
-            @Param("updatedAt") java.time.OffsetDateTime updatedAt);
+            @Param("updatedAt") OffsetDateTime updatedAt);
 
     List<User> findByPrimaryEmailAddress(String email);
 

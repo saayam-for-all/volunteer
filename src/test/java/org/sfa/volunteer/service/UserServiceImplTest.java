@@ -1,11 +1,14 @@
 package org.sfa.volunteer.service;
 
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.BeforeEach;
 import jakarta.persistence.EntityManager;
+import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.exception.UserNotFoundException;
@@ -18,9 +21,7 @@ import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserSignOffReasonRepository;
 import org.sfa.volunteer.repository.UserStatusRepository;
 import org.sfa.volunteer.service.impl.UserServiceImpl;
-
-import java.util.Optional;
-
+import org.springframework.test.util.ReflectionTestUtils;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,9 +51,9 @@ class UserServiceImplTest {
 
     @BeforeEach
     void wireProgressLock() {
-        org.springframework.test.util.ReflectionTestUtils.setField(userService, "entityManager", entityManager);
-        org.mockito.Mockito.lenient().when(userRepository.lockAvailabilityAccountById(org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(Optional.of(org.mockito.Mockito.mock(UserRepository.AvailabilityAccount.class)));
+        ReflectionTestUtils.setField(userService, "entityManager", entityManager);
+        Mockito.lenient().when(userRepository.lockAvailabilityAccountById(ArgumentMatchers.anyString()))
+                .thenReturn(Optional.of(Mockito.mock(UserRepository.AvailabilityAccount.class)));
     }
 
     @InjectMocks

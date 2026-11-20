@@ -1,57 +1,22 @@
 package org.sfa.volunteer.service.impl;
 
-import jakarta.transaction.Transactional;
-import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
-import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
-import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
-import org.sfa.volunteer.dto.request.UserPreferenceRequest;
-import org.sfa.volunteer.dto.response.*;
-import org.sfa.volunteer.exception.*;
-import org.sfa.volunteer.model.AvailabilityFrequency;
-import org.sfa.volunteer.model.Country;
-import org.sfa.volunteer.model.State;
-import org.sfa.volunteer.model.User;
-import org.sfa.volunteer.model.UserAdditionalDetail;
-import org.sfa.volunteer.model.UserSignOffReason;
-import org.sfa.volunteer.model.SkillLevel;
-import org.sfa.volunteer.model.UserStatus;
-import org.sfa.volunteer.model.VolunteerUserAvailability;
-import org.sfa.volunteer.repository.CountryRepository;
-import org.sfa.volunteer.repository.StateRepository;
-import org.sfa.volunteer.repository.UserCategoryRepository;
-import org.sfa.volunteer.repository.UserRepository;
-import org.sfa.volunteer.repository.UserSignOffReasonRepository;
-import org.sfa.volunteer.repository.UserSkillRepository;
-import org.sfa.volunteer.repository.UserStatusRepository;
-import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
-import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
-import org.sfa.volunteer.service.ProfileImageStorageService;
-import org.sfa.volunteer.service.UserService;
-import org.sfa.volunteer.util.AvailabilityTimeConverter;
-import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
-import org.sfa.volunteer.util.AvailabilityTimeConverter.UtcSlot;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.sfa.volunteer.dto.response.PersonalInfoResponse;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -61,17 +26,58 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
+import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
+import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
+import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.UserPreferenceRequest;
+import org.sfa.volunteer.dto.response.*;
+import org.sfa.volunteer.dto.response.PersonalInfoResponse;
+import org.sfa.volunteer.exception.*;
+import org.sfa.volunteer.model.AvailabilityFrequency;
+import org.sfa.volunteer.model.Country;
+import org.sfa.volunteer.model.SkillLevel;
+import org.sfa.volunteer.model.State;
+import org.sfa.volunteer.model.User;
+import org.sfa.volunteer.model.UserAdditionalDetail;
+import org.sfa.volunteer.model.UserSignOffReason;
+import org.sfa.volunteer.model.UserStatus;
+import org.sfa.volunteer.model.VolunteerUserAvailability;
+import org.sfa.volunteer.repository.CountryRepository;
+import org.sfa.volunteer.repository.StateRepository;
+import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
+import org.sfa.volunteer.repository.UserCategoryRepository;
+import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.repository.UserSignOffReasonRepository;
+import org.sfa.volunteer.repository.UserSkillRepository;
+import org.sfa.volunteer.repository.UserStatusRepository;
+import org.sfa.volunteer.repository.VolunteerRepository;
+import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
+import org.sfa.volunteer.service.ProfileImageStorageService;
+import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.UtcSlot;
+import org.sfa.volunteer.util.AvailabilityTimeConverter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @Transactional
     public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
-    @Autowired private org.sfa.volunteer.repository.VolunteerRepository volunteerRepository;
-    private static final com.fasterxml.jackson.databind.ObjectMapper AVAILABILITY_JSON = new com.fasterxml.jackson.databind.ObjectMapper();
-    @jakarta.persistence.PersistenceContext
-    private jakarta.persistence.EntityManager entityManager;
+    @Autowired private VolunteerRepository volunteerRepository;
+    private static final ObjectMapper AVAILABILITY_JSON = new ObjectMapper();
+    @PersistenceContext
+    private EntityManager entityManager;
     @Autowired
-    private java.time.Clock availabilityClock = java.time.Clock.systemUTC();
+    private Clock availabilityClock;
     private final UserStatusRepository userStatusRepository;
     private final UserSignOffReasonRepository userSignOffReasonRepository;
     private final UserCategoryRepository userCategoryRepository;
@@ -411,8 +417,8 @@ import java.util.stream.Collectors;
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(readOnly = true,
-            isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    @Transactional(readOnly = true,
+            isolation = Isolation.REPEATABLE_READ)
     public AvailabilityResponse getAvailability(String userId) {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("userId is required");
@@ -440,12 +446,13 @@ import java.util.stream.Collectors;
             if (value == null || value.isNull()) return false;
             if (value.isContainerNode()) return !value.isEmpty();
             return !value.isTextual() || !value.textValue().isBlank();
-        } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+        } catch (JsonProcessingException failure) {
             throw new IllegalStateException("Unable to read legacy availability data");
         }
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public AvailabilityResponse updateAvailability(UpdateAvailabilityRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Request body is required");
@@ -566,10 +573,6 @@ import java.util.stream.Collectors;
     private record CollapsedSlot(Integer id, AvailabilityFrequency frequency, TimeRange range) {}
 
     // Rows are UTC, one per day; convert to the user's zone and group back into Everyday / Weekdays / Weekends
-    private static AvailabilityResponse toAvailabilityResponse(User user, List<VolunteerUserAvailability> rows) {
-        return toAvailabilityResponse(user.getId(), user.getTimeZone(), rows);
-    }
-
     private static AvailabilityResponse toAvailabilityResponse(String userId, String timezone, List<VolunteerUserAvailability> rows) {
         ZoneId zone = zoneOrUtc(timezone);
 

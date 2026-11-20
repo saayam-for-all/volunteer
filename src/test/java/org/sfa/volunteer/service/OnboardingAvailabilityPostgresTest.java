@@ -1,69 +1,67 @@
 package org.sfa.volunteer.service;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.jupiter.params.provider.NullAndEmptySource;
-import org.junit.jupiter.params.provider.NullSource;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.sfa.volunteer.aspect.LoggingAspect;
-import org.sfa.volunteer.dto.request.OnboardingAvailabilitySaveRequest;
-import org.sfa.volunteer.dto.request.OnboardingAvailabilitySlot;
-import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
-import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
-import org.sfa.volunteer.dto.response.OnboardingAvailabilitySlotResponse;
-import org.sfa.volunteer.exception.OnboardingAvailabilityException;
-import org.sfa.volunteer.support.PostgresTestDatabase;
-import org.sfa.volunteer.service.impl.UserServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.mock.mockito.SpyBean;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.dao.DataAccessException;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.Collections;
-import java.util.stream.Stream;
-import java.util.stream.IntStream;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.time.ZoneId;
-import java.util.concurrent.atomic.AtomicReference;
+import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.sfa.volunteer.aspect.LoggingAspect;
+import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
+import org.sfa.volunteer.dto.request.OnboardingAvailabilitySaveRequest;
+import org.sfa.volunteer.dto.request.OnboardingAvailabilitySlot;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
+import org.sfa.volunteer.dto.request.VolunteerRequest;
+import org.sfa.volunteer.dto.response.OnboardingAvailabilitySlotResponse;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
+import org.sfa.volunteer.service.impl.UserServiceImpl;
+import org.sfa.volunteer.service.impl.VolunteerServiceImpl;
+import org.sfa.volunteer.support.PostgresTestDatabase;
 import org.slf4j.LoggerFactory;
-
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({org.sfa.volunteer.service.impl.VolunteerServiceImpl.class, UserServiceImpl.class,
+@Import({VolunteerServiceImpl.class, UserServiceImpl.class,
         LoggingAspect.class, OnboardingAvailabilityPostgresTest.LoggingConfiguration.class})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @EnabledIfSystemProperty(named = "ba33.pg.enabled", matches = "true")
@@ -71,8 +69,23 @@ class OnboardingAvailabilityPostgresTest {
     @TestConfiguration
     @EnableAspectJAutoProxy
     static class LoggingConfiguration {
+        @Bean AccountLockBarrier accountLockBarrier() { return new AccountLockBarrier(); }
         @Bean @Primary TestClock fixedOnboardingClock() {
             return new TestClock();
+        }
+    }
+
+    @Aspect
+    static class AccountLockBarrier {
+        volatile Runnable beforeOnboarding = () -> {};
+        volatile Runnable afterProfile = () -> {};
+        @Around("execution(* org.sfa.volunteer.repository.UserRepository.lockAvailabilityAccountById(..))")
+        public Object lock(ProceedingJoinPoint invocation) throws Throwable {
+            String thread = Thread.currentThread().getName();
+            if (thread.equals("ba33-onboarding-writer")) beforeOnboarding.run();
+            Object result = invocation.proceed();
+            if (thread.equals("ba33-profile-writer")) afterProfile.run();
+            return result;
         }
     }
 
@@ -98,10 +111,11 @@ class OnboardingAvailabilityPostgresTest {
         properties.add("spring.datasource.hikari.connection-init-sql", () -> "SET TIME ZONE 'America/Los_Angeles'");
     }
 
-    @SpyBean JdbcTemplate jdbc;
+    @Autowired JdbcTemplate jdbc;
     @Autowired VolunteerService onboarding;
     @Autowired UserServiceImpl profiles;
     @Autowired TestClock clock;
+    @Autowired AccountLockBarrier lockBarrier;
 
     @BeforeEach
     void fixture() {
@@ -455,4 +469,141 @@ class OnboardingAvailabilityPostgresTest {
         }
     }
 
+    @Test
+    void everydayExpandsToSevenIndependentlyReadableWeekdays() {
+        var saved = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Everyday", "09:00", "12:00")), true));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(saved);
+        assertThat(saved.availability()).extracting(OnboardingAvailabilitySlotResponse::dayOfWeek)
+                .containsExactly("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday");
+        assertThat(saved.availability()).allSatisfy(slot -> {
+            assertThat(slot.startTime()).isEqualTo("09:00");
+            assertThat(slot.endTime()).isEqualTo("12:00");
+        });
+    }
+
+    @Test
+    void anOverlappingEditPreservesTheCompletePreviouslySavedState() {
+        var before = onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true));
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00"),
+                        new OnboardingAvailabilitySlot("Monday", "10:00", "11:00")), false)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure -> {
+                    assertThat(failure.getHttpStatus()).isEqualTo(400);
+                    assertThat(failure.getErrorCode()).isEqualTo("BAD_REQUEST");
+                });
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+    }
+
+    @Test
+    void profileOvernightDataIsReadTruthfullyButCannotBeResavedUnderOnboardingRules() {
+        var profile = profiles.updateAvailability(new UpdateAvailabilityRequest("SID-T2", "America/Chicago",
+                List.of(new AvailabilitySlotRequest("Monday", "22:00", "02:00")), null, null, null));
+        var before = onboarding.getOnboardingAvailability("SID-T2");
+        assertThat(before.availability()).extracting(OnboardingAvailabilitySlotResponse::dayOfWeek,
+                OnboardingAvailabilitySlotResponse::startTime, OnboardingAvailabilitySlotResponse::endTime)
+                .containsExactly(tuple("Monday", "22:00", "02:00"));
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "22:00", "02:00")), true)))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getHttpStatus()).isEqualTo(400));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+        assertThat(profiles.getAvailability("SID-T2")).isEqualTo(profile);
+    }
+
+    @Test
+    void aDatabaseFailureAfterReplacementRollsBackSlotsEmergencyAndWizardProgress() {
+        var profile = profiles.updateAvailability(new UpdateAvailabilityRequest("SID-T2", "Asia/Kolkata",
+                List.of(new AvailabilitySlotRequest("Monday", "09:00", "12:00")), null, null, null));
+        var before = onboarding.getOnboardingAvailability("SID-T2");
+        assertThat(before.promotionWizardStage()).isEqualTo(3);
+        jdbc.execute("""
+                CREATE OR REPLACE FUNCTION reject_onboarding_state() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION 'synthetic state persistence failure'; END $$
+                """);
+        jdbc.execute("CREATE TRIGGER reject_onboarding_state AFTER UPDATE ON users FOR EACH ROW EXECUTE FUNCTION reject_onboarding_state()");
+        assertThatThrownBy(() -> onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Tuesday", "14:00", "17:00")), true)))
+                .isInstanceOf(DataAccessException.class);
+        assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(before);
+        assertThat(profiles.getAvailability("SID-T2")).isEqualTo(profile);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" ", "\t"})
+    void readingRequiresANonblankUserId(String userId) {
+        assertThatThrownBy(() -> onboarding.getOnboardingAvailability(userId))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getHttpStatus()).isEqualTo(400));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2").availability()).isEmpty();
+    }
+
+    @Test
+    void profileAndOnboardingWritersSerializeBeforeChoosingTheAccountTimezone() throws Exception {
+        profiles.updateAvailability(new UpdateAvailabilityRequest("SID-T2", "UTC",
+                List.of(new AvailabilitySlotRequest("Monday", "08:00", "09:00")), null, null, null));
+        CountDownLatch profileLocked = new CountDownLatch(1);
+        CountDownLatch onboardingAttemptedLock = new CountDownLatch(1);
+        CountDownLatch releaseProfile = new CountDownLatch(1);
+        lockBarrier.beforeOnboarding = onboardingAttemptedLock::countDown;
+        lockBarrier.afterProfile = () -> {
+            profileLocked.countDown();
+            try {
+                if (!releaseProfile.await(10, TimeUnit.SECONDS)) {
+                    throw new AssertionError("Concurrent onboarding writer never reached the account lock");
+                }
+            } catch (InterruptedException failure) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(failure);
+            }
+        };
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            var profileWrite = executor.submit(() -> {
+                Thread.currentThread().setName("ba33-profile-writer");
+                return profiles.updateAvailability(new UpdateAvailabilityRequest("SID-T2", "America/Chicago",
+                        List.of(new AvailabilitySlotRequest("Monday", "09:00", "12:00")), null, null, null));
+            });
+            assertThat(profileLocked.await(10, TimeUnit.SECONDS)).isTrue();
+            var onboardingWrite = executor.submit(() -> {
+                Thread.currentThread().setName("ba33-onboarding-writer");
+                return onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                        List.of(new OnboardingAvailabilitySlot("Tuesday", "14:00", "17:00")), true));
+            });
+            assertThat(onboardingAttemptedLock.await(10, TimeUnit.SECONDS)).isTrue();
+            releaseProfile.countDown();
+            assertThat(profileWrite.get(10, TimeUnit.SECONDS).getTimezone()).isEqualTo("America/Chicago");
+            var saved = onboardingWrite.get(10, TimeUnit.SECONDS);
+            assertThat(onboarding.getOnboardingAvailability("SID-T2")).isEqualTo(saved);
+            assertThat(saved.availability()).extracting(OnboardingAvailabilitySlotResponse::dayOfWeek,
+                    OnboardingAvailabilitySlotResponse::startTime, OnboardingAvailabilitySlotResponse::endTime)
+                    .containsExactly(tuple("Tuesday", "14:00", "17:00"));
+            var finalProfile = profiles.getAvailability("SID-T2");
+            assertThat(finalProfile.getTimezone()).isEqualTo("America/Chicago");
+            assertThat(finalProfile.getSlots()).extracting(slot -> slot.getFrequency(), slot -> slot.getStartTime(),
+                    slot -> slot.getEndTime()).containsExactly(tuple("Tuesday", "14:00", "17:00"));
+        } finally {
+            releaseProfile.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+    }    @Test
+    void historicalSecondsReadAtMinutePrecisionButCannotCompleteStepFour() {
+        onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest("SID-T2", 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), false));
+        jdbc.update("""
+                UPDATE user_availability SET start_time = start_time + INTERVAL '30 seconds',
+                    end_time = end_time + INTERVAL '45 seconds' WHERE user_id = 'SID-T2'
+                """);
+        assertThat(onboarding.getOnboardingAvailability("SID-T2").availability())
+                .extracting(OnboardingAvailabilitySlotResponse::startTime, OnboardingAvailabilitySlotResponse::endTime)
+                .containsExactly(tuple("09:00", "12:00"));
+        assertThatThrownBy(() -> onboarding.updateVolunteerCompletion(
+                VolunteerRequest.builder().userId("SID-T2").step(5).build()))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo("STEP_FOUR_REQUIRED"));
+        assertThat(onboarding.getOnboardingAvailability("SID-T2").promotionWizardStage()).isEqualTo(4);
+    }
 }

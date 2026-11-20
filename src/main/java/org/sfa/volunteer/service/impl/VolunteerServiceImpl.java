@@ -1,53 +1,60 @@
 package org.sfa.volunteer.service.impl;
 
-import org.springframework.http.HttpStatus;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.sfa.volunteer.dto.request.OnboardingAvailabilitySaveRequest;
-import org.sfa.volunteer.dto.response.OnboardingAvailabilityResponse;
-import org.sfa.volunteer.dto.response.OnboardingAvailabilitySlotResponse;
-import org.sfa.volunteer.exception.OnboardingAvailabilityException;
-import org.sfa.volunteer.model.VolunteerUserAvailability;
-import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
-import org.sfa.volunteer.service.UserService;
-import org.sfa.volunteer.util.AvailabilityTimeConverter;
-import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
-import java.time.Clock;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import java.time.Clock;
 import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.dto.request.OnboardingAvailabilitySaveRequest;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
-import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
+import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
+import org.sfa.volunteer.dto.response.OnboardingAvailabilityResponse;
+import org.sfa.volunteer.dto.response.OnboardingAvailabilitySlotResponse;
 import org.sfa.volunteer.dto.response.PaginationResponse;
 import org.sfa.volunteer.dto.response.VolunteerResponse;
-import org.sfa.volunteer.dto.common.SaayamStatusCode;
+import org.sfa.volunteer.exception.IdentityDocumentException;
+import org.sfa.volunteer.exception.OnboardingAvailabilityException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.exception.VolunteerException;
-import org.sfa.volunteer.exception.IdentityDocumentException;
 import org.sfa.volunteer.model.DocumentStatus;
 import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.Volunteer;
+import org.sfa.volunteer.model.VolunteerUserAvailability;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.VolunteerRepository;
-import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
+import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
+import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
+import org.sfa.volunteer.util.AvailabilityTimeConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(rollbackFor = Exception.class)
@@ -59,7 +66,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     @Autowired private UserService userService;
     @Autowired private VolunteerUserAvailabilityRepository userAvailabilityRepository;
     @Autowired private JdbcTemplate availabilityJdbc;
-    @Autowired private Clock availabilityClock = Clock.systemUTC();
+    @Autowired private Clock availabilityClock;
 
     private static final Set<String> TEXT = Set.of("character varying", "text", "character");
     private static final Set<String> INTEGER = Set.of("integer", "smallint");
@@ -82,6 +89,7 @@ public class VolunteerServiceImpl implements VolunteerService {
             Map.entry("user_availability.end_time", TIMESTAMP),
             Map.entry("user_availability.last_updated_at", TIMESTAMP));
 
+    private static final DateTimeFormatter AVAILABILITY_TIME = DateTimeFormatter.ofPattern("HH:mm");
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
@@ -113,16 +121,14 @@ public class VolunteerServiceImpl implements VolunteerService {
         List<LocalSlot> slots = normalizeOnboardingIntervals(request);
         requireOnboardingAvailabilityReady();
         var account = userRepository.lockAvailabilityAccountById(request.userId())
-                .orElseThrow(() -> new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found"));
-        if (!volunteerRepository.existsById(request.userId())) {
-            throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
-        }
+                .orElseThrow(VolunteerServiceImpl::missingAvailabilityAccount);
+        requireAvailabilityVolunteer(request.userId());
         ZoneId zone = storedAvailabilityZone(account.getTimeZone());
         LocalDate anchorDate = LocalDate.now(availabilityClock.withZone(zone));
         requireRepresentableOnboardingTimes(slots, zone, anchorDate);
         var rows = userService.replaceAvailabilityRows(request.userId(), zone, slots, anchorDate);
         userRepository.saveOnboardingAvailabilityState(request.userId(), request.isEmergencyAvailable(),
-                LocalDateTime.ofInstant(availabilityClock.instant(), java.time.ZoneOffset.UTC));
+                LocalDateTime.ofInstant(availabilityClock.instant(), ZoneOffset.UTC));
         return onboardingResponse(request.userId(), request.isEmergencyAvailable(),
                 Math.max(account.getPromotionWizardStage() == null ? 0 : account.getPromotionWizardStage(), 4), zone, rows);
     }
@@ -130,12 +136,11 @@ public class VolunteerServiceImpl implements VolunteerService {
     @Override
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public OnboardingAvailabilityResponse getOnboardingAvailability(String userId) {
+        requireAvailabilityUserId(userId);
         requireOnboardingAvailabilityReady();
         var account = userRepository.findAvailabilityAccountById(userId)
-                .orElseThrow(() -> new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found"));
-        if (!volunteerRepository.existsById(userId)) {
-            throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
-        }
+                .orElseThrow(VolunteerServiceImpl::missingAvailabilityAccount);
+        requireAvailabilityVolunteer(userId);
         return onboardingResponse(userId, userRepository.isEmergencyAvailable(userId),
                 account.getPromotionWizardStage(), storedAvailabilityZone(account.getTimeZone()),
                 userService.readAvailabilityRows(userId));
@@ -245,7 +250,7 @@ public class VolunteerServiceImpl implements VolunteerService {
             var local = AvailabilityTimeConverter.toLocal(row.getStartTime(), row.getEndTime(), zone);
             String day = local.day().name().charAt(0) + local.day().name().substring(1).toLowerCase(Locale.ROOT);
             return new OnboardingAvailabilitySlotResponse(row.getId(), day,
-                    local.start().toString(), local.end().toString());
+                    local.start().format(AVAILABILITY_TIME), local.end().format(AVAILABILITY_TIME));
         }).sorted(Comparator.comparing((OnboardingAvailabilitySlotResponse slot) ->
                 DayOfWeek.valueOf(slot.dayOfWeek().toUpperCase(Locale.ROOT)))
                 .thenComparing(OnboardingAvailabilitySlotResponse::startTime)
@@ -253,6 +258,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         return new OnboardingAvailabilityResponse(userId, emergency, stage, slots);
     }
 
+    @Override
     public Map<String, AvailabilityView> getAvailabilityViews(List<Volunteer> volunteers) {
         if (volunteers.isEmpty()) return Map.of();
         List<String> ids = volunteers.stream().map(Volunteer::getId).toList();
@@ -273,13 +279,13 @@ public class VolunteerServiceImpl implements VolunteerService {
                         hasLegacyAvailabilityContent(days) || hasLegacyAvailabilityContent(times)));
             } else {
                 ZoneId zone = UserServiceImpl.zoneOrUtc(account == null ? null : account.getTimeZone());
-                result.put(id, relational(stage, rows, zone));
+                result.put(id, relationalAvailabilityView(stage, rows, zone));
             }
         }
         return result;
     }
 
-    private static AvailabilityView relational(Integer stage, List<VolunteerUserAvailability> rows, ZoneId zone) {
+    private static AvailabilityView relationalAvailabilityView(Integer stage, List<VolunteerUserAvailability> rows, ZoneId zone) {
         var days = MAPPER.createArrayNode();
         var times = MAPPER.createArrayNode();
         var localDays = EnumSet.noneOf(DayOfWeek.class);

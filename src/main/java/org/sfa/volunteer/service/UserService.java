@@ -1,21 +1,25 @@
 package org.sfa.volunteer.service;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.List;
 import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
 import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
+import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
-import org.sfa.volunteer.dto.response.UserPreferenceResponse;
 import org.sfa.volunteer.dto.response.*;
+import org.sfa.volunteer.dto.response.UserPreferenceResponse;
+import org.sfa.volunteer.model.VolunteerUserAvailability;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
 import org.springframework.stereotype.Service;
-import java.util.List;
 
 public interface UserService {
-    List<org.sfa.volunteer.model.VolunteerUserAvailability> readAvailabilityRows(String userId);
+    List<VolunteerUserAvailability> readAvailabilityRows(String userId);
 
-    List<org.sfa.volunteer.model.VolunteerUserAvailability> replaceAvailabilityRows(String userId,
-            java.time.ZoneId zone, List<org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot> slots,
-            java.time.LocalDate anchorDate);
+    List<VolunteerUserAvailability> replaceAvailabilityRows(String userId,
+            ZoneId zone, List<LocalSlot> slots,
+            LocalDate anchorDate);
 
 
     PaginationResponse<UserProfileResponse> findAllUsersWithPagination(Integer pageNumber, Integer pageSize);
