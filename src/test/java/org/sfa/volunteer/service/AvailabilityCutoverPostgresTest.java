@@ -216,4 +216,107 @@ class AvailabilityCutoverPostgresTest {
         separate.executeWithoutResult(ignored -> operation.run());
     }
 
+    @Test
+    void staleEarlierStepEditsKeepNewerScheduleProgressAndOtherDocumentFields() throws Exception {
+        new TransactionTemplate(transactions).executeWithoutResult(outer -> {
+            assertThat(entityManager.find(User.class, USER).getVolunteerStage()).isEqualTo(3);
+            assertThat(entityManager.find(Volunteer.class, USER).getGovtIdPath2()).isNull();
+            independently(() -> {
+                onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest(USER, 4,
+                        List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true));
+                assertThatCode(() -> volunteers.updateGovtIdPath(USER, 2, "s3://local-fixture/current"))
+                        .doesNotThrowAnyException();
+            });
+
+            assertThatCode(() -> {
+                volunteers.updateVolunteerStep1(VolunteerRequest.builder().userId(USER).step(1)
+                        .termsAndConditions(true).build());
+                volunteers.updateVolunteerStep2(VolunteerRequest.builder().userId(USER).step(2)
+                        .govtIdPath1("s3://local-fixture/added").build());
+                volunteers.updateVolunteerStep3(VolunteerRequest.builder().userId(USER).step(3).build());
+            }).doesNotThrowAnyException();
+        });
+
+        var current = onboarding.getOnboardingAvailability(USER);
+        assertThat(current.promotionWizardStage()).isEqualTo(4);
+        assertThat(current.isEmergencyAvailable()).isTrue();
+        assertThat(current.availability()).hasSize(1);
+        var details = volunteers.getVolunteerByUserId(USER);
+        assertThat(details.termsAndConditions()).isTrue();
+        assertThat(details.govtIdPath1()).isEqualTo("s3://local-fixture/added");
+        assertThat(details.govtIdPath2()).isEqualTo("s3://local-fixture/current");
+    }
+
+    @Test
+    void originalFirstThreeStepsStillAdvanceAndSaveTheirFields() throws Exception {
+        jdbc.update("DELETE FROM volunteer_details WHERE user_id = ?", USER);
+        jdbc.update("UPDATE users SET promotion_wizard_stage = NULL WHERE user_id = ?", USER);
+
+        var created = volunteers.createVolunteer(VolunteerRequest.builder().userId(USER).step(1)
+                .termsAndConditions(true).build());
+        assertThat(created.termsAndConditions()).isTrue();
+        assertThat(created.termsAcceptedAt()).isNotNull();
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users", Integer.class)).isEqualTo(1);
+
+        var identity = volunteers.updateVolunteerStep2(VolunteerRequest.builder().userId(USER).step(2)
+                .govtIdPath1("s3://local-fixture/identity").build());
+        assertThat(identity.govtIdPath1()).isEqualTo("s3://local-fixture/identity");
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users", Integer.class)).isEqualTo(2);
+
+        volunteers.updateVolunteerStep3(VolunteerRequest.builder().userId(USER).step(3).build());
+        assertThat(onboarding.getOnboardingAvailability(USER).promotionWizardStage()).isEqualTo(3);
+    }
+
+    @Test
+    void profileRejectsClientProgressChangesAndAllowsMatchingValues() {
+        saveOnboarding();
+        var saved = profiles.getUserProfileById(USER);
+        var changedStage = UpdateUserProfileRequest.builder().firstName("Should not save").volunteerStage(5).build();
+        var changedTimestamp = UpdateUserProfileRequest.builder()
+                .volunteerUpdateDate(saved.promotionWizardLastUpdateDate().plusMinutes(1)).build();
+        assertThatThrownBy(() -> profiles.updateUserProfile(USER, changedStage)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> profiles.updateUserProfile(USER, changedTimestamp)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(profiles.getUserProfileById(USER).firstName()).isNull();
+
+        var matching = UpdateUserProfileRequest.builder().firstName("Updated").volunteerStage(4)
+                .volunteerUpdateDate(saved.promotionWizardLastUpdateDate().withZoneSameInstant(ZoneId.of("Asia/Kolkata"))).build();
+        var updated = profiles.updateUserProfile(USER, matching);
+        assertThat(updated.firstName()).isEqualTo("Updated");
+        assertThat(updated.promotionWizardStage()).isEqualTo(4);
+        assertThat(updated.promotionWizardLastUpdateDate().toInstant())
+                .isEqualTo(saved.promotionWizardLastUpdateDate().toInstant());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void staleProfileOrPreferencesWriteCannotRestoreOldProgress(boolean preferences) {
+        new TransactionTemplate(transactions).executeWithoutResult(outer -> {
+            assertThat(entityManager.find(User.class, USER).getVolunteerStage()).isEqualTo(3);
+            independently(this::saveOnboarding);
+            if (preferences) {
+                assertThatCode(() -> profiles.updateUserPreferences(USER,
+                        UserPreferenceRequest.builder().language1("en").secondaryEmail1("secondary@example.test").build()))
+                        .doesNotThrowAnyException();
+            } else {
+                profiles.updateUserProfile(USER, UpdateUserProfileRequest.builder().firstName("Updated").build());
+            }
+        });
+
+        assertThat(onboarding.getOnboardingAvailability(USER).promotionWizardStage()).isEqualTo(4);
+        var updated = profiles.getUserProfileById(USER);
+        assertThat(updated.promotionWizardLastUpdateDate()).isNotNull();
+        if (preferences) {
+            assertThat(updated.language1()).isEqualTo("en");
+            assertThat(jdbc.queryForObject("SELECT secondary_email_1 FROM user_additional_details", String.class))
+                    .isEqualTo("secondary@example.test");
+        } else {
+            assertThat(updated.firstName()).isEqualTo("Updated");
+        }
+    }
+
+    private void saveOnboarding() {
+        onboarding.updateVolunteerStep4(new OnboardingAvailabilitySaveRequest(USER, 4,
+                List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true));
+    }
+
 }

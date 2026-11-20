@@ -331,8 +331,12 @@ import java.util.stream.Collectors;
     
     @Override
     public UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+        User user = lockedUserForUpdate(userId);
+        if ((request.volunteerStage() != null && !Objects.equals(request.volunteerStage(), user.getVolunteerStage()))
+                || (request.volunteerUpdateDate() != null && (user.getVolunteerUpdateDate() == null
+                || !request.volunteerUpdateDate().isEqual(user.getVolunteerUpdateDate())))) {
+            throw new WizardProgressMutationException();
+        }
 
         // Update all fields from the request without null checks
         user.setFirstName(request.firstName());
@@ -346,13 +350,18 @@ import java.util.stream.Collectors;
         if (StringUtils.hasText(request.profilePicturePath())) {
             user.setProfilePicturePath(request.profilePicturePath());
         }
-        user.setVolunteerStage(request.volunteerStage());
-        user.setVolunteerUpdateDate(request.volunteerUpdateDate());
         user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
 
-        User updatedUser = userRepository.save(user);
+        User updatedUser = userRepository.saveAndFlush(user);
 
         return mapToUserProfileResponse(updatedUser);
+    }
+
+    private User lockedUserForUpdate(String userId) {
+        userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        entityManager.refresh(user);
+        return user;
     }
 
     // Profile Pic Upload
@@ -726,8 +735,7 @@ import java.util.stream.Collectors;
     @Override
         public UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception {
         // fetch User by userId
-         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+         User user = lockedUserForUpdate(userId);
 
 
             // update language prefs
@@ -747,6 +755,7 @@ import java.util.stream.Collectors;
             detail.setSecondaryPhone1(request.secondaryPhone1());
             detail.setSecondaryPhone2(request.secondaryPhone2());
             userAdditionalDetailRepository.save(detail);
+            entityManager.flush();
 
             return UserPreferenceResponse.builder()
                     .userId(user.getId())

@@ -82,6 +82,33 @@ public interface UserRepository extends JpaRepository<User, String> {
     void saveOnboardingStateWithoutTimezone(@Param("userId") String userId, @Param("emergency") boolean emergency,
             @Param("updatedAt") java.time.OffsetDateTime updatedAt);
 
+    default void advanceWizardProgress(String userId, int step, java.time.LocalDateTime updatedAt) {
+        var instant = updatedAt.atOffset(java.time.ZoneOffset.UTC);
+        if ("timestamp with time zone".equals(wizardProgressTimestampType())) {
+            advanceWizardProgressWithTimezone(userId, step, instant);
+        } else {
+            advanceWizardProgressWithoutTimezone(userId, step, instant);
+        }
+    }
+
+    @Modifying
+    @Query(value = """
+            UPDATE users SET promotion_wizard_stage = :step,
+              promotion_wizard_last_updated_at = CAST(:updatedAt AS timestamp with time zone)
+            WHERE user_id = :userId AND COALESCE(promotion_wizard_stage, 0) < :step
+            """, nativeQuery = true)
+    void advanceWizardProgressWithTimezone(@Param("userId") String userId, @Param("step") int step,
+            @Param("updatedAt") java.time.OffsetDateTime updatedAt);
+
+    @Modifying
+    @Query(value = """
+            UPDATE users SET promotion_wizard_stage = :step,
+              promotion_wizard_last_updated_at = (CAST(:updatedAt AS timestamp with time zone) AT TIME ZONE 'UTC')
+            WHERE user_id = :userId AND COALESCE(promotion_wizard_stage, 0) < :step
+            """, nativeQuery = true)
+    void advanceWizardProgressWithoutTimezone(@Param("userId") String userId, @Param("step") int step,
+            @Param("updatedAt") java.time.OffsetDateTime updatedAt);
+
     List<User> findByPrimaryEmailAddress(String email);
 
     List<User> findFirstByPrimaryEmailAddressIgnoreCase(String email);

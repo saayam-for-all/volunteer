@@ -17,6 +17,8 @@ import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.util.AvailabilityTimeConverter;
 import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
 import java.time.Clock;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
@@ -53,6 +55,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     private final VolunteerRepository volunteerRepository;
     private final UserRepository userRepository;
 
+    @PersistenceContext private EntityManager entityManager;
     @Autowired private UserService userService;
     @Autowired private VolunteerUserAvailabilityRepository userAvailabilityRepository;
     @Autowired private JdbcTemplate availabilityJdbc;
@@ -309,10 +312,26 @@ public class VolunteerServiceImpl implements VolunteerService {
         userRepository.save(user);
     }
 
+    private void lockAccount(String userId) {
+        userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+    }
+
+    private Volunteer lockedVolunteer(String userId) {
+        lockAccount(userId);
+        Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
+        entityManager.refresh(volunteer);
+        return volunteer;
+    }
+
+    private void advanceProgress(VolunteerRequest request) {
+        userRepository.advanceWizardProgress(request.userId(), request.step(),
+                LocalDateTime.ofInstant(availabilityClock.instant(), ZoneOffset.UTC));
+    }
+
     @Override
     public VolunteerResponse createVolunteer(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
+        lockAccount(request.userId());
 
         Volunteer existing = volunteerRepository.findById(request.userId()).orElse(null);
         if (existing != null) throw VolunteerException.volunteerExists(request.userId());
@@ -320,13 +339,13 @@ public class VolunteerServiceImpl implements VolunteerService {
         if (request.step() != 1) throw VolunteerException.volunteerInvalidStep(request.userId());
 
         Volunteer volunteer = Volunteer.builder()
-                .user(user)
+                .user(entityManager.getReference(User.class, request.userId()))
                 .termsAndConditions(request.termsAndConditions())
                 .termsAcceptedAt(LocalDateTime.now(ZoneId.of("UTC")))
                 .build();
 
         volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
+        advanceProgress(request);
 
         return mapToVolunteerResponse(volunteer);
     }
@@ -342,35 +361,24 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public VolunteerResponse updateVolunteerStep1(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
+        Volunteer volunteer = lockedVolunteer(request.userId());
 
         if (request.step() != 1) throw VolunteerException.volunteerInvalidStep(request.userId());
 
-        volunteer.setUser(user);
         volunteer.setTermsAndConditions(request.termsAndConditions());
         volunteer.setTermsAcceptedAt(LocalDateTime.now(ZoneId.of("UTC")));
 
-        volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
+        volunteer = volunteerRepository.saveAndFlush(volunteer);
+        advanceProgress(request);
 
         return mapToVolunteerResponse(volunteer);
     }
 
     @Override
     public VolunteerResponse updateVolunteerStep2(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
+        Volunteer volunteer = lockedVolunteer(request.userId());
 
         if (request.step() != 2) throw VolunteerException.volunteerInvalidStep(request.userId());
-
-        volunteer.setUser(user);
 
         // Persist new DB columns
         if (request.govtIdPath1() != null) {
@@ -382,8 +390,8 @@ public class VolunteerServiceImpl implements VolunteerService {
             volunteer.setPath2UpdatedAt(LocalDateTime.now(ZoneId.of("UTC")));
         }
 
-        volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
+        volunteer = volunteerRepository.saveAndFlush(volunteer);
+        advanceProgress(request);
 
         return mapToVolunteerResponse(volunteer);
     }
@@ -410,17 +418,11 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public VolunteerResponse updateVolunteerStep3(VolunteerRequest request) throws Exception {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
-        Volunteer volunteer = volunteerRepository.findById(request.userId())
-                .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
+        Volunteer volunteer = lockedVolunteer(request.userId());
 
         if (request.step() != 3) throw VolunteerException.volunteerInvalidStep(request.userId());
 
-        volunteer.setUser(user);
-        volunteer = volunteerRepository.save(volunteer);
-        updateUser(user, request.step());
+        advanceProgress(request);
 
         return mapToVolunteerResponse(volunteer);
     }
