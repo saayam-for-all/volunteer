@@ -120,14 +120,66 @@ class OnboardingAvailabilityProxyTest {
     }
 
     @Test
-    void blankBodiesAreBadRequestsRatherThanInternalErrors() throws Exception {
-        for (String blank : List.of("", " ", "\n\t")) {
-            JsonNode response = invoke("PUT", PATH, blank, ownerClaims(OWNER));
-            assertThat(response.path("statusCode").asInt()).isEqualTo(400);
-            assertThat(body(response).path("saayamCode").asText()).isEqualTo("BAD_REQUEST");
-        }
+    void completionRequiresVerifiedOwnerAndPersistedStepFourBeforeAdvancing() throws Exception {
+        String completion = "/0.0.1/volunteers/updatecompletion";
+        String review = "{\"userId\":\"SID-T4\",\"step\":5}";
+        assertFailure(invoke("PUT", completion, READ, null), 403, "FORBIDDEN");
+        assertFailure(invoke("PUT", completion, review, ownerClaims("other@example.test")), 403, "FORBIDDEN");
+        assertFailure(invoke("PUT", completion, READ, ownerClaims(OWNER)), 409, "STEP_FOUR_REQUIRED");
+        assertFailure(invoke("PUT", completion, review, ownerClaims(OWNER)), 409, "STEP_FOUR_REQUIRED");
+
+        String expanded = """
+                {"userId":"SID-T4","step":4,"isEmergencyAvailable":false,"availability":[
+                  {"dayOfWeek":"Everyday","startTime":"09:00","endTime":"10:00"},
+                  {"dayOfWeek":"Everyday","startTime":"11:00","endTime":"12:00"},
+                  {"dayOfWeek":"Everyday","startTime":"13:00","endTime":"14:00"},
+                  {"dayOfWeek":"Everyday","startTime":"15:00","endTime":"16:00"}]}
+                """;
+        assertThat(invoke("PUT", PATH, expanded, ownerClaims(OWNER)).path("statusCode").asInt()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isEqualTo(28);
+        var savedAt = jdbc.queryForObject("SELECT promotion_wizard_last_updated_at FROM users", LocalDateTime.class);
+
+        assertThat(invoke("PUT", completion, READ, ownerClaims(OWNER)).path("statusCode").asInt()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_last_updated_at FROM users", LocalDateTime.class)).isEqualTo(savedAt);
+        assertFailure(invoke("PUT", completion, review.replace("5", "6"), ownerClaims(OWNER)), 400, "BAD_REQUEST");
+
+        assertThat(invoke("PUT", completion, review, ownerClaims(OWNER)).path("statusCode").asInt()).isEqualTo(200);
+        assertThat(invoke("PUT", completion, READ, ownerClaims(OWNER)).path("statusCode").asInt()).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users", Integer.class)).isEqualTo(5);
     }
 
+    @Test
+    void invalidJsonTypesAndMalformedBodiesReturnBadRequestWithoutSaving() throws Exception {
+        for (String invalid : List.of(
+                SAVE.replace("true", "\"true\""), SAVE.replace("true", "1"),
+                SAVE.replace("\"step\":4", "\"step\":4.0"), SAVE.replace("\"SID-T4\"", "123"),
+                SAVE.replace("\"09:00\"", "900"), SAVE.replace("\"09:00\"", "\"2026-11-02T09:00:00Z\""),
+                SAVE.replace("\"isEmergencyAvailable\":true,", ""), SAVE + "{}", "{", "", "null", "[]")) {
+            assertFailure(invoke("PUT", PATH, invalid, ownerClaims(OWNER)), 400, "BAD_REQUEST");
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users", Integer.class)).isEqualTo(3);
+    }
+
+    @Test
+    void retainedStepFourRoutesUseStrictSaveBeforeLegacyBinding() throws Exception {
+        for (String route : List.of("updatestep4", "updatevolunteer")) {
+            String path = "/0.0.1/volunteers/" + route;
+            JsonNode saved = invoke("PUT", path, SAVE, ownerClaims(OWNER));
+            assertThat(saved.path("statusCode").asInt()).isEqualTo(200);
+            JsonNode stored = body(saved).path("data");
+            assertThat(stored.path("promotionWizardStage").asInt()).isEqualTo(4);
+            assertThat(stored.at("/availability/0/startTime").asText()).isEqualTo("09:00");
+
+            assertFailure(invoke("PUT", path, SAVE, ownerClaims("other@example.test")), 403, "FORBIDDEN");
+            String isoTime = SAVE.replace("09:00", "2026-11-02T09:00:00");
+            for (String step : List.of("4", "\"4\"", "4.0")) {
+                String invalid = isoTime.replace("\"step\":4", "\"step\":" + step);
+                assertFailure(invoke("PUT", path, invalid, ownerClaims(OWNER)), 400, "BAD_REQUEST");
+            }
+            assertThat(body(invoke("POST", PATH, READ, ownerClaims(OWNER))).path("data")).isEqualTo(stored);
+        }
+    }
 
     @Test
     void preflightNeedsNoIdentityAndUnsupportedMethodReturnsAnEnvelope() throws Exception {
@@ -146,6 +198,54 @@ class OnboardingAvailabilityProxyTest {
                 "Access-Control-Request-Method", List.of("PUT"))).path("statusCode").asInt()).isEqualTo(403);
     }
 
+    @Test
+    void claimsMustIncludeSubjectAndVerifiedEmailEvenWithSpoofedHeadersAndBody() throws Exception {
+        Map<String, List<String>> forgedHeaders = Map.of("Authorization", List.of("Bearer synthetic.payload.signature"),
+                "X-Caller", List.of(OWNER), "X-Cognito-Email", List.of(OWNER));
+        String forgedBody = SAVE.replace("\"step\":4", "\"step\":4,\"cognitoEmail\":\"" + OWNER + "\"");
+        assertFailure(invoke("PUT", PATH, forgedBody, null, forgedHeaders), 403, "FORBIDDEN");
+        for (var claims : List.of(
+                Map.of("email", OWNER, "email_verified", "true"),
+                Map.of("sub", "verified-subject", "email_verified", "true"),
+                Map.of("sub", "verified-subject", "email", OWNER),
+                Map.of("sub", "verified-subject", "email", OWNER, "email_verified", "false"))) {
+            assertFailure(invoke("PUT", PATH, forgedBody, claims, forgedHeaders), 403, "FORBIDDEN");
+        }
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isZero();
+    }
+
+    @Test
+    void accountAndVolunteerLookupFailuresReturnActualNotFound() throws Exception {
+        assertFailure(invoke("POST", PATH, READ.replace(USER_ID, "SID-ABSENT"), ownerClaims(OWNER)), 404, "USER_NOT_FOUND");
+        jdbc.update("DELETE FROM volunteer_details WHERE user_id = ?", USER_ID);
+        assertFailure(invoke("PUT", PATH, SAVE, ownerClaims(OWNER)), 404, "VOLUNTEER_NOT_FOUND");
+    }
+
+    @Test
+    void accountAndSchemaPreconditionsReturnActualConflictAndUnavailable() throws Exception {
+        jdbc.update("UPDATE users SET time_zone = NULL WHERE user_id = ?", USER_ID);
+        assertFailure(invoke("POST", PATH, READ, ownerClaims(OWNER)), 409, "ACCOUNT_TIMEZONE_REQUIRED");
+        jdbc.execute("ALTER TABLE users DROP COLUMN is_emergency_available");
+        assertFailure(invoke("PUT", PATH, SAVE, ownerClaims(OWNER)), 503, "FEATURE_UNAVAILABLE");
+    }
+
+    @Test
+    void missingAccountProjectionColumnReturnsUnavailableOnlyForVerifiedCaller() throws Exception {
+        jdbc.execute("ALTER TABLE users DROP COLUMN time_zone");
+        assertFailure(invoke("POST", PATH, READ, null), 403, "FORBIDDEN");
+        assertFailure(invoke("POST", PATH, READ, ownerClaims(OWNER)), 503, "FEATURE_UNAVAILABLE");
+    }
+
+    @Test
+    void databaseFailureReturnsSanitizedInternalErrorWithoutProgress() throws Exception {
+        jdbc.execute("ALTER TABLE user_availability ADD CONSTRAINT synthetic_test_failure CHECK (start_time >= end_time)");
+        JsonNode failed = invoke("PUT", PATH, SAVE, ownerClaims(OWNER));
+        assertFailure(failed, 500, "INTERNAL_SERVER_ERROR");
+        assertThat(body(failed).path("message").asText()).isEqualTo("Unable to process onboarding availability");
+        assertThat(jdbc.queryForObject("SELECT promotion_wizard_stage FROM users", Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT is_emergency_available FROM users", Boolean.class)).isFalse();
+    }
+
     private static void assertFailure(JsonNode response, int status, String code) throws Exception {
         assertThat(response.path("statusCode").asInt()).isEqualTo(status);
         JsonNode envelope = body(response);
@@ -153,6 +253,15 @@ class OnboardingAvailabilityProxyTest {
         assertThat(envelope.path("statusCode").asInt()).isEqualTo(status);
         assertThat(envelope.path("saayamCode").asText()).isEqualTo(code);
         assertThat(envelope.has("data")).isFalse();
+    }
+
+    @Test
+    void blankBodiesAreBadRequestsRatherThanInternalErrors() throws Exception {
+        for (String blank : List.of("", " ", "\n\t")) {
+            JsonNode response = invoke("PUT", PATH, blank, ownerClaims(OWNER));
+            assertThat(response.path("statusCode").asInt()).isEqualTo(400);
+            assertThat(body(response).path("saayamCode").asText()).isEqualTo("BAD_REQUEST");
+        }
     }
 
     private static Map<String, String> ownerClaims(String email) {

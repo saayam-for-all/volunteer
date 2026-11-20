@@ -306,10 +306,52 @@ public class VolunteerServiceImpl implements VolunteerService {
         return !value.isTextual() || !value.textValue().isBlank();
     }
 
-    private void updateUser(User user, Integer step) {
-        user.setVolunteerStage(step);
-        user.setVolunteerUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        userRepository.save(user);
+    private void completeAvailability(String userId, Integer requestedStep) {
+        requireAvailabilityUserId(userId);
+        int step = requestedStep == null ? 4 : requestedStep;
+        if (step != 4 && step != 5) {
+            throw new OnboardingAvailabilityException(400, "BAD_REQUEST", "Completion step must be 4 or 5");
+        }
+        requireOnboardingAvailabilityReady();
+        var account = userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> missingAvailabilityAccount());
+        requireAvailabilityVolunteer(userId);
+        if (account.getPromotionWizardStage() == null || account.getPromotionWizardStage() < 4) throw stepFourRequired();
+        requirePersistedIntervals(userService.readAvailabilityRows(userId), storedAvailabilityZone(account.getTimeZone()));
+        if (step == 5 && account.getPromotionWizardStage() < step) {
+            userRepository.advanceWizardProgress(userId, step, LocalDateTime.ofInstant(availabilityClock.instant(), ZoneOffset.UTC));
+        }
+    }
+
+    private static void requirePersistedIntervals(List<VolunteerUserAvailability> rows, ZoneId zone) {
+        if (rows.isEmpty()) throw stepFourRequired();
+        List<LocalSlot> local = new ArrayList<>(rows.size());
+        for (var row : rows) {
+            var start = row.getStartTime().atOffset(ZoneOffset.UTC).atZoneSameInstant(zone);
+            var end = row.getEndTime().atOffset(ZoneOffset.UTC).atZoneSameInstant(zone);
+            if (!start.toLocalDate().equals(end.toLocalDate())
+                    || !end.toLocalTime().isAfter(start.toLocalTime())
+                    || !end.toInstant().isAfter(start.toInstant())
+                    || start.getSecond() != 0 || start.getNano() != 0 || end.getSecond() != 0 || end.getNano() != 0) {
+                throw stepFourRequired();
+            }
+            local.add(new LocalSlot(start.getDayOfWeek(), start.toLocalTime(), end.toLocalTime()));
+        }
+        if (hasAvailabilityOverlap(local)) throw stepFourRequired();
+    }
+
+    private static OnboardingAvailabilityException stepFourRequired() {
+        return new OnboardingAvailabilityException(409, "STEP_FOUR_REQUIRED",
+                "Save valid onboarding availability before completing this step");
+    }
+
+    private static OnboardingAvailabilityException missingAvailabilityAccount() {
+        return new OnboardingAvailabilityException(404, "USER_NOT_FOUND", "Account not found");
+    }
+
+    private void requireAvailabilityVolunteer(String userId) {
+        if (!volunteerRepository.existsById(userId)) {
+            throw new OnboardingAvailabilityException(404, "VOLUNTEER_NOT_FOUND", "Volunteer not found");
+        }
     }
 
     private void lockAccount(String userId) {
@@ -439,15 +481,9 @@ public class VolunteerServiceImpl implements VolunteerService {
 
     @Override
     public VolunteerResponse updateVolunteerCompletion(VolunteerRequest request) {
-        User user = userRepository.findById(request.userId())
-                .orElseThrow(() -> new UserNotFoundException(request.userId()));
-
+        completeAvailability(request.userId(), request.step());
         Volunteer volunteer = volunteerRepository.findById(request.userId())
                 .orElseThrow(() -> VolunteerException.volunteerNotFound(request.userId()));
-
-        Integer step = request.step() != null ? request.step() : 4;
-        updateUser(user, step);
-
         return mapToVolunteerResponse(volunteer);
     }
 

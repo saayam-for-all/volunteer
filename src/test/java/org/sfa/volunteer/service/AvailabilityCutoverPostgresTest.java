@@ -319,4 +319,21 @@ class AvailabilityCutoverPostgresTest {
                 List.of(new OnboardingAvailabilitySlot("Monday", "09:00", "12:00")), true));
     }
 
+    @Test
+    void reviewRequiresEligibleStoredIntervalsEvenAfterStepFourWasSaved() {
+        saveOnboarding();
+        var review = VolunteerRequest.builder().userId(USER).step(5).build();
+        profiles.updateAvailability(new UpdateAvailabilityRequest(USER, "Asia/Kolkata",
+                List.of(new AvailabilitySlotRequest("Monday", "22:00", "06:00")), null, null, null));
+        assertThatThrownBy(() -> volunteers.updateVolunteerCompletion(review))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo("STEP_FOUR_REQUIRED"));
+
+        profiles.updateAvailability(new UpdateAvailabilityRequest(USER, "Asia/Kolkata", List.of(), null, null, null));
+        assertThatThrownBy(() -> volunteers.updateVolunteerCompletion(review))
+                .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo("STEP_FOUR_REQUIRED"));
+        assertThat(onboarding.getOnboardingAvailability(USER).promotionWizardStage()).isEqualTo(4);
+    }
+
 }
