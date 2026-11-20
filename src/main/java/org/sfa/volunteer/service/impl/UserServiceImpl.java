@@ -66,6 +66,8 @@ import java.util.stream.Collectors;
 @Transactional
     public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
+    @Autowired private org.sfa.volunteer.repository.VolunteerRepository volunteerRepository;
+    private static final com.fasterxml.jackson.databind.ObjectMapper AVAILABILITY_JSON = new com.fasterxml.jackson.databind.ObjectMapper();
     @jakarta.persistence.PersistenceContext
     private jakarta.persistence.EntityManager entityManager;
     @Autowired
@@ -408,7 +410,30 @@ import java.util.stream.Collectors;
         }
         var account = userRepository.findAvailabilityAccountById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-        return toAvailabilityResponse(userId, account.getTimeZone(), userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
+        return toAvailabilityResponse(userId, account.getTimeZone(), readAvailabilityRows(userId));
+    }
+
+    @Override
+    public List<VolunteerUserAvailability> readAvailabilityRows(String userId) {
+        var rows = userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId);
+        if (rows.isEmpty() && volunteerRepository.findLegacyAvailabilityById(userId)
+                .map(legacy -> hasLegacyAvailability(legacy.getDays()) || hasLegacyAvailability(legacy.getTimes())).orElse(false)) {
+            throw new OnboardingAvailabilityException(409, "LEGACY_AVAILABILITY_MIGRATION_REQUIRED",
+                    "Saved legacy availability requires migration or re-entry");
+        }
+        return rows;
+    }
+
+    private static boolean hasLegacyAvailability(String raw) {
+        if (raw == null) return false;
+        try {
+            var value = AVAILABILITY_JSON.readTree(raw);
+            if (value == null || value.isNull()) return false;
+            if (value.isContainerNode()) return !value.isEmpty();
+            return !value.isTextual() || !value.textValue().isBlank();
+        } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+            throw new IllegalStateException("Unable to read legacy availability data");
+        }
     }
 
     @Override
@@ -443,7 +468,9 @@ import java.util.stream.Collectors;
         }
         userAvailabilityRepository.deleteByUser_Id(userId);
         userAvailabilityRepository.flush();
-        return userAvailabilityRepository.saveAll(rows);
+        var saved = userAvailabilityRepository.saveAll(rows);
+        volunteerRepository.clearLegacyAvailability(userId);
+        return saved;
     }
 
     // Checked against the IANA list rather than relying on ZoneId.of() throwing: ZoneId.of() also accepts
@@ -572,7 +599,7 @@ import java.util.stream.Collectors;
         return new AvailabilityResponse(userId, zone.getId(), slots, lastUpdatedAt);
     }
 
-    private static ZoneId zoneOrUtc(String timezone) {
+    static ZoneId zoneOrUtc(String timezone) {
         if (timezone == null || timezone.isBlank()) {
             return ZoneId.of(DEFAULT_TIMEZONE);
         }

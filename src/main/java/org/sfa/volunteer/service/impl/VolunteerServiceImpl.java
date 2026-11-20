@@ -42,6 +42,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -134,7 +135,7 @@ public class VolunteerServiceImpl implements VolunteerService {
         }
         return onboardingResponse(userId, userRepository.isEmergencyAvailable(userId),
                 account.getPromotionWizardStage(), storedAvailabilityZone(account.getTimeZone()),
-                userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
+                userService.readAvailabilityRows(userId));
     }
 
     @Override
@@ -247,6 +248,59 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .thenComparing(OnboardingAvailabilitySlotResponse::startTime)
                 .thenComparing(OnboardingAvailabilitySlotResponse::endTime)).toList();
         return new OnboardingAvailabilityResponse(userId, emergency, stage, slots);
+    }
+
+    public Map<String, AvailabilityView> getAvailabilityViews(List<Volunteer> volunteers) {
+        if (volunteers.isEmpty()) return Map.of();
+        List<String> ids = volunteers.stream().map(Volunteer::getId).toList();
+        var accountsById = userRepository.findAvailabilityAccountsByIds(ids).stream()
+                .collect(Collectors.toMap(UserRepository.AvailabilityAccount::getUserId, account -> account));
+        var rowsById = userAvailabilityRepository.findByUser_IdInOrderByIdAsc(ids).stream()
+                .collect(Collectors.groupingBy(row -> row.getUser().getId()));
+        Map<String, AvailabilityView> result = new LinkedHashMap<>();
+        for (Volunteer volunteer : volunteers) {
+            String id = volunteer.getId();
+            var account = accountsById.get(id);
+            Integer stage = account == null ? null : account.getPromotionWizardStage();
+            List<VolunteerUserAvailability> rows = rowsById.getOrDefault(id, List.of());
+            if (rows.isEmpty()) {
+                JsonNode days = volunteer.getAvailabilityDays();
+                JsonNode times = volunteer.getAvailabilityTimes();
+                result.put(id, new AvailabilityView(stage, days, times,
+                        hasLegacyAvailabilityContent(days) || hasLegacyAvailabilityContent(times)));
+            } else {
+                ZoneId zone = UserServiceImpl.zoneOrUtc(account == null ? null : account.getTimeZone());
+                result.put(id, relational(stage, rows, zone));
+            }
+        }
+        return result;
+    }
+
+    private static AvailabilityView relational(Integer stage, List<VolunteerUserAvailability> rows, ZoneId zone) {
+        var days = MAPPER.createArrayNode();
+        var times = MAPPER.createArrayNode();
+        var localDays = EnumSet.noneOf(DayOfWeek.class);
+        for (var row : rows) {
+            var local = AvailabilityTimeConverter.toLocal(row.getStartTime(), row.getEndTime(), zone);
+            localDays.add(local.day());
+            times.addObject()
+                    .put("id", row.getId())
+                    .put("dayOfWeek", availabilityDayName(local.day()))
+                    .put("startTime", row.getStartTime().toInstant(ZoneOffset.UTC).toString())
+                    .put("endTime", row.getEndTime().toInstant(ZoneOffset.UTC).toString());
+        }
+        localDays.forEach(day -> days.add(availabilityDayName(day)));
+        return new AvailabilityView(stage, days, times, false);
+    }
+
+    private static String availabilityDayName(DayOfWeek day) {
+        return day.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH);
+    }
+
+    private static boolean hasLegacyAvailabilityContent(JsonNode value) {
+        if (value == null || value.isNull()) return false;
+        if (value.isContainerNode()) return !value.isEmpty();
+        return !value.isTextual() || !value.textValue().isBlank();
     }
 
     private void updateUser(User user, Integer step) {
@@ -427,6 +481,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public VolunteerResponse getVolunteerByUserId(String userId) throws Exception {
         Volunteer volunteer = volunteerRepository.findById(userId)
                 .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
@@ -487,6 +542,7 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PaginationResponse<VolunteerResponse> findAllVolunteersWithPagination(Integer pageNumber, Integer pageSize) {
         int pageNum = (pageNumber == null) ? DEFAULT_PAGE : pageNumber;
         int pageSizeNum = (pageSize == null) ? DEFAULT_SIZE : pageSize;
@@ -494,8 +550,9 @@ public class VolunteerServiceImpl implements VolunteerService {
         Pageable pageable = PageRequest.of(pageNum, pageSizeNum);
         Page<Volunteer> volunteerPage = volunteerRepository.findAll(pageable);
 
+        var availability = getAvailabilityViews(volunteerPage.getContent());
         List<VolunteerResponse> volunteers = volunteerPage.stream()
-                .map(this::mapToVolunteerResponse)
+                .map(volunteer -> mapToVolunteerResponse(volunteer, availability.get(volunteer.getId())))
                 .collect(Collectors.toList());
 
         return PaginationResponse.<VolunteerResponse>builder()
@@ -510,7 +567,11 @@ public class VolunteerServiceImpl implements VolunteerService {
     }
 
     private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer) {
-        String uid = volunteer.getUser() != null ? volunteer.getUser().getId() : volunteer.getId();
+        return mapToVolunteerResponse(volunteer, getAvailabilityViews(List.of(volunteer)).get(volunteer.getId()));
+    }
+
+    private VolunteerResponse mapToVolunteerResponse(Volunteer volunteer, AvailabilityView availability) {
+        String uid = volunteer.getId();
 
         return VolunteerResponse.builder()
                 .id(uid)
@@ -521,8 +582,9 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .govtIdPath2(volunteer.getGovtIdPath2())
                 .path1UpdatedAt(volunteer.getPath1UpdatedAt())
                 .path2UpdatedAt(volunteer.getPath2UpdatedAt())
-                .availabilityDays((JsonNode) volunteer.getAvailabilityDays())
-                .availabilityTimes((JsonNode) volunteer.getAvailabilityTimes())
+                .availabilityDays(availability.days())
+                .availabilityTimes(availability.times())
+                .availabilityMigrationRequired(availability.migrationRequired())
                 .createdAt(volunteer.getCreatedAt())
                 .lastUpdatedAt(volunteer.getLastUpdatedAt())
                 .build();

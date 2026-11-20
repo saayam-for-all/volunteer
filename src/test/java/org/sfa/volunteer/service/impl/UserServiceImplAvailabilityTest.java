@@ -61,10 +61,12 @@ class UserServiceImplAvailabilityTest {
     private UserServiceImpl userService;
 
     @Mock private EntityManager entityManager;
+    @Mock private org.sfa.volunteer.repository.VolunteerRepository volunteerRepository;
 
     @BeforeEach
     void lazyAccountReference() {
         org.springframework.test.util.ReflectionTestUtils.setField(userService, "entityManager", entityManager);
+        org.springframework.test.util.ReflectionTestUtils.setField(userService, "volunteerRepository", volunteerRepository);
         lenient().when(entityManager.getReference(User.class, USER_ID)).thenReturn(user("UTC"));
     }
 

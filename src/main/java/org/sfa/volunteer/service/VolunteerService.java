@@ -14,6 +14,11 @@ import org.sfa.volunteer.dto.response.OnboardingAvailabilityResponse;
 
 
 public interface VolunteerService {
+    record AvailabilityView(Integer stage, com.fasterxml.jackson.databind.JsonNode days,
+            com.fasterxml.jackson.databind.JsonNode times, boolean migrationRequired) {}
+
+    java.util.Map<String, AvailabilityView> getAvailabilityViews(java.util.List<org.sfa.volunteer.model.Volunteer> volunteers);
+
     OnboardingAvailabilityResponse updateVolunteerStep4(OnboardingAvailabilitySaveRequest request);
 
     OnboardingAvailabilityResponse getOnboardingAvailability(String userId);

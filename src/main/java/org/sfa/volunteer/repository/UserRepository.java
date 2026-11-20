@@ -32,6 +32,14 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query(value = AVAILABILITY_ACCOUNT, nativeQuery = true)
     Optional<AvailabilityAccount> findAvailabilityAccountById(@Param("userId") String userId);
 
+    @Query(value = """
+            SELECT user_id AS "userId", time_zone AS "timeZone",
+                   primary_email_address AS "primaryEmailAddress",
+                   promotion_wizard_stage AS "promotionWizardStage"
+            FROM users WHERE user_id IN (:userIds)
+            """, nativeQuery = true)
+    List<AvailabilityAccount> findAvailabilityAccountsByIds(@Param("userIds") java.util.Collection<String> userIds);
+
     @Query(value = AVAILABILITY_ACCOUNT + " FOR UPDATE", nativeQuery = true)
     Optional<AvailabilityAccount> lockAvailabilityAccountById(@Param("userId") String userId);
 

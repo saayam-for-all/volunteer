@@ -12,6 +12,8 @@ public interface VolunteerUserAvailabilityRepository extends JpaRepository<Volun
 
     List<VolunteerUserAvailability> findByUser_IdOrderByIdAsc(String userId);
 
+    List<VolunteerUserAvailability> findByUser_IdInOrderByIdAsc(java.util.Collection<String> userIds);
+
     @Modifying
     void deleteByUser_Id(String userId);
 }

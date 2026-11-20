@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 public interface UserService {
+    List<org.sfa.volunteer.model.VolunteerUserAvailability> readAvailabilityRows(String userId);
+
     List<org.sfa.volunteer.model.VolunteerUserAvailability> replaceAvailabilityRows(String userId,
             java.time.ZoneId zone, List<org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot> slots,
             java.time.LocalDate anchorDate);
