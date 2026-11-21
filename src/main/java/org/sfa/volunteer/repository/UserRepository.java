@@ -1,5 +1,12 @@
 package org.sfa.volunteer.repository;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import org.sfa.volunteer.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,12 +16,101 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.ZonedDateTime;
-import java.util.List;
-import java.util.Optional;
-
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
+    interface AvailabilityAccount {
+        String getUserId();
+        String getTimeZone();
+        String getPrimaryEmailAddress();
+        Integer getPromotionWizardStage();
+    }
+
+    String AVAILABILITY_ACCOUNT = """
+            SELECT user_id AS "userId", time_zone AS "timeZone",
+                   primary_email_address AS "primaryEmailAddress",
+                   promotion_wizard_stage AS "promotionWizardStage"
+            FROM users WHERE user_id = :userId
+            """;
+
+    @Query(value = AVAILABILITY_ACCOUNT, nativeQuery = true)
+    Optional<AvailabilityAccount> findAvailabilityAccountById(@Param("userId") String userId);
+
+    @Query(value = """
+            SELECT user_id AS "userId", time_zone AS "timeZone",
+                   primary_email_address AS "primaryEmailAddress",
+                   promotion_wizard_stage AS "promotionWizardStage"
+            FROM users WHERE user_id IN (:userIds)
+            """, nativeQuery = true)
+    List<AvailabilityAccount> findAvailabilityAccountsByIds(@Param("userIds") Collection<String> userIds);
+
+    @Query(value = AVAILABILITY_ACCOUNT + " FOR UPDATE", nativeQuery = true)
+    Optional<AvailabilityAccount> lockAvailabilityAccountById(@Param("userId") String userId);
+
+    @Query(value = "SELECT is_emergency_available FROM users WHERE user_id = :userId", nativeQuery = true)
+    boolean isEmergencyAvailable(@Param("userId") String userId);
+
+    @Query(value = """
+            SELECT data_type FROM information_schema.columns WHERE table_schema = current_schema()
+              AND table_name = 'users' AND column_name = 'promotion_wizard_last_updated_at'
+            """, nativeQuery = true)
+    String wizardProgressTimestampType();
+
+    // Both deployed timestamp layouts must preserve the UTC instant even with a non-UTC session timezone.
+    default void saveOnboardingAvailabilityState(String userId, boolean emergency, LocalDateTime updatedAt) {
+        var instant = updatedAt.atOffset(ZoneOffset.UTC);
+        if ("timestamp with time zone".equals(wizardProgressTimestampType())) {
+            saveOnboardingStateWithTimezone(userId, emergency, instant);
+        } else {
+            saveOnboardingStateWithoutTimezone(userId, emergency, instant);
+        }
+    }
+
+    @Modifying
+    @Query(value = """
+            UPDATE users SET is_emergency_available = :emergency,
+              promotion_wizard_stage = GREATEST(COALESCE(promotion_wizard_stage, 0), 4),
+              promotion_wizard_last_updated_at = CAST(:updatedAt AS timestamp with time zone)
+            WHERE user_id = :userId
+            """, nativeQuery = true)
+    void saveOnboardingStateWithTimezone(@Param("userId") String userId, @Param("emergency") boolean emergency,
+            @Param("updatedAt") OffsetDateTime updatedAt);
+
+    @Modifying
+    @Query(value = """
+            UPDATE users SET is_emergency_available = :emergency,
+              promotion_wizard_stage = GREATEST(COALESCE(promotion_wizard_stage, 0), 4),
+              promotion_wizard_last_updated_at = (CAST(:updatedAt AS timestamp with time zone) AT TIME ZONE 'UTC')
+            WHERE user_id = :userId
+            """, nativeQuery = true)
+    void saveOnboardingStateWithoutTimezone(@Param("userId") String userId, @Param("emergency") boolean emergency,
+            @Param("updatedAt") OffsetDateTime updatedAt);
+
+    default void advanceWizardProgress(String userId, int step, LocalDateTime updatedAt) {
+        var instant = updatedAt.atOffset(ZoneOffset.UTC);
+        if ("timestamp with time zone".equals(wizardProgressTimestampType())) {
+            advanceWizardProgressWithTimezone(userId, step, instant);
+        } else {
+            advanceWizardProgressWithoutTimezone(userId, step, instant);
+        }
+    }
+
+    @Modifying
+    @Query(value = """
+            UPDATE users SET promotion_wizard_stage = :step,
+              promotion_wizard_last_updated_at = CAST(:updatedAt AS timestamp with time zone)
+            WHERE user_id = :userId AND COALESCE(promotion_wizard_stage, 0) < :step
+            """, nativeQuery = true)
+    void advanceWizardProgressWithTimezone(@Param("userId") String userId, @Param("step") int step,
+            @Param("updatedAt") OffsetDateTime updatedAt);
+
+    @Modifying
+    @Query(value = """
+            UPDATE users SET promotion_wizard_stage = :step,
+              promotion_wizard_last_updated_at = (CAST(:updatedAt AS timestamp with time zone) AT TIME ZONE 'UTC')
+            WHERE user_id = :userId AND COALESCE(promotion_wizard_stage, 0) < :step
+            """, nativeQuery = true)
+    void advanceWizardProgressWithoutTimezone(@Param("userId") String userId, @Param("step") int step,
+            @Param("updatedAt") OffsetDateTime updatedAt);
 
     List<User> findByPrimaryEmailAddress(String email);
 

@@ -1,57 +1,22 @@
 package org.sfa.volunteer.service.impl;
 
-import jakarta.transaction.Transactional;
-import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
-import org.sfa.volunteer.dto.request.CreateUserRequest;
-import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
-import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
-import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
-import org.sfa.volunteer.dto.request.UserPreferenceRequest;
-import org.sfa.volunteer.dto.response.*;
-import org.sfa.volunteer.exception.*;
-import org.sfa.volunteer.model.AvailabilityFrequency;
-import org.sfa.volunteer.model.Country;
-import org.sfa.volunteer.model.State;
-import org.sfa.volunteer.model.User;
-import org.sfa.volunteer.model.UserAdditionalDetail;
-import org.sfa.volunteer.model.UserSignOffReason;
-import org.sfa.volunteer.model.SkillLevel;
-import org.sfa.volunteer.model.UserStatus;
-import org.sfa.volunteer.model.VolunteerUserAvailability;
-import org.sfa.volunteer.repository.CountryRepository;
-import org.sfa.volunteer.repository.StateRepository;
-import org.sfa.volunteer.repository.UserCategoryRepository;
-import org.sfa.volunteer.repository.UserRepository;
-import org.sfa.volunteer.repository.UserSignOffReasonRepository;
-import org.sfa.volunteer.repository.UserSkillRepository;
-import org.sfa.volunteer.repository.UserStatusRepository;
-import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
-import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
-import org.sfa.volunteer.service.ProfileImageStorageService;
-import org.sfa.volunteer.service.UserService;
-import org.sfa.volunteer.util.AvailabilityTimeConverter;
-import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
-import org.sfa.volunteer.util.AvailabilityTimeConverter.UtcSlot;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.sfa.volunteer.dto.response.PersonalInfoResponse;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -61,11 +26,58 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.sfa.volunteer.dto.request.AvailabilitySlotRequest;
+import org.sfa.volunteer.dto.request.CreateUserRequest;
+import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
+import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
+import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.UserPreferenceRequest;
+import org.sfa.volunteer.dto.response.*;
+import org.sfa.volunteer.dto.response.PersonalInfoResponse;
+import org.sfa.volunteer.exception.*;
+import org.sfa.volunteer.model.AvailabilityFrequency;
+import org.sfa.volunteer.model.Country;
+import org.sfa.volunteer.model.SkillLevel;
+import org.sfa.volunteer.model.State;
+import org.sfa.volunteer.model.User;
+import org.sfa.volunteer.model.UserAdditionalDetail;
+import org.sfa.volunteer.model.UserSignOffReason;
+import org.sfa.volunteer.model.UserStatus;
+import org.sfa.volunteer.model.VolunteerUserAvailability;
+import org.sfa.volunteer.repository.CountryRepository;
+import org.sfa.volunteer.repository.StateRepository;
+import org.sfa.volunteer.repository.UserAdditionalDetailRepository;
+import org.sfa.volunteer.repository.UserCategoryRepository;
+import org.sfa.volunteer.repository.UserRepository;
+import org.sfa.volunteer.repository.UserSignOffReasonRepository;
+import org.sfa.volunteer.repository.UserSkillRepository;
+import org.sfa.volunteer.repository.UserStatusRepository;
+import org.sfa.volunteer.repository.VolunteerRepository;
+import org.sfa.volunteer.repository.VolunteerUserAvailabilityRepository;
+import org.sfa.volunteer.service.ProfileImageStorageService;
+import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.LocalSlot;
+import org.sfa.volunteer.util.AvailabilityTimeConverter.UtcSlot;
+import org.sfa.volunteer.util.AvailabilityTimeConverter;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @Transactional
     public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
+    @Autowired private VolunteerRepository volunteerRepository;
+    private static final ObjectMapper AVAILABILITY_JSON = new ObjectMapper();
+    @PersistenceContext
+    private EntityManager entityManager;
+    @Autowired
+    private Clock availabilityClock;
     private final UserStatusRepository userStatusRepository;
     private final UserSignOffReasonRepository userSignOffReasonRepository;
     private final UserCategoryRepository userCategoryRepository;
@@ -325,8 +337,12 @@ import java.util.stream.Collectors;
     
     @Override
     public UserProfileResponse updateUserProfile(String userId, UpdateUserProfileRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+        User user = lockedUserForUpdate(userId);
+        if ((request.volunteerStage() != null && !Objects.equals(request.volunteerStage(), user.getVolunteerStage()))
+                || (request.volunteerUpdateDate() != null && (user.getVolunteerUpdateDate() == null
+                || !request.volunteerUpdateDate().isEqual(user.getVolunteerUpdateDate())))) {
+            throw new WizardProgressMutationException();
+        }
 
         // Update all fields from the request without null checks
         user.setFirstName(request.firstName());
@@ -340,13 +356,18 @@ import java.util.stream.Collectors;
         if (StringUtils.hasText(request.profilePicturePath())) {
             user.setProfilePicturePath(request.profilePicturePath());
         }
-        user.setVolunteerStage(request.volunteerStage());
-        user.setVolunteerUpdateDate(request.volunteerUpdateDate());
         user.setLastUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
 
-        User updatedUser = userRepository.save(user);
+        User updatedUser = userRepository.saveAndFlush(user);
 
         return mapToUserProfileResponse(updatedUser);
+    }
+
+    private User lockedUserForUpdate(String userId) {
+        userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        User user = userRepository.findById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        entityManager.refresh(user);
+        return user;
     }
 
     // Profile Pic Upload
@@ -396,17 +417,42 @@ import java.util.stream.Collectors;
     }
 
     @Override
+    @Transactional(readOnly = true,
+            isolation = Isolation.REPEATABLE_READ)
     public AvailabilityResponse getAvailability(String userId) {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("userId is required");
         }
-        User user = userRepository.findById(userId)
+        var account = userRepository.findAvailabilityAccountById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-
-        return toAvailabilityResponse(user, userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
+        return toAvailabilityResponse(userId, account.getTimeZone(), readAvailabilityRows(userId));
     }
 
     @Override
+    public List<VolunteerUserAvailability> readAvailabilityRows(String userId) {
+        var rows = userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId);
+        if (rows.isEmpty() && volunteerRepository.findLegacyAvailabilityById(userId)
+                .map(legacy -> hasLegacyAvailability(legacy.getDays()) || hasLegacyAvailability(legacy.getTimes())).orElse(false)) {
+            throw new OnboardingAvailabilityException(409, "LEGACY_AVAILABILITY_MIGRATION_REQUIRED",
+                    "Saved legacy availability requires migration or re-entry");
+        }
+        return rows;
+    }
+
+    private static boolean hasLegacyAvailability(String raw) {
+        if (raw == null) return false;
+        try {
+            var value = AVAILABILITY_JSON.readTree(raw);
+            if (value == null || value.isNull()) return false;
+            if (value.isContainerNode()) return !value.isEmpty();
+            return !value.isTextual() || !value.textValue().isBlank();
+        } catch (JsonProcessingException failure) {
+            throw new IllegalStateException("Unable to read legacy availability data");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public AvailabilityResponse updateAvailability(UpdateAvailabilityRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Request body is required");
@@ -418,31 +464,29 @@ import java.util.stream.Collectors;
         ZoneId zone = parseTimezone(request.getTimezone());
         List<LocalSlot> localSlots = parseSlots(request.getSlots());
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+        userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
         userRepository.updateAvailabilityTimezone(userId, zone.getId());
+        LocalDate anchorDate = LocalDate.now(availabilityClock.withZone(zone));
+        return toAvailabilityResponse(userId, zone.getId(), replaceAvailabilityRows(userId, zone, localSlots, anchorDate));
+    }
 
-        // Vacation fields are accepted but not stored: user_availability has no columns for them yet
-        LocalDate today = LocalDate.now(zone);
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+    @Override
+    public List<VolunteerUserAvailability> replaceAvailabilityRows(String userId, ZoneId zone,
+            List<LocalSlot> localSlots, LocalDate anchorDate) {
+        userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        User user = entityManager.getReference(User.class, userId);
+        LocalDateTime now = LocalDateTime.ofInstant(availabilityClock.instant(), ZoneOffset.UTC);
         List<VolunteerUserAvailability> rows = new ArrayList<>();
         for (LocalSlot slot : localSlots) {
-            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, today);
-            rows.add(VolunteerUserAvailability.builder()
-                    .user(user)
-                    .dayOfWeek(dayName(utc.day()))
-                    .startTime(utc.start())
-                    .endTime(utc.end())
-                    .lastUpdatedAt(now)
-                    .build());
+            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, anchorDate);
+            rows.add(VolunteerUserAvailability.builder().user(user).dayOfWeek(dayName(utc.day()))
+                    .startTime(utc.start()).endTime(utc.end()).lastUpdatedAt(now).build());
         }
-
-        // Replace, not merge: flush the deletes so they run before the inserts
         userAvailabilityRepository.deleteByUser_Id(userId);
         userAvailabilityRepository.flush();
-        List<VolunteerUserAvailability> saved = userAvailabilityRepository.saveAll(rows);
-
-        return toAvailabilityResponse(userId, zone.getId(), saved);
+        var saved = userAvailabilityRepository.saveAll(rows);
+        volunteerRepository.clearLegacyAvailability(userId);
+        return saved;
     }
 
     // Checked against the IANA list rather than relying on ZoneId.of() throwing: ZoneId.of() also accepts
@@ -529,10 +573,6 @@ import java.util.stream.Collectors;
     private record CollapsedSlot(Integer id, AvailabilityFrequency frequency, TimeRange range) {}
 
     // Rows are UTC, one per day; convert to the user's zone and group back into Everyday / Weekdays / Weekends
-    private static AvailabilityResponse toAvailabilityResponse(User user, List<VolunteerUserAvailability> rows) {
-        return toAvailabilityResponse(user.getId(), user.getTimeZone(), rows);
-    }
-
     private static AvailabilityResponse toAvailabilityResponse(String userId, String timezone, List<VolunteerUserAvailability> rows) {
         ZoneId zone = zoneOrUtc(timezone);
 
@@ -571,7 +611,7 @@ import java.util.stream.Collectors;
         return new AvailabilityResponse(userId, zone.getId(), slots, lastUpdatedAt);
     }
 
-    private static ZoneId zoneOrUtc(String timezone) {
+    static ZoneId zoneOrUtc(String timezone) {
         if (timezone == null || timezone.isBlank()) {
             return ZoneId.of(DEFAULT_TIMEZONE);
         }
@@ -698,8 +738,7 @@ import java.util.stream.Collectors;
     @Override
         public UserPreferenceResponse updateUserPreferences(String userId, UserPreferenceRequest request) throws Exception {
         // fetch User by userId
-         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+         User user = lockedUserForUpdate(userId);
 
 
             // update language prefs
@@ -719,6 +758,7 @@ import java.util.stream.Collectors;
             detail.setSecondaryPhone1(request.secondaryPhone1());
             detail.setSecondaryPhone2(request.secondaryPhone2());
             userAdditionalDetailRepository.save(detail);
+            entityManager.flush();
 
             return UserPreferenceResponse.builder()
                     .userId(user.getId())

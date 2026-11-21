@@ -7,34 +7,36 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
 import org.sfa.volunteer.dto.response.UserProfileResponse;
 import org.sfa.volunteer.service.UserService;
+import org.sfa.volunteer.exception.WizardProgressMutationException;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
-import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.Locale;
 import java.util.Map;
 
 public class UpdateUserProfileHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
-    private static final UserService userService;
+    private final UserService userService;
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .enable(SerializationFeature.INDENT_OUTPUT); // Enable pretty printing for better readability
-    private static final ResponseBuilder responseBuilder;
-    private static final MessageSourceUtil messageSourceUtil;
+    private final ResponseBuilder responseBuilder;
+    private final MessageSourceUtil messageSourceUtil;
 
-    static {
-        ApplicationContext context = new AnnotationConfigApplicationContext(VolunteerApplication.class);
-        userService = context.getBean(UserService.class);
-        responseBuilder = context.getBean(ResponseBuilder.class);
-        messageSourceUtil = context.getBean(MessageSourceUtil.class);
+    public UpdateUserProfileHandler() {
+        this(AvailabilityHandler.bean(UserService.class), AvailabilityHandler.bean(ResponseBuilder.class),
+                AvailabilityHandler.bean(MessageSourceUtil.class));
+    }
+
+    UpdateUserProfileHandler(UserService userService, ResponseBuilder responseBuilder, MessageSourceUtil messageSourceUtil) {
+        this.userService = userService;
+        this.responseBuilder = responseBuilder;
+        this.messageSourceUtil = messageSourceUtil;
     }
 
     @Override
@@ -63,11 +65,14 @@ public class UpdateUserProfileHandler implements RequestHandler<APIGatewayProxyR
         } catch (Exception e) {
             String lang = requestEvent.getHeaders().getOrDefault("Accept-Language", "en");
             Locale locale = Locale.forLanguageTag(lang);
-            String errorMessage = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
+            boolean invalidProgress = e instanceof WizardProgressMutationException;
+            int status = invalidProgress ? 400 : 500;
+            SaayamStatusCode code = invalidProgress ? SaayamStatusCode.BAD_REQUEST : SaayamStatusCode.INTERNAL_SERVER_ERROR;
+            String errorMessage = invalidProgress ? e.getMessage() : messageSourceUtil.getMessage(code.getCode(), null);
 
             SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
-                    500,
-                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
+                    status,
+                    code,
                     errorMessage
             );
 
@@ -78,7 +83,7 @@ public class UpdateUserProfileHandler implements RequestHandler<APIGatewayProxyR
                 response.setBody("{\"message\":\"Failed to serialize error response\"}");
             }
 
-            response.setStatusCode(500); // Internal Server Error
+            response.setStatusCode(status);
         }
 
         return response;

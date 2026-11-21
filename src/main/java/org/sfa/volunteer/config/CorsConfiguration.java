@@ -5,6 +5,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.cors.CorsUtils;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 public class CorsConfiguration {
@@ -23,6 +28,18 @@ public class CorsConfiguration {
     @Bean
     public WebMvcConfigurer corsConfig() {
         return new WebMvcConfigurer() {
+            @Override
+            public void addInterceptors(InterceptorRegistry registry) {
+                registry.addInterceptor(new HandlerInterceptor() {
+                    @Override
+                    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+                        // Spring still validates the origin and writes the configured CORS headers.
+                        if (CorsUtils.isPreFlightRequest(request)) response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                        return true;
+                    }
+                }).addPathPatterns("/0.0.1/volunteers/onboarding/availability");
+            }
+
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
