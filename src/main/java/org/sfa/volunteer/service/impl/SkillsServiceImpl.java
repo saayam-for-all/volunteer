@@ -5,7 +5,6 @@ import org.sfa.volunteer.dto.request.SaveUserSkillsRequest;
 import org.sfa.volunteer.dto.response.SaveUserSkillsResponse;
 import org.sfa.volunteer.exception.SkillsException;
 import org.sfa.volunteer.exception.UserNotFoundException;
-import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.UserSkill;
 import org.sfa.volunteer.repository.HelpCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
@@ -14,8 +13,6 @@ import org.sfa.volunteer.service.SkillsService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,8 +47,9 @@ public class SkillsServiceImpl implements SkillsService {
             throw SkillsException.badRequest(userId);
         }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+        if (!userRepository.existsById(userId)) {
+            throw new UserNotFoundException(userId);
+        }
 
         // Validate all submitted cat_ids exist in help_categories
         Set<String> existingCatIds = helpCategoryRepository.findAllById(catIds)
@@ -81,9 +79,7 @@ public class SkillsServiceImpl implements SkillsService {
         userSkillRepository.saveAll(skills);
 
         // Advance wizard stage to 3
-        user.setVolunteerStage(SKILLS_WIZARD_STAGE);
-        user.setVolunteerUpdateDate(ZonedDateTime.now(ZoneId.of("UTC")));
-        userRepository.save(user);
+        userRepository.updateVolunteerStage(userId, SKILLS_WIZARD_STAGE);
 
         return SaveUserSkillsResponse.builder()
                 .userId(userId)

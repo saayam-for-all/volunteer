@@ -13,6 +13,7 @@ import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.SaveUserSkillsRequest;
 import org.sfa.volunteer.dto.response.SaveUserSkillsResponse;
 import org.sfa.volunteer.exception.SkillsException;
+import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.service.SkillsService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
@@ -51,6 +52,18 @@ public class SaveUserSkillsHandler implements RequestHandler<APIGatewayProxyRequ
 
             response.setBody(objectMapper.writeValueAsString(successResponse));
             response.setStatusCode(200);
+        } catch (UserNotFoundException e) {
+            SaayamResponse<Void> errorResponse = responseBuilder.buildErrorResponse(
+                    404,
+                    SaayamStatusCode.USER_NOT_FOUND,
+                    messageSourceUtil.getMessage(SaayamStatusCode.USER_NOT_FOUND.getCode(), null)
+            );
+            try {
+                response.setBody(objectMapper.writeValueAsString(errorResponse));
+            } catch (Exception jsonException) {
+                response.setBody("{\"message\":\"Failed to serialize error response\"}");
+            }
+            response.setStatusCode(404);
         } catch (SkillsException e) {
             SaayamStatusCode statusCode = SaayamStatusCode.valueOf(e.getMessage());
             String errorMessage = messageSourceUtil.getMessage(statusCode.getCode(), null);
