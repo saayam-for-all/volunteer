@@ -47,7 +47,7 @@ public class IdentityDocumentHandler implements
     private static final String ALLOWED_METHODS = "POST,OPTIONS";
 
     private static final String BASE_PATH =
-            "/0.0.1/volunteers/identity-document";
+            "/identity-document";
 
     // Conservative JSON body limit, not a guarantee that
     // Lambda will accept the full API Gateway event payload.
@@ -124,7 +124,7 @@ public class IdentityDocumentHandler implements
         }
 
         try {
-            String path = event.getPath();
+            String path = event.getResource();
 
             if (path == null || !Set.of(
                     BASE_PATH + "/metadata",

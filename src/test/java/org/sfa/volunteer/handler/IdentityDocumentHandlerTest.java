@@ -1,4 +1,3 @@
-
 package org.sfa.volunteer.handler;
 
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
@@ -36,7 +35,7 @@ import static org.mockito.Mockito.*;
 class IdentityDocumentHandlerTest {
 
     private static final String BASE =
-            "/0.0.1/volunteers/identity-document";
+            "/identity-document";
 
     private static final String USER_ID = "SID-001";
     private static final String EMAIL = "owner@example.org";
@@ -96,6 +95,7 @@ class IdentityDocumentHandlerTest {
                 new APIGatewayProxyRequestEvent()
                         .withHttpMethod(method)
                         .withPath(path)
+                        .withResource(path)
                         .withBody(body);
 
         APIGatewayProxyRequestEvent.ProxyRequestContext context =
