@@ -5,10 +5,6 @@ cors:
   credentials: true
 
 spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
-    username: postgres
-    password: welcome1
   jpa:
     hibernate:
       ddl-auto: none

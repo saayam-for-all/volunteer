@@ -4,10 +4,12 @@ import org.sfa.volunteer.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +23,10 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findFirstByPrimaryEmailAddressOrderByLastUpdateDateDesc(String email);
     // fallback if lastUpdateDate is null/old data
     Optional<User> findFirstByPrimaryEmailAddressOrderByIdDesc(String email);
+
+    @Modifying
+    @Query("UPDATE User u SET u.volunteerStage = :stage WHERE u.id = :userId")
+    void updateVolunteerStage(@Param("userId") String userId, @Param("stage") Integer stage);
 
     @Query("""
             select u from User u
