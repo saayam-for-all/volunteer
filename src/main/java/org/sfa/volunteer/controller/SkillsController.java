@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/0.0.1/users")
+@RequestMapping("/0.0.1/volunteerStep3")
 public class SkillsController {
 
     private final SkillsService skillsService;
