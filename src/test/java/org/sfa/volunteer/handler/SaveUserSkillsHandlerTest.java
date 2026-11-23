@@ -132,7 +132,7 @@ class SaveUserSkillsHandlerTest {
     }
 
     @Test
-    void handleRequest_fallsBackToErrorString_whenSerializationFails() throws Exception {
+    void handleRequest_fallsBackToErrorString_whenUserNotFoundSerializationFails() throws Exception {
         when(objectMapper.readValue(any(String.class), eq(SaveUserSkillsRequest.class)))
                 .thenReturn(SaveUserSkillsRequest.builder().userId("user-x").catIds(List.of("1.1")).build());
         when(skillsService.saveUserSkills(any())).thenThrow(new UserNotFoundException("user-x"));
@@ -145,6 +145,40 @@ class SaveUserSkillsHandlerTest {
                 event("{\"userId\":\"user-x\",\"catIds\":[\"1.1\"]}"), null);
 
         assertThat(response.getStatusCode()).isEqualTo(404);
+        assertThat(response.getBody()).contains("Failed to serialize");
+    }
+
+    @Test
+    void handleRequest_fallsBackToErrorString_whenSkillsExceptionSerializationFails() throws Exception {
+        when(objectMapper.readValue(any(String.class), eq(SaveUserSkillsRequest.class)))
+                .thenReturn(SaveUserSkillsRequest.builder().userId("user-1").catIds(List.of()).build());
+        when(skillsService.saveUserSkills(any())).thenThrow(SkillsException.badRequest("user-1"));
+        when(messageSourceUtil.getMessage(any(), isNull())).thenReturn("Bad request");
+        doReturn(SaayamResponse.builder().success(false).statusCode(400).message("Bad request").build())
+                .when(responseBuilder).buildErrorResponse(eq(400), any(), any());
+        doThrow(new JsonProcessingException("serialize fail") {}).when(objectMapper).writeValueAsString(any());
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(
+                event("{\"userId\":\"user-1\",\"catIds\":[]}"), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(400);
+        assertThat(response.getBody()).contains("Failed to serialize");
+    }
+
+    @Test
+    void handleRequest_fallsBackToErrorString_whenGenericExceptionSerializationFails() throws Exception {
+        when(objectMapper.readValue(any(String.class), eq(SaveUserSkillsRequest.class)))
+                .thenReturn(SaveUserSkillsRequest.builder().userId("user-1").catIds(List.of("1.1")).build());
+        when(skillsService.saveUserSkills(any())).thenThrow(new RuntimeException("DB down"));
+        when(messageSourceUtil.getMessage(any(), isNull())).thenReturn("Internal server error");
+        doReturn(SaayamResponse.builder().success(false).statusCode(500).message("Internal server error").build())
+                .when(responseBuilder).buildErrorResponse(eq(500), eq(SaayamStatusCode.INTERNAL_SERVER_ERROR), any());
+        doThrow(new JsonProcessingException("serialize fail") {}).when(objectMapper).writeValueAsString(any());
+
+        APIGatewayProxyResponseEvent response = handler.handleRequest(
+                event("{\"userId\":\"user-1\",\"catIds\":[\"1.1\"]}"), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(500);
         assertThat(response.getBody()).contains("Failed to serialize");
     }
 }
