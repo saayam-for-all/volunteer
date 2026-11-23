@@ -12,20 +12,16 @@ import org.sfa.volunteer.dto.response.SaveUserSkillsResponse;
 import org.sfa.volunteer.exception.SkillsException;
 import org.sfa.volunteer.exception.UserNotFoundException;
 import org.sfa.volunteer.model.HelpCategory;
-import org.sfa.volunteer.model.User;
 import org.sfa.volunteer.model.UserSkill;
 import org.sfa.volunteer.repository.HelpCategoryRepository;
 import org.sfa.volunteer.repository.UserRepository;
 import org.sfa.volunteer.repository.UserSkillRepository;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,16 +39,9 @@ class SkillsServiceImplTest {
     @InjectMocks
     private SkillsServiceImpl service;
 
-    private User user;
-
-    @BeforeEach
-    void setUp() {
-        user = new User();
-    }
-
     @Test
     void saveUserSkills_success() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.existsById("user-1")).thenReturn(true);
         when(helpCategoryRepository.findAllById(List.of("1.1", "1.2")))
                 .thenReturn(List.of(
                         new HelpCategory("1.1", "FOOD_ASSISTANCE", "desc"),
@@ -71,7 +60,7 @@ class SkillsServiceImplTest {
         assertThat(response.wizardStage()).isEqualTo(3);
         verify(userSkillRepository).deleteByUserId("user-1");
         verify(userSkillRepository).saveAll(anyList());
-        verify(userRepository).save(user);
+        verify(userRepository).updateVolunteerStage("user-1", 3);
     }
 
     @Test
@@ -118,7 +107,7 @@ class SkillsServiceImplTest {
 
     @Test
     void saveUserSkills_throwsUserNotFound_whenUserDoesNotExist() {
-        when(userRepository.findById("unknown")).thenReturn(Optional.empty());
+        when(userRepository.existsById("unknown")).thenReturn(false);
 
         SaveUserSkillsRequest request = SaveUserSkillsRequest.builder()
                 .userId("unknown")
@@ -131,7 +120,7 @@ class SkillsServiceImplTest {
 
     @Test
     void saveUserSkills_throwsInvalidCategory_whenCatIdDoesNotExist() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.existsById("user-1")).thenReturn(true);
         when(helpCategoryRepository.findAllById(List.of("9.9")))
                 .thenReturn(List.of());
 
@@ -149,7 +138,7 @@ class SkillsServiceImplTest {
 
     @Test
     void saveUserSkills_replacesExistingSkills() {
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        when(userRepository.existsById("user-1")).thenReturn(true);
         when(helpCategoryRepository.findAllById(List.of("2.1")))
                 .thenReturn(List.of(new HelpCategory("2.1", "TUTORING", "desc")));
         when(userSkillRepository.saveAll(anyList())).thenReturn(List.of());
