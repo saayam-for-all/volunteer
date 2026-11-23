@@ -51,7 +51,7 @@ public class IdentityDocumentHandler implements
 
     // Conservative JSON body limit, not a guarantee that
     // Lambda will accept the full API Gateway event payload.
-    private static final int MAX_BODY_BYTES = 5_000_000;
+    private static final int MAX_BODY_BYTES = 3_000_000;
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule())
