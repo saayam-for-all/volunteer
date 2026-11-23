@@ -416,18 +416,49 @@ import java.util.stream.Collectors;
             throw new IllegalArgumentException("userId is required");
         }
         ZoneId zone = parseTimezone(request.getTimezone());
-        List<LocalSlot> localSlots = parseSlots(request.getSlots());
+        List<LocalSlot> localSlots = request.getSlots() == null ? null : parseSlots(request.getSlots());
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findAvailabilityUserForUpdate(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
-        userRepository.updateAvailabilityTimezone(userId, zone.getId());
+        List<UtcSlot> utcSlots;
+        if (localSlots == null) {
+            if (zone.getId().equals(user.getTimeZone())) {
+                return toAvailabilityResponse(user,
+                        userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId));
+            }
+            ZoneId sourceZone = parseTimezone(user.getTimeZone());
+            LocalDate today = LocalDate.now(sourceZone);
+            List<VolunteerUserAvailability> existing =
+                    userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId);
+            utcSlots = new ArrayList<>();
+            for (VolunteerUserAvailability row : existing) {
+                LocalSlot slot = AvailabilityTimeConverter.toLocal(row.getStartTime(), row.getEndTime(), sourceZone);
+                utcSlots.add(AvailabilityTimeConverter.changeTimezone(slot, sourceZone, zone, today));
+            }
+            Map<LocalSlot, Integer> converted = new LinkedHashMap<>();
+            for (int i = 0; i < utcSlots.size(); i++) {
+                UtcSlot slot = utcSlots.get(i);
+                converted.putIfAbsent(AvailabilityTimeConverter.toLocal(slot.start(), slot.end(), zone), i);
+            }
+            rejectOverlaps(converted);
+        } else {
+            if (!localSlots.isEmpty() && !zone.getId().equals(user.getTimeZone())
+                    && !userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId).isEmpty()) {
+                throw new IllegalArgumentException(
+                        "timezone: omit slots to convert saved availability before editing its times");
+            }
+            LocalDate today = LocalDate.now(zone);
+            utcSlots = new ArrayList<>();
+            for (LocalSlot slot : localSlots) {
+                utcSlots.add(AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, today));
+            }
+        }
 
-        // Vacation fields are accepted but not stored: user_availability has no columns for them yet
-        LocalDate today = LocalDate.now(zone);
+        // Validate conversion completely before changing either the timezone or the saved slots.
+        userRepository.updateAvailabilityTimezone(userId, zone.getId());
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         List<VolunteerUserAvailability> rows = new ArrayList<>();
-        for (LocalSlot slot : localSlots) {
-            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, today);
+        for (UtcSlot utc : utcSlots) {
             rows.add(VolunteerUserAvailability.builder()
                     .user(user)
                     .dayOfWeek(dayName(utc.day()))
@@ -481,8 +512,8 @@ import java.util.stream.Collectors;
             }
             LocalTime start = parseTime(slot.getStartTime(), field + ".startTime");
             LocalTime end = parseTime(slot.getEndTime(), field + ".endTime");
-            if (start.equals(end)) {
-                throw new IllegalArgumentException(field + ": startTime and endTime must differ");
+            if (!end.isAfter(start)) {
+                throw new IllegalArgumentException(field + ".endTime must be after startTime on the same day");
             }
             int index = i;
             frequency.getDays().forEach(day -> localSlots.putIfAbsent(new LocalSlot(day, start, end), index));

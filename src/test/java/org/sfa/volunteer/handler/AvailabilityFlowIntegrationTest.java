@@ -81,7 +81,7 @@ class AvailabilityFlowIntegrationTest {
     @Test void browserPayloadRoundTripsThroughHandlerServiceAndDatabase() throws Exception {
         var response = handler.handleRequest(event("PUT", update("America/Chicago", """
                 [{"frequency":"Weekdays","startTime":"09:00","endTime":"17:00"},
-                 {"frequency":"Saturday","startTime":"22:00","endTime":"02:00"}]
+                 {"frequency":"Saturday","startTime":"22:00","endTime":"23:00"}]
                 """)), null);
         assertThat(response.getStatusCode()).isEqualTo(200);
         JsonNode saved = json.readTree(response.getBody()).get("data");
@@ -110,15 +110,122 @@ class AvailabilityFlowIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isZero();
     }
 
-    @Test void failedInsertRollsBackDeletedSlotsAndTimezone() {
+    @Test void failedTimezoneWriteRollsBackScheduleAndTimezone() {
         String slot = "[{\"frequency\":\"Monday\",\"startTime\":\"09:00\",\"endTime\":\"10:00\"}]";
         assertThat(handler.handleRequest(event("PUT", update("UTC", slot)), null).getStatusCode()).isEqualTo(200);
-        jdbc.execute("ALTER TABLE user_availability ADD CONSTRAINT local_test_failure CHECK (day_of_week <> 'Tuesday')");
-        var failure = handler.handleRequest(event("PUT", update("Asia/Kolkata", slot.replace("Monday", "Tuesday"))), null);
-        // Kolkata's Tuesday 09:00 remains Tuesday in UTC, so the constraint rejects insertion.
+        jdbc.execute("ALTER TABLE users ADD CONSTRAINT local_test_failure CHECK (time_zone <> 'Asia/Kolkata')");
+        var failure = handler.handleRequest(event("PUT", "{\"userId\":\"u1\",\"timezone\":\"Asia/Kolkata\"}"), null);
+        // The database rejects the timezone change, so the transaction must preserve both records.
         assertThat(failure.getStatusCode()).isEqualTo(500);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT day_of_week FROM user_availability", String.class)).isEqualTo("Monday");
         assertThat(jdbc.queryForObject("SELECT time_zone FROM users WHERE user_id='u1'", String.class)).isEqualTo("UTC");
+    }
+
+    @Test void timezoneOnlyUpdateConvertsSavedTimesAndPersistsThem() throws Exception {
+        assertThat(handler.handleRequest(event("PUT", update("America/New_York",
+                "[{\"frequency\":\"Monday\",\"startTime\":\"21:00\",\"endTime\":\"23:00\"}]")), null)
+                .getStatusCode()).isEqualTo(200);
+        var response = handler.handleRequest(event("PUT",
+                "{\"userId\":\"u1\",\"timezone\":\"America/Chicago\"}"), null);
+        assertThat(response.getStatusCode()).isEqualTo(200);
+        var data = json.readTree(response.getBody()).get("data");
+        assertThat(data.get("slots").get(0).get("startTime").asText()).isEqualTo("20:00");
+        assertThat(data.get("slots").get(0).get("endTime").asText()).isEqualTo("22:00");
+        var retry = handler.handleRequest(event("PUT",
+                "{\"userId\":\"u1\",\"timezone\":\"America/Chicago\"}"), null);
+        assertThat(retry.getStatusCode()).isEqualTo(200);
+        assertThat(json.readTree(retry.getBody()).get("data")).isEqualTo(data);
+        var fetched = handler.handleRequest(event("POST", "{\"userId\":\"u1\"}"), null);
+        assertThat(json.readTree(fetched.getBody()).get("data")).isEqualTo(data);
+    }
+
+    @Test void failedTimezoneConversionLeavesSavedScheduleAndTimezoneUntouched() throws Exception {
+        var initial = handler.handleRequest(event("PUT", update("UTC",
+                "[{\"frequency\":\"Monday\",\"startTime\":\"18:00\",\"endTime\":\"19:00\"}]")), null);
+        assertThat(initial.getStatusCode()).isEqualTo(200);
+        var rejected = handler.handleRequest(event("PUT",
+                "{\"userId\":\"u1\",\"timezone\":\"Asia/Kolkata\"}"), null);
+        assertThat(rejected.getStatusCode()).isEqualTo(400);
+        assertThat(json.readTree(rejected.getBody()).get("message").asText()).contains("crosses midnight");
+        var fetched = handler.handleRequest(event("POST", "{\"userId\":\"u1\"}"), null);
+        assertThat(json.readTree(fetched.getBody()).get("data"))
+                .isEqualTo(json.readTree(initial.getBody()).get("data"));
+    }
+
+    @Test void invalidOvernightInputNeverChangesSavedAvailability() throws Exception {
+        var initial = handler.handleRequest(event("PUT", update("UTC",
+                "[{\"frequency\":\"Monday\",\"startTime\":\"09:00\",\"endTime\":\"11:00\"}]")), null);
+        for (String end : java.util.List.of("02:00", "21:30", "22:00", "00:00")) {
+            var response = handler.handleRequest(event("PUT", update("UTC",
+                    "[{\"frequency\":\"Monday\",\"startTime\":\"22:00\",\"endTime\":\"" + end + "\"}]")), null);
+            assertThat(response.getStatusCode()).isEqualTo(400);
+            assertThat(json.readTree(response.getBody()).get("message").asText()).contains("slots[0].endTime");
+        }
+        var fetched = handler.handleRequest(event("POST", "{\"userId\":\"u1\"}"), null);
+        assertThat(json.readTree(fetched.getBody()).get("data"))
+                .isEqualTo(json.readTree(initial.getBody()).get("data"));
+    }
+
+    @Test void failedInsertRollsBackDeletedSlots() {
+        String slot = "[{\"frequency\":\"Monday\",\"startTime\":\"09:00\",\"endTime\":\"10:00\"}]";
+        assertThat(handler.handleRequest(event("PUT", update("UTC", slot)), null).getStatusCode()).isEqualTo(200);
+        jdbc.execute("ALTER TABLE user_availability ADD CONSTRAINT local_insert_failure CHECK (day_of_week <> 'Tuesday')");
+        var failure = handler.handleRequest(event("PUT", update("UTC", slot.replace("Monday", "Tuesday"))), null);
+        assertThat(failure.getStatusCode()).isEqualTo(500);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT day_of_week FROM user_availability", String.class)).isEqualTo("Monday");
+    }
+
+    @Test void timezoneChangeWithReplacementSlotsRequiresExplicitConversion() throws Exception {
+        var initial = handler.handleRequest(event("PUT", update("UTC",
+                "[{\"frequency\":\"Monday\",\"startTime\":\"09:00\",\"endTime\":\"11:00\"}]")), null);
+        var rejected = handler.handleRequest(event("PUT", update("America/Chicago",
+                "[{\"frequency\":\"Monday\",\"startTime\":\"09:00\",\"endTime\":\"11:00\"}]")), null);
+        assertThat(rejected.getStatusCode()).isEqualTo(400);
+        assertThat(json.readTree(rejected.getBody()).get("message").asText()).contains("omit slots");
+        var fetched = handler.handleRequest(event("POST", "{\"userId\":\"u1\"}"), null);
+        assertThat(json.readTree(fetched.getBody()).get("data"))
+                .isEqualTo(json.readTree(initial.getBody()).get("data"));
+    }
+
+    @Test void timezoneOnlyUpdateSupportsEmptySchedulesAndChecksOwnership() throws Exception {
+        var rejected = handler.handleRequest(event("PUT",
+                "{\"userId\":\"u2\",\"timezone\":\"America/Chicago\"}"), null);
+        assertThat(rejected.getStatusCode()).isEqualTo(403);
+        var saved = handler.handleRequest(event("PUT",
+                "{\"userId\":\"u1\",\"timezone\":\"America/Chicago\"}"), null);
+        assertThat(saved.getStatusCode()).isEqualTo(200);
+        assertThat(json.readTree(saved.getBody()).get("data").get("slots")).isEmpty();
+        var fetched = handler.handleRequest(event("POST", "{\"userId\":\"u1\"}"), null);
+        assertThat(json.readTree(fetched.getBody()).get("data").get("timezone").asText())
+                .isEqualTo("America/Chicago");
+    }
+
+    @Test void concurrentReplacementsNeverLeaveMixedSchedules() throws Exception {
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        String first = "[{\"frequency\":\"Weekdays\",\"startTime\":\"09:00\",\"endTime\":\"11:00\"}]";
+        String second = "[{\"frequency\":\"Weekdays\",\"startTime\":\"14:00\",\"endTime\":\"16:00\"}]";
+        try {
+            var morning = executor.submit(() -> {
+                start.await();
+                return handler.handleRequest(event("PUT", update("UTC", first)), null).getStatusCode();
+            });
+            var afternoon = executor.submit(() -> {
+                start.await();
+                return handler.handleRequest(event("PUT", update("UTC", second)), null).getStatusCode();
+            });
+            start.countDown();
+            assertThat(morning.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(200);
+            assertThat(afternoon.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(200);
+            var fetched = handler.handleRequest(event("POST", "{\"userId\":\"u1\"}"), null);
+            var slots = json.readTree(fetched.getBody()).get("data").get("slots");
+            assertThat(slots).hasSize(1);
+            assertThat(slots.get(0).get("startTime").asText()).isIn("09:00", "14:00");
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM user_availability", Integer.class)).isEqualTo(5);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }
