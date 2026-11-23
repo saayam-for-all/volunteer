@@ -22,18 +22,25 @@ import org.springframework.context.ApplicationContext;
 
 public class SaveUserSkillsHandler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
-    private static final SkillsService skillsService;
     private static final ObjectMapper objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .enable(SerializationFeature.INDENT_OUTPUT);
-    private static final ResponseBuilder responseBuilder;
-    private static final MessageSourceUtil messageSourceUtil;
 
-    static {
+    private final SkillsService skillsService;
+    private final ResponseBuilder responseBuilder;
+    private final MessageSourceUtil messageSourceUtil;
+
+    public SaveUserSkillsHandler() {
         ApplicationContext context = SpringApplication.run(VolunteerApplication.class);
-        skillsService = context.getBean(SkillsService.class);
-        responseBuilder = context.getBean(ResponseBuilder.class);
-        messageSourceUtil = context.getBean(MessageSourceUtil.class);
+        this.skillsService = context.getBean(SkillsService.class);
+        this.responseBuilder = context.getBean(ResponseBuilder.class);
+        this.messageSourceUtil = context.getBean(MessageSourceUtil.class);
+    }
+
+    SaveUserSkillsHandler(SkillsService skillsService, ResponseBuilder responseBuilder, MessageSourceUtil messageSourceUtil) {
+        this.skillsService = skillsService;
+        this.responseBuilder = responseBuilder;
+        this.messageSourceUtil = messageSourceUtil;
     }
 
     @Override
