@@ -1,10 +1,10 @@
 package org.sfa.volunteer.service.impl;
 
 import org.springframework.http.HttpStatus;
+import jakarta.transaction.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import jakarta.transaction.Transactional;
 import org.sfa.volunteer.dto.request.VolunteerRequest;
 import org.sfa.volunteer.dto.request.VolunteerUserAvailabilityRequest;
 import org.sfa.volunteer.dto.response.PaginationResponse;
@@ -151,7 +151,7 @@ public class VolunteerServiceImpl implements VolunteerService {
 
        String name = (documentSlot == 1) ? volunteer.getGovtIdName1() : volunteer.getGovtIdName2();
         LocalDate expiry = (documentSlot == 1) ? volunteer.getGovtIdExpiry1() : volunteer.getGovtIdExpiry2();
-        DocumentStatus status = (expiry == null) ? null : DocumentStatus.from(expiry);
+        DocumentStatus status = (expiry == null) ? DocumentStatus.VALID : DocumentStatus.from(expiry);
 
        return new IdentityDocumentMetadata(name, expiry, status);
     }
@@ -268,6 +268,29 @@ public class VolunteerServiceImpl implements VolunteerService {
                 .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
 
         return documentSlot == 1 ? volunteer.getGovtIdPath1() : volunteer.getGovtIdPath2();
+    }
+
+    @Override
+    @Transactional
+    public void replaceGovtIdDocument(String userId, int documentSlot, String s3Path,
+                                    String documentName, LocalDate expiresOn) throws Exception {
+        validateSlot(documentSlot);
+        Volunteer volunteer = volunteerRepository.findById(userId)
+                .orElseThrow(() -> VolunteerException.volunteerNotFound(userId));
+
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("UTC"));
+        if (documentSlot == 1) {
+            volunteer.setGovtIdPath1(s3Path);
+            volunteer.setPath1UpdatedAt(now);
+            volunteer.setGovtIdName1(documentName);
+            volunteer.setGovtIdExpiry1(expiresOn);
+        } else {
+            volunteer.setGovtIdPath2(s3Path);
+            volunteer.setPath2UpdatedAt(now);
+            volunteer.setGovtIdName2(documentName);
+            volunteer.setGovtIdExpiry2(expiresOn);
+        }
+        volunteerRepository.save(volunteer);
     }
 
     @Override

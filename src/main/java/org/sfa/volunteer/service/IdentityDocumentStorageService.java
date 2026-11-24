@@ -14,33 +14,36 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 
 import java.net.URI;
 import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
- * Storage for volunteer government identity documents.
- *
- * Modeled on {@link ProfileImageStorageService}. Two deliberate differences:
- * there is no delete method, and the accepted types are documents rather than
- * images.
- *
- * Replacement works by overwriting a deterministic key. Because S3 replaces the
- * object only when the PUT succeeds, there is no window in which a volunteer
- * has no document (DR-03), and no superseded object to clean up (DR-02).
+ * Replacement writes the new file to a unique key, updates the volunteer
+ * record in one transaction, and only then deletes the previous object
+ * (DR-02). If the record update fails, the new object is removed and the
+ * original document is left intact (FR-12).
  */
+
+@Slf4j
 @Service
 public class IdentityDocumentStorageService {
 
     private final VolunteerService volunteerService;
+    private final UserService userService;
     private final S3Client s3ClientUs;
     private final S3Client s3ClientEu;
     private final S3Presigner s3PresignerUs;
@@ -58,7 +61,7 @@ public class IdentityDocumentStorageService {
     // Namespaced under saayam.identity rather than saayam.s3 so these do not
     // collide with the profile image settings, which share the saayam.s3 keys
     // but need different values.
-    @Value("${saayam.identity.maxBytes:5242880}")
+    @Value("${saayam.identity.maxBytes:2097152}")
     private long maxBytes;
 
     @Value("${saayam.identity.allowedMime:image/jpeg,image/png,application/pdf}")
@@ -68,13 +71,15 @@ public class IdentityDocumentStorageService {
     private String keyPattern;
 
     public IdentityDocumentStorageService(
-            VolunteerService volunteerService,
-            @Qualifier("s3ClientUs") S3Client s3ClientUs,
-            @Qualifier("s3ClientEu") S3Client s3ClientEu,
-            @Qualifier("s3PresignerUs") S3Presigner s3PresignerUs,
-            @Qualifier("s3PresignerEu") S3Presigner s3PresignerEu
+        VolunteerService volunteerService,
+        UserService userService,
+        @Qualifier("s3ClientUs") S3Client s3ClientUs,
+        @Qualifier("s3ClientEu") S3Client s3ClientEu,
+        @Qualifier("s3PresignerUs") S3Presigner s3PresignerUs,
+        @Qualifier("s3PresignerEu") S3Presigner s3PresignerEu
     ) {
         this.volunteerService = volunteerService;
+        this.userService = userService;
         this.s3ClientUs = s3ClientUs;
         this.s3ClientEu = s3ClientEu;
         this.s3PresignerUs = s3PresignerUs;
@@ -84,16 +89,14 @@ public class IdentityDocumentStorageService {
     /**
      * Uploads or replaces the identity document in a slot.
      *
-     * @param expiresOn the document's own expiry date - required, since every
-     *                  page state on the Identity Document page is derived
-     *                  from it
+     * @param expiresOn the document's expiry date,
+     *                  or null if the document does not expire
      */
     public Map<String, Object> uploadBase64(String userId,
                                             int documentSlot,
                                             String documentName,
                                             String base64,
-                                            LocalDate expiresOn,
-                                            String regionHint) {
+                                            LocalDate expiresOn) {
 
         requireVolunteer(userId);
         validateSlot(documentSlot);
@@ -123,9 +126,18 @@ public class IdentityDocumentStorageService {
         }
         validate(detected, bytes.length);
 
-        String effectiveRegion = (regionHint == null || regionHint.isBlank()) ? "us-east-1" : regionHint;
+        String effectiveRegion = resolveUserRegion(userId);
         String bucket = pickBucket(effectiveRegion);
-        String key = buildKey(userId, documentSlot);
+        
+        String oldUri;
+        try {
+            oldUri = volunteerService.getGovtIdPath(userId, documentSlot);
+        } catch (Exception e) {
+            throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+                    HttpStatus.INTERNAL_SERVER_ERROR, "Could not read identity document record", e);
+        }
+
+        String key = buildKey(userId, documentSlot) + "-" + UUID.randomUUID();
 
         try {
             pickClient(effectiveRegion).putObject(
@@ -137,38 +149,36 @@ public class IdentityDocumentStorageService {
                             .build(),
                     RequestBody.fromBytes(bytes)
             );
-        } catch (S3Exception e) {
-                throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+        } catch (SdkException e) {
+            throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
                     HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload to S3", e);
         }
 
         String s3Uri = "s3://" + bucket + "/" + key;
         try {
-            volunteerService.updateGovtIdPath(userId, documentSlot, s3Uri);
+            volunteerService.replaceGovtIdDocument(userId, documentSlot, s3Uri, safeName, expiresOn);
         } catch (Exception e) {
-                throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+            deleteQuietly(s3Uri);
+            throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
                     HttpStatus.INTERNAL_SERVER_ERROR, "Could not save identity document record", e);
-       }
-
-       try {
-            volunteerService.updateGovtIdMetadata(userId, documentSlot, safeName, expiresOn);
-        } catch (Exception e) {
-                 throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
-                    HttpStatus.INTERNAL_SERVER_ERROR, "Could not save identity document metadata", e);
         }
 
-        return Map.of(
-                "message", "Identity document uploaded",
-                "userId", userId,
-                "documentSlot", documentSlot,
-                "documentName", safeName,
-                "expiresOn", expiresOn.toString()
-        );
+        if (oldUri != null && !oldUri.isBlank()) {
+            deleteQuietly(oldUri);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("message", "Identity document uploaded");
+        result.put("userId", userId);
+        result.put("documentSlot", documentSlot);
+        result.put("documentName", safeName);
+        result.put("expiresOn", expiresOn == null ? null : expiresOn.toString());
+        return result;
     }
 
     
-    public Optional<DownloadedDocument> download(String userId, int documentSlot, String regionHint) {
-    	Optional<StoredObject> found = resolveStored(userId, documentSlot, regionHint);
+    public Optional<DownloadedDocument> download(String userId, int documentSlot) {
+    	Optional<StoredObject> found = resolveStored(userId, documentSlot);
         if (found.isEmpty()) return Optional.empty();
     	StoredObject obj = found.get();
 
@@ -199,9 +209,37 @@ public class IdentityDocumentStorageService {
         }
     }
 
+    private String resolveUserRegion(String userId) {
+        Boolean isEu = userService.getIsEu(userId);
+
+        if (isEu == null) {
+            throw new IdentityDocumentException(
+                    SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "User storage region is not configured");
+        }
+
+        return isEu ? "eu-west-1" : "us-east-1";
+    }
+
     private record StoredObject(String bucket, String key, String region) {}
 
-    private Optional<StoredObject> resolveStored(String userId, int documentSlot, String regionHint) {
+    private String resolveBucketRegion(String bucket) {
+        if (bucket.equals(euBucket)) {
+            return "eu-west-1";
+        }
+
+        if (bucket.equals(usBucket)) {
+            return "us-east-1";
+        }
+
+        throw new IdentityDocumentException(
+                SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Invalid identity document bucket");
+    }
+
+    private Optional<StoredObject> resolveStored(String userId, int documentSlot) {
     requireVolunteer(userId);
     validateSlot(documentSlot);
 
@@ -229,9 +267,7 @@ public class IdentityDocumentStorageService {
     	String bucket = ssp.substring(0, slash);
     	String key = ssp.substring(slash + 1);
 
-    	String effectiveRegion = (regionHint == null || regionHint.isBlank())
-            ? (bucket.equals(euBucket) ? "eu-west-1" : "us-east-1")
-            : regionHint;
+    	String effectiveRegion = resolveBucketRegion(bucket);
 
     	return Optional.of(new StoredObject(bucket, key, effectiveRegion));
     }
@@ -244,13 +280,12 @@ public class IdentityDocumentStorageService {
     }
 
     private void validateExpiry(LocalDate expiresOn) {
-        if (expiresOn == null) {
-            throw new IdentityDocumentException(SaayamStatusCode.INVALID_DOCUMENT_EXPIRY, HttpStatus.BAD_REQUEST, "expiresOn is required");
-        }
+        // null = the document does not expire (some identity documents have no expiry date).
+        if (expiresOn == null) return;
         // An already-expired document lands in the expired state on arrival and
         // immediately demands the replacement the volunteer just performed.
         if (expiresOn.isBefore(LocalDate.now())) {
-           throw new IdentityDocumentException(SaayamStatusCode.INVALID_DOCUMENT_EXPIRY,
+            throw new IdentityDocumentException(SaayamStatusCode.INVALID_DOCUMENT_EXPIRY,
                     HttpStatus.BAD_REQUEST, "expiresOn is in the past");
         }
     }
@@ -298,28 +333,43 @@ public class IdentityDocumentStorageService {
         }
     }
 
+    private void deleteQuietly(String s3Uri) {
+            try {
+                String ssp = URI.create(s3Uri).getSchemeSpecificPart().replaceFirst("^//", "");
+                int slash = ssp.indexOf('/');
+                String bucket = ssp.substring(0, slash);
+                String key = ssp.substring(slash + 1);
+                S3Client client = pickClient(resolveBucketRegion(bucket));
+                client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
+            } catch (Exception e) {
+                log.warn("Could not delete identity document object; left for cleanup");
+            }
+    }
     private String buildKey(String userId, int documentSlot) {
         return String.format(keyPattern, userId, documentSlot);
     }
 
-    private boolean isEu(String regionHint) {
-        return regionHint != null && regionHint.trim().equalsIgnoreCase("eu-west-1");
+    private boolean isEu(String region) {
+        return "eu-west-1".equalsIgnoreCase(region);
     }
 
-    private String pickBucket(String regionHint) {
-        String bucket = isEu(regionHint) ? euBucket : usBucket;
+    private String pickBucket(String region) {
+        String bucket = isEu(region) ? euBucket : usBucket;
+
         if (bucket == null || bucket.isBlank()) {
-            throw new IllegalStateException("S3 bucket config missing: saayam.s3.buckets.*");
+            throw new IllegalStateException(
+                    "S3 bucket config missing: saayam.s3.buckets.*");
         }
+
         return bucket;
     }
 
-    private S3Client pickClient(String regionHint) {
-        return isEu(regionHint) ? s3ClientEu : s3ClientUs;
+    private S3Client pickClient(String region) {
+        return isEu(region) ? s3ClientEu : s3ClientUs;
     }
-    
-    private S3Presigner pickPresigner(String regionHint) {
-        return isEu(regionHint) ? s3PresignerEu : s3PresignerUs;
+
+    private S3Presigner pickPresigner(String region) {
+        return isEu(region) ? s3PresignerEu : s3PresignerUs;
     }
 
     /**
@@ -341,8 +391,8 @@ public class IdentityDocumentStorageService {
         }
         return null;
     }
-    public Optional<String> presignedUrl(String userId, int documentSlot, String regionHint) {
-        return resolveStored(userId, documentSlot, regionHint).map(obj -> {
+    public Optional<String> presignedUrl(String userId, int documentSlot) {
+        return resolveStored(userId, documentSlot).map(obj -> {
         GetObjectRequest get = GetObjectRequest.builder()
                 .bucket(obj.bucket()).key(obj.key()).build();
         GetObjectPresignRequest presign = GetObjectPresignRequest.builder()

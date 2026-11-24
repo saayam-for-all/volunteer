@@ -42,5 +42,8 @@ public interface VolunteerService {
 
     void updateGovtIdPath(String userId, int documentSlot, String s3Path) throws Exception;
     
-   void updateGovtIdMetadata(String userId, int documentSlot, String documentName, LocalDate expiresOn) throws Exception;
+    void updateGovtIdMetadata(String userId, int documentSlot, String documentName, LocalDate expiresOn) throws Exception;
+
+    void replaceGovtIdDocument(String userId, int documentSlot, String s3Path,
+                           String documentName, LocalDate expiresOn) throws Exception;
 }

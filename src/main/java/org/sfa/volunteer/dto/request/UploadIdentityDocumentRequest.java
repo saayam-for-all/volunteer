@@ -13,5 +13,4 @@ public record UploadIdentityDocumentRequest(
         @NotNull @Min(1) @Max(2) Integer documentSlot,
         @NotBlank String documentName,
         @NotBlank String base64,
-        @NotNull @Future LocalDate expiresOn,
-        String regionHint) {}
+        @Future LocalDate expiresOn) {}

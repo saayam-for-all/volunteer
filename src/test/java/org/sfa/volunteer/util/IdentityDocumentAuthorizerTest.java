@@ -1,10 +1,8 @@
-
 package org.sfa.volunteer.util;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
@@ -24,63 +22,113 @@ class IdentityDocumentAuthorizerTest {
     @Mock
     private UserService users;
 
-    @Test
-    void adminIsAllowedWithoutOwnershipLookup() {
-        assertDoesNotThrow(() ->
-                IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                        users, TARGET, EMAIL, "admin"));
+    // ---------- write: owner only ----------
 
-        verifyNoInteractions(users);
+    @Test
+    void ownerCanWrite() {
+        when(users.isEmailOwnedByUser(TARGET, EMAIL)).thenReturn(true);
+        assertDoesNotThrow(() -> IdentityDocumentAuthorizer.requireWriteAccess(users, TARGET, EMAIL));
     }
 
     @Test
-    void ownerIsAllowed() {
-        when(users.isEmailOwnedByUser(TARGET, EMAIL))
-                .thenReturn(true);
-
-        assertDoesNotThrow(() ->
-                IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                        users, TARGET, EMAIL, "volunteer"));
-
-        verify(users).isEmailOwnedByUser(TARGET, EMAIL);
+    void nonOwnerCannotWrite() {
+        when(users.isEmailOwnedByUser(TARGET, EMAIL)).thenReturn(false);
+        assertThrows(ForbiddenException.class,
+                () -> IdentityDocumentAuthorizer.requireWriteAccess(users, TARGET, EMAIL));
     }
 
     @Test
-    void nonOwnerIsForbidden() {
-        when(users.isEmailOwnedByUser(TARGET, EMAIL))
-                .thenReturn(false);
-
-        assertThrows(ForbiddenException.class, () ->
-                IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                        users, TARGET, EMAIL, "volunteer"));
+    void adminWhoIsNotOwnerCannotWrite() {
+        // Write takes no groups at all: being an admin cannot grant upload (FR-19).
+        when(users.isEmailOwnedByUser(TARGET, "admin@example.org")).thenReturn(false);
+        assertThrows(ForbiddenException.class,
+                () -> IdentityDocumentAuthorizer.requireWriteAccess(users, TARGET, "admin@example.org"));
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"  "})
-    void blankEmailIsForbiddenWithoutLookup(String email) {
-        assertThrows(ForbiddenException.class, () ->
-                IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                        users, TARGET, email, "volunteer"));
-
+    void blankEmailCannotWrite(String email) {
+        assertThrows(ForbiddenException.class,
+                () -> IdentityDocumentAuthorizer.requireWriteAccess(users, TARGET, email));
         verifyNoInteractions(users);
     }
 
-    @ParameterizedTest
-    @CsvSource(delimiter = '|', value = {
-            "admin | true",
-            "volunteer,admin | true",
-            "Admin | true",
-            "volunteer | false"
-    })
-    void parsesGroups(String groups, boolean expected) {
-        assertEquals(expected,
-                IdentityDocumentAuthorizer.isAdmin(groups));
+    // ---------- read: owner or admin ----------
+
+    @Test
+    void adminCanReadWithoutOwnershipLookup() {
+        assertDoesNotThrow(() ->
+                IdentityDocumentAuthorizer.requireReadAccess(users, TARGET, EMAIL, "Admins"));
+        verifyNoInteractions(users);
     }
 
     @Test
-    void nullOrEmptyGroupsAreNotAdmin() {
-        assertFalse(IdentityDocumentAuthorizer.isAdmin(null));
-        assertFalse(IdentityDocumentAuthorizer.isAdmin(""));
+    void ownerCanRead() {
+        when(users.isEmailOwnedByUser(TARGET, EMAIL)).thenReturn(true);
+        assertDoesNotThrow(() ->
+                IdentityDocumentAuthorizer.requireReadAccess(users, TARGET, EMAIL, "Volunteers"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Volunteers", "Beneficiaries"})
+    void nonOwnerNonAdminCannotRead(String groups) {
+        when(users.isEmailOwnedByUser(TARGET, EMAIL)).thenReturn(false);
+        assertThrows(ForbiddenException.class,
+                () -> IdentityDocumentAuthorizer.requireReadAccess(users, TARGET, EMAIL, groups));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"  "})
+    void blankEmailNonAdminCannotRead(String email) {
+        assertThrows(ForbiddenException.class,
+                () -> IdentityDocumentAuthorizer.requireReadAccess(users, TARGET, email, "Volunteers"));
+        verifyNoInteractions(users);
+    }
+
+    // ---------- admin group matching ----------
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "Admins", "admins", "ADMINS", "SuperAdmins", "superadmins", "Super Admins",
+            "Beneficiaries,Admins", "[Beneficiaries, Admins]", "[SuperAdmins]"
+    })
+    void recognisesRealAdminGroups(String groups) {
+        assertTrue(IdentityDocumentAuthorizer.isAdmin(groups));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {
+            "admin", "Beneficiaries", "Volunteers", "Stewards",
+            "admin-notifications", "request-admin-viewers",
+            "[Beneficiaries, us-east-1_hzvIMnDNi_Google]"
+    })
+    void rejectsEverythingElse(String groups) {
+        assertFalse(IdentityDocumentAuthorizer.isAdmin(groups));
+    }
+
+    // ---------- stewards: read only ----------
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Stewards", "stewards", "[Volunteers, Stewards]"})
+    void stewardCanReadWithoutOwnershipLookup(String groups) {
+        assertDoesNotThrow(() ->
+                IdentityDocumentAuthorizer.requireReadAccess(users, TARGET, EMAIL, groups));
+        verifyNoInteractions(users);
+    }
+
+    @Test
+    void stewardWhoIsNotOwnerCannotWrite() {
+        when(users.isEmailOwnedByUser(TARGET, "steward@example.org")).thenReturn(false);
+        assertThrows(ForbiddenException.class,
+                () -> IdentityDocumentAuthorizer.requireWriteAccess(users, TARGET, "steward@example.org"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"steward", "stewards-pending", "Volunteers"})
+    void lookAlikeGroupsAreNotStewards(String groups) {
+        assertFalse(IdentityDocumentAuthorizer.isSteward(groups));
     }
 }

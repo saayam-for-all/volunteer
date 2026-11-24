@@ -16,6 +16,16 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
+import org.mockito.InOrder;
+import static org.mockito.Mockito.inOrder;
 
 import java.net.URL;
 import java.time.LocalDate;
@@ -24,6 +34,7 @@ import java.util.Optional;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -32,6 +43,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import org.sfa.volunteer.exception.IdentityDocumentException;
+
+import java.util.Map;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 @ExtendWith(MockitoExtension.class)
 class IdentityDocumentStorageServiceTest {
@@ -42,6 +58,8 @@ class IdentityDocumentStorageServiceTest {
 
     @Mock
     private VolunteerService volunteerService;
+    @Mock
+    private UserService userService;
     @Mock
     private S3Client s3ClientUs;
     @Mock
@@ -59,8 +77,13 @@ class IdentityDocumentStorageServiceTest {
     @BeforeEach
     void setUp() {
         service = new IdentityDocumentStorageService(
-                volunteerService, s3ClientUs, s3ClientEu, s3PresignerUs, s3PresignerEu);
-
+                volunteerService,
+                userService,
+                s3ClientUs,
+                s3ClientEu,
+                s3PresignerUs,
+                s3PresignerEu
+        );
         ReflectionTestUtils.setField(service, "maxBytes", 2097152L);
         ReflectionTestUtils.setField(service, "allowedMimeCsv", "image/jpeg,image/png,application/pdf");
         ReflectionTestUtils.setField(service, "keyPattern", "users/%s/identity/slot%d");
@@ -78,19 +101,23 @@ class IdentityDocumentStorageServiceTest {
 
     // ---------- upload validation ----------
 
-    @Test
-    void rejectsNullExpiry() {
-        IdentityDocumentException ex = assertThrows(IdentityDocumentException.class,
-                () -> service.uploadBase64(USER_ID, 1, "passport.png", validBase64, null, "us-east-1"));
-        assertEquals(BAD_REQUEST, ex.getHttpStatus());
-        assertEquals(SaayamStatusCode.INVALID_DOCUMENT_EXPIRY, ex.getStatusCode());
-    }
+        @Test
+        void allowsNullExpiryForDocumentsThatDoNotExpire() throws Exception {
+                when(userService.getIsEu(USER_ID)).thenReturn(false);
+
+                Map<String, Object> result =
+                        service.uploadBase64(USER_ID, 1, "passport.png", validBase64, null);
+
+                verify(volunteerService).replaceGovtIdDocument(
+                        eq(USER_ID), eq(1), anyString(), eq("passport.png"), isNull());
+                assertNull(result.get("expiresOn"));
+        }
 
     @Test
     void rejectsPastExpiry() {
         IdentityDocumentException ex = assertThrows(IdentityDocumentException.class,
                 () -> service.uploadBase64(USER_ID, 1, "passport.png", validBase64,
-                        LocalDate.now().minusDays(1), "us-east-1"));
+                        LocalDate.now().minusDays(1)));
         assertEquals(BAD_REQUEST, ex.getHttpStatus());
         assertEquals(SaayamStatusCode.INVALID_DOCUMENT_EXPIRY, ex.getStatusCode());
     }
@@ -104,7 +131,7 @@ class IdentityDocumentStorageServiceTest {
         String badBase64 = Base64.getEncoder().encodeToString(gifBytes);
 
         IdentityDocumentException ex = assertThrows(IdentityDocumentException.class,
-                () -> service.uploadBase64(USER_ID, 1, "sneaky.png", badBase64, futureDate, "us-east-1"));
+                () -> service.uploadBase64(USER_ID, 1, "sneaky.png", badBase64, futureDate));
         assertEquals(BAD_REQUEST, ex.getHttpStatus());
         assertEquals(SaayamStatusCode.INVALID_DOCUMENT_TYPE, ex.getStatusCode());
     }
@@ -112,7 +139,7 @@ class IdentityDocumentStorageServiceTest {
     @Test
     void rejectsBlankDocumentName() {
         IdentityDocumentException ex = assertThrows(IdentityDocumentException.class,
-                () -> service.uploadBase64(USER_ID, 1, "   ", validBase64, futureDate, "us-east-1"));
+                () -> service.uploadBase64(USER_ID, 1, "   ", validBase64, futureDate));
         assertEquals(BAD_REQUEST, ex.getHttpStatus());
         assertEquals(SaayamStatusCode.DOCUMENT_NAME_REQUIRED, ex.getStatusCode());
     }
@@ -123,14 +150,14 @@ class IdentityDocumentStorageServiceTest {
     void downloadReturnsEmptyWhenNoPathStored() throws Exception {
         when(volunteerService.getGovtIdPath(USER_ID, 1)).thenReturn(null);
 
-        assertTrue(service.download(USER_ID, 1, "us-east-1").isEmpty());
+        assertTrue(service.download(USER_ID, 1).isEmpty());
     }
 
     @Test
     void downloadReturnsEmptyWhenPathIsBlank() throws Exception {
         when(volunteerService.getGovtIdPath(USER_ID, 1)).thenReturn("   ");
 
-        assertTrue(service.download(USER_ID, 1, "us-east-1").isEmpty());
+        assertTrue(service.download(USER_ID, 1).isEmpty());
     }
 
     @Test
@@ -138,7 +165,7 @@ class IdentityDocumentStorageServiceTest {
         when(volunteerService.getGovtIdPath(USER_ID, 1)).thenReturn("s3://bucket-only");
 
         assertThrows(IdentityDocumentException.class,
-                () -> service.download(USER_ID, 1, "us-east-1"));
+                () -> service.download(USER_ID, 1));
     }
 
     @Test
@@ -150,7 +177,7 @@ class IdentityDocumentStorageServiceTest {
                 new byte[]{1, 2, 3});
         when(s3ClientUs.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(response);
 
-        var result = service.download(USER_ID, 1, "us-east-1");
+        var result = service.download(USER_ID, 1);
 
         assertTrue(result.isPresent());
         assertEquals("application/pdf", result.get().contentType());
@@ -165,7 +192,7 @@ class IdentityDocumentStorageServiceTest {
         when(s3ClientUs.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(response);
 
         assertEquals("application/octet-stream",
-                service.download(USER_ID, 1, "us-east-1").get().contentType());
+                service.download(USER_ID, 1).get().contentType());
     }
 
     @Test
@@ -174,7 +201,7 @@ class IdentityDocumentStorageServiceTest {
         when(s3ClientUs.getObjectAsBytes(any(GetObjectRequest.class)))
                 .thenThrow(NoSuchKeyException.builder().message("missing").build());
 
-        assertTrue(service.download(USER_ID, 1, "us-east-1").isEmpty());
+        assertTrue(service.download(USER_ID, 1).isEmpty());
     }
 
     /** With no region hint, the region is derived from the bucket in the stored URI. */
@@ -186,7 +213,7 @@ class IdentityDocumentStorageServiceTest {
                 GetObjectResponse.builder().contentType("image/png").build(), new byte[]{1});
         when(s3ClientEu.getObjectAsBytes(any(GetObjectRequest.class))).thenReturn(response);
 
-        service.download(USER_ID, 1, null);
+        service.download(USER_ID, 1);
 
         verify(s3ClientEu).getObjectAsBytes(any(GetObjectRequest.class));
     }
@@ -202,7 +229,7 @@ class IdentityDocumentStorageServiceTest {
         ArgumentCaptor<GetObjectRequest> captor = ArgumentCaptor.forClass(GetObjectRequest.class);
         when(s3ClientUs.getObjectAsBytes(captor.capture())).thenReturn(response);
 
-        service.download(USER_ID, 1, "us-east-1");
+        service.download(USER_ID, 1);
 
         assertEquals("test-bucket-us", captor.getValue().bucket());
         assertEquals("users/SID-001/identity/slot1", captor.getValue().key());
@@ -214,7 +241,7 @@ class IdentityDocumentStorageServiceTest {
     void presignedUrlIsEmptyWhenNoPathStored() throws Exception {
         when(volunteerService.getGovtIdPath(USER_ID, 1)).thenReturn(null);
 
-        assertTrue(service.presignedUrl(USER_ID, 1, "us-east-1").isEmpty());
+        assertTrue(service.presignedUrl(USER_ID, 1).isEmpty());
     }
 
     @Test
@@ -226,7 +253,7 @@ class IdentityDocumentStorageServiceTest {
         when(s3PresignerUs.presignGetObject(any(GetObjectPresignRequest.class)))
                 .thenReturn(presigned);
 
-        Optional<String> url = service.presignedUrl(USER_ID, 1, "us-east-1");
+        Optional<String> url = service.presignedUrl(USER_ID, 1);
 
         assertTrue(url.isPresent());
         assertEquals("https://example.com/signed", url.get());
@@ -241,7 +268,7 @@ class IdentityDocumentStorageServiceTest {
         when(s3PresignerEu.presignGetObject(any(GetObjectPresignRequest.class)))
                 .thenReturn(presigned);
 
-        service.presignedUrl(USER_ID, 1, null);
+        service.presignedUrl(USER_ID, 1);
 
         verify(s3PresignerEu).presignGetObject(any(GetObjectPresignRequest.class));
     }
@@ -257,7 +284,7 @@ class IdentityDocumentStorageServiceTest {
                 ArgumentCaptor.forClass(GetObjectPresignRequest.class);
         when(s3PresignerUs.presignGetObject(captor.capture())).thenReturn(presigned);
 
-        service.presignedUrl(USER_ID, 1, "us-east-1");
+        service.presignedUrl(USER_ID, 1);
 
         assertEquals(Duration.ofMinutes(5), captor.getValue().signatureDuration());
     }
@@ -273,10 +300,265 @@ class IdentityDocumentStorageServiceTest {
                 ArgumentCaptor.forClass(GetObjectPresignRequest.class);
         when(s3PresignerUs.presignGetObject(captor.capture())).thenReturn(presigned);
 
-        service.presignedUrl(USER_ID, 1, "us-east-1");
+        service.presignedUrl(USER_ID, 1);
 
         GetObjectRequest signed = captor.getValue().getObjectRequest();
         assertEquals("test-bucket-us", signed.bucket());
         assertEquals("users/SID-001/identity/slot1", signed.key());
     }
+    // ---------- upload: safe replacement (DR-02, FR-09, FR-12) ----------
+
+    @Test
+    void firstUploadWritesUniqueKeyAndUpdatesRecordOnce() throws Exception {
+        when(userService.getIsEu(USER_ID)).thenReturn(false);
+
+        service.uploadBase64(USER_ID, 1, "passport.png", validBase64, futureDate);
+
+        ArgumentCaptor<PutObjectRequest> put = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3ClientUs).putObject(put.capture(), any(RequestBody.class));
+        String key = put.getValue().key();
+        assertTrue(key.startsWith("users/SID-001/identity/slot1-"));
+
+        verify(volunteerService).replaceGovtIdDocument(
+                USER_ID, 1, "s3://test-bucket-us/" + key, "passport.png", futureDate);
+        verify(volunteerService, never()).updateGovtIdPath(anyString(), anyInt(), anyString());
+        verify(s3ClientUs, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void databaseFailureDeletesNewFileAndKeepsOldOne() throws Exception {
+        when(userService.getIsEu(USER_ID)).thenReturn(false);
+
+            doThrow(new RuntimeException("db down"))
+                    .when(volunteerService)
+                    .replaceGovtIdDocument(any(), anyInt(), any(), any(), any());
+
+        assertThrows(IdentityDocumentException.class,
+                () -> service.uploadBase64(
+                        USER_ID, 1, "passport.png",
+                        validBase64, futureDate));
+
+        ArgumentCaptor<PutObjectRequest> put =
+                ArgumentCaptor.forClass(PutObjectRequest.class);
+
+        ArgumentCaptor<DeleteObjectRequest> del =
+                ArgumentCaptor.forClass(DeleteObjectRequest.class);
+
+        InOrder order = inOrder(s3ClientUs, volunteerService);
+
+        order.verify(s3ClientUs)
+                .putObject(put.capture(), any(RequestBody.class));
+
+        order.verify(volunteerService)
+                .replaceGovtIdDocument(any(), anyInt(), any(), any(), any());
+
+        order.verify(s3ClientUs).deleteObject(del.capture());
+
+        assertEquals(put.getValue().key(), del.getValue().key());
+
+        assertNotEquals("users/SID-001/identity/slot1",
+                del.getValue().key());
+
+        verify(s3ClientUs).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void successfulReplacementDeletesOldFileAfterDatabaseUpdate()
+        throws Exception {
+
+        when(userService.getIsEu(USER_ID)).thenReturn(false);
+        
+        when(volunteerService.getGovtIdPath(USER_ID, 1))
+        .thenReturn(US_PATH);
+
+        service.uploadBase64(
+                USER_ID, 1, "license.png",
+                validBase64, futureDate);
+
+        ArgumentCaptor<PutObjectRequest> put =
+                ArgumentCaptor.forClass(PutObjectRequest.class);
+
+        ArgumentCaptor<DeleteObjectRequest> del =
+                ArgumentCaptor.forClass(DeleteObjectRequest.class);
+
+        InOrder order = inOrder(s3ClientUs, volunteerService);
+
+        order.verify(s3ClientUs)
+                .putObject(put.capture(), any(RequestBody.class));
+
+        String newKey = put.getValue().key();
+
+        order.verify(volunteerService)
+                .replaceGovtIdDocument(
+                        USER_ID, 1,
+                        "s3://test-bucket-us/" + newKey,
+                        "license.png", futureDate);
+
+        order.verify(s3ClientUs).deleteObject(del.capture());
+
+        assertEquals("users/SID-001/identity/slot1",
+                del.getValue().key());
+
+        assertEquals("test-bucket-us", del.getValue().bucket());
+
+        assertNotEquals(newKey, del.getValue().key());
+
+        verify(s3ClientUs).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void s3UploadFailureKeepsOldDocument() throws Exception {
+        when(userService.getIsEu(USER_ID)).thenReturn(false);
+
+        doThrow(S3Exception.builder().message("S3 upload failed").build())
+                .when(s3ClientUs)
+                .putObject(any(PutObjectRequest.class),
+                        any(RequestBody.class));
+
+        assertThrows(IdentityDocumentException.class,
+                () -> service.uploadBase64(
+                        USER_ID, 1, "license.png",
+                        validBase64, futureDate));
+
+                verify(volunteerService, never())
+                .replaceGovtIdDocument(
+                        any(), anyInt(), any(), any(), any());
+
+            verify(s3ClientUs, never())
+                    .deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void euUserUploadsToIrelandBucket() throws Exception {
+        when(userService.getIsEu(USER_ID)).thenReturn(true);
+        when(volunteerService.getGovtIdPath(USER_ID, 1))
+                .thenReturn(null);
+
+        service.uploadBase64(
+                USER_ID, 1, "passport.png",
+                validBase64, futureDate);
+
+        ArgumentCaptor<PutObjectRequest> put =
+                ArgumentCaptor.forClass(PutObjectRequest.class);
+
+        verify(s3ClientEu).putObject(
+                put.capture(), any(RequestBody.class));
+
+        assertEquals("test-bucket-eu", put.getValue().bucket());
+
+        verify(volunteerService).replaceGovtIdDocument(
+                USER_ID, 1,
+                "s3://test-bucket-eu/" + put.getValue().key(),
+                "passport.png", futureDate);
+
+        verify(s3ClientUs, never())
+                .putObject(any(PutObjectRequest.class),
+                        any(RequestBody.class));
+        }
+
+    @Test
+    void nullIsEuRejectsUpload() throws Exception {
+        when(userService.getIsEu(USER_ID)).thenReturn(null);
+
+        IdentityDocumentException ex = assertThrows(
+                IdentityDocumentException.class,
+                () -> service.uploadBase64(
+                        USER_ID, 1, "passport.png",
+                        validBase64, futureDate));
+
+        assertEquals(
+                SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+                ex.getStatusCode());
+
+        assertEquals(
+                org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+                ex.getHttpStatus());
+
+        verify(s3ClientUs, never())
+                .putObject(any(PutObjectRequest.class),
+                        any(RequestBody.class));
+
+        verify(s3ClientEu, never())
+                .putObject(any(PutObjectRequest.class),
+                        any(RequestBody.class));
+
+        verify(volunteerService, never())
+                .replaceGovtIdDocument(
+                        any(), anyInt(), any(), any(), any());
+        }
+
+    @Test
+    void downloadRejectsUnknownBucket() throws Exception {
+        when(volunteerService.getGovtIdPath(USER_ID, 1))
+                .thenReturn(
+                        "s3://unknown-bucket/users/SID-001/identity/slot1");
+
+        IdentityDocumentException ex = assertThrows(
+                IdentityDocumentException.class,
+                () -> service.download(USER_ID, 1));
+
+        assertEquals(
+                SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+                ex.getStatusCode());
+
+        verify(s3ClientUs, never())
+                .getObjectAsBytes(any(GetObjectRequest.class));
+
+        verify(s3ClientEu, never())
+                .getObjectAsBytes(any(GetObjectRequest.class));
+        }
+
+    @Test
+    void replacementDeletesOldObjectFromItsActualBucket()
+        throws Exception {
+        when(userService.getIsEu(USER_ID)).thenReturn(true);
+
+        when(volunteerService.getGovtIdPath(USER_ID, 1))
+                .thenReturn(US_PATH);
+
+        service.uploadBase64(
+                USER_ID, 1, "license.png",
+                validBase64, futureDate);
+
+        ArgumentCaptor<PutObjectRequest> put =
+                ArgumentCaptor.forClass(PutObjectRequest.class);
+
+        ArgumentCaptor<DeleteObjectRequest> del =
+                ArgumentCaptor.forClass(DeleteObjectRequest.class);
+
+        InOrder order = inOrder(
+                s3ClientEu, volunteerService, s3ClientUs);
+
+        order.verify(s3ClientEu)
+                .putObject(put.capture(), any(RequestBody.class));
+
+        String newKey = put.getValue().key();
+
+        order.verify(volunteerService)
+                .replaceGovtIdDocument(
+                        USER_ID, 1,
+                        "s3://test-bucket-eu/" + newKey,
+                        "license.png", futureDate);
+
+        order.verify(s3ClientUs)
+                .deleteObject(del.capture());
+
+        assertEquals("test-bucket-eu",
+                put.getValue().bucket());
+
+        assertEquals("test-bucket-us",
+                del.getValue().bucket());
+
+        assertEquals("users/SID-001/identity/slot1",
+                del.getValue().key());
+
+        assertNotEquals(newKey, del.getValue().key());
+
+        verify(s3ClientEu, never())
+                .deleteObject(any(DeleteObjectRequest.class));
+
+        verify(s3ClientUs, never())
+                .putObject(any(PutObjectRequest.class),
+                        any(RequestBody.class));
+        }
 }
