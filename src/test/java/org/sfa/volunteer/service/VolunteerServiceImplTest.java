@@ -45,21 +45,24 @@ class VolunteerServiceImplTest {
 
     @Test
     void returnsMetadataWhenDocumentStored() throws Exception {
-        LocalDate expiry = LocalDate.now().plusDays(90);
-        when(volunteerRepository.findById(USER_ID))
-                .thenReturn(Optional.of(volunteerWith("s3://bucket/key", "passport.pdf", expiry)));
+        LocalDate expiry = LocalDate.now().plusMonths(4);
 
-        IdentityDocumentMetadata metadata = service.getIdentityDocumentMetadata(USER_ID, 1);
+        when(volunteerRepository.findById(USER_ID))
+                .thenReturn(Optional.of(volunteerWith(
+                        "s3://bucket/key", "passport.pdf", expiry)));
+
+        IdentityDocumentMetadata metadata =
+                service.getIdentityDocumentMetadata(USER_ID, 1);
 
         assertEquals("passport.pdf", metadata.documentName());
         assertEquals(expiry, metadata.expiresOn());
         assertEquals(DocumentStatus.VALID, metadata.status());
     }
 
-    /**
-     * A document uploaded during ba #31 onboarding has a stored path but no
-     * expiry date. It must still report as present (FR-21, AC-20), with a null
-     * status rather than a computed one.
+        /**
+     * A document uploaded during BA #31 onboarding may have a stored
+     * path but no expiry date. It must report as present with a null
+     * expiry date and VALID status (FR-21, AC-20).
      */
     @Test
     void returnsMetadataWhenDocumentStoredWithoutExpiry() throws Exception {
