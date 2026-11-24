@@ -14,8 +14,11 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import lombok.extern.slf4j.Slf4j;
 import java.time.Duration;
 
 import java.net.URI;
@@ -25,18 +28,16 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
- * Storage for volunteer government identity documents.
- *
- * Modeled on {@link ProfileImageStorageService}. Two deliberate differences:
- * there is no delete method, and the accepted types are documents rather than
- * images.
- *
- * Replacement works by overwriting a deterministic key. Because S3 replaces the
- * object only when the PUT succeeds, there is no window in which a volunteer
- * has no document (DR-03), and no superseded object to clean up (DR-02).
+ * Replacement writes the new file to a unique key, updates the volunteer
+ * record in one transaction, and only then deletes the previous object
+ * (DR-02). If the record update fails, the new object is removed and the
+ * original document is left intact (FR-12).
  */
+
+@Slf4j
 @Service
 public class IdentityDocumentStorageService {
 
@@ -125,7 +126,15 @@ public class IdentityDocumentStorageService {
 
         String effectiveRegion = (regionHint == null || regionHint.isBlank()) ? "us-east-1" : regionHint;
         String bucket = pickBucket(effectiveRegion);
-        String key = buildKey(userId, documentSlot);
+        String oldUri;
+        try {
+            oldUri = volunteerService.getGovtIdPath(userId, documentSlot);
+        } catch (Exception e) {
+            throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+                    HttpStatus.INTERNAL_SERVER_ERROR, "Could not read identity document record", e);
+        }
+
+        String key = buildKey(userId, documentSlot) + "-" + UUID.randomUUID();
 
         try {
             pickClient(effectiveRegion).putObject(
@@ -137,24 +146,22 @@ public class IdentityDocumentStorageService {
                             .build(),
                     RequestBody.fromBytes(bytes)
             );
-        } catch (S3Exception e) {
-                throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+        } catch (SdkException e) {
+            throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
                     HttpStatus.INTERNAL_SERVER_ERROR, "Failed to upload to S3", e);
         }
 
         String s3Uri = "s3://" + bucket + "/" + key;
         try {
-            volunteerService.updateGovtIdPath(userId, documentSlot, s3Uri);
+            volunteerService.replaceGovtIdDocument(userId, documentSlot, s3Uri, safeName, expiresOn);
         } catch (Exception e) {
-                throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
+            deleteQuietly(s3Uri);
+            throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
                     HttpStatus.INTERNAL_SERVER_ERROR, "Could not save identity document record", e);
-       }
+        }
 
-       try {
-            volunteerService.updateGovtIdMetadata(userId, documentSlot, safeName, expiresOn);
-        } catch (Exception e) {
-                 throw new IdentityDocumentException(SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
-                    HttpStatus.INTERNAL_SERVER_ERROR, "Could not save identity document metadata", e);
+        if (oldUri != null && !oldUri.isBlank()) {
+            deleteQuietly(oldUri);
         }
 
         return Map.of(
@@ -298,6 +305,18 @@ public class IdentityDocumentStorageService {
         }
     }
 
+    private void deleteQuietly(String s3Uri) {
+            try {
+                String ssp = URI.create(s3Uri).getSchemeSpecificPart().replaceFirst("^//", "");
+                int slash = ssp.indexOf('/');
+                String bucket = ssp.substring(0, slash);
+                String key = ssp.substring(slash + 1);
+                S3Client client = bucket.equals(euBucket) ? s3ClientEu : s3ClientUs;
+                client.deleteObject(DeleteObjectRequest.builder().bucket(bucket).key(key).build());
+            } catch (Exception e) {
+                log.warn("Could not delete identity document object; left for cleanup");
+            }
+    }
     private String buildKey(String userId, int documentSlot) {
         return String.format(keyPattern, userId, documentSlot);
     }

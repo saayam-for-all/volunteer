@@ -16,6 +16,16 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
+import org.mockito.InOrder;
+import static org.mockito.Mockito.inOrder;
 
 import java.net.URL;
 import java.time.LocalDate;
@@ -24,6 +34,7 @@ import java.util.Optional;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -278,5 +289,126 @@ class IdentityDocumentStorageServiceTest {
         GetObjectRequest signed = captor.getValue().getObjectRequest();
         assertEquals("test-bucket-us", signed.bucket());
         assertEquals("users/SID-001/identity/slot1", signed.key());
+    }
+    // ---------- upload: safe replacement (DR-02, FR-09, FR-12) ----------
+
+    @Test
+    void firstUploadWritesUniqueKeyAndUpdatesRecordOnce() throws Exception {
+        when(volunteerService.getGovtIdPath(USER_ID, 1)).thenReturn(null);
+
+        service.uploadBase64(USER_ID, 1, "passport.png", validBase64, futureDate, null);
+
+        ArgumentCaptor<PutObjectRequest> put = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3ClientUs).putObject(put.capture(), any(RequestBody.class));
+        String key = put.getValue().key();
+        assertTrue(key.startsWith("users/SID-001/identity/slot1-"));
+
+        verify(volunteerService).replaceGovtIdDocument(
+                USER_ID, 1, "s3://test-bucket-us/" + key, "passport.png", futureDate);
+        verify(volunteerService, never()).updateGovtIdPath(anyString(), anyInt(), anyString());
+        verify(s3ClientUs, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void databaseFailureDeletesNewFileAndKeepsOldOne() throws Exception {
+        when(volunteerService.getGovtIdPath(USER_ID, 1))
+                .thenReturn(US_PATH);
+
+            doThrow(new RuntimeException("db down"))
+                    .when(volunteerService)
+                    .replaceGovtIdDocument(any(), anyInt(), any(), any(), any());
+
+        assertThrows(IdentityDocumentException.class,
+                () -> service.uploadBase64(
+                        USER_ID, 1, "passport.png",
+                        validBase64, futureDate, null));
+
+        ArgumentCaptor<PutObjectRequest> put =
+                ArgumentCaptor.forClass(PutObjectRequest.class);
+
+        ArgumentCaptor<DeleteObjectRequest> del =
+                ArgumentCaptor.forClass(DeleteObjectRequest.class);
+
+        InOrder order = inOrder(s3ClientUs, volunteerService);
+
+        order.verify(s3ClientUs)
+                .putObject(put.capture(), any(RequestBody.class));
+
+        order.verify(volunteerService)
+                .replaceGovtIdDocument(any(), anyInt(), any(), any(), any());
+
+        order.verify(s3ClientUs).deleteObject(del.capture());
+
+        assertEquals(put.getValue().key(), del.getValue().key());
+
+        assertNotEquals("users/SID-001/identity/slot1",
+                del.getValue().key());
+
+        verify(s3ClientUs).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void successfulReplacementDeletesOldFileAfterDatabaseUpdate()
+        throws Exception {
+
+        when(volunteerService.getGovtIdPath(USER_ID, 1))
+                .thenReturn(US_PATH);
+
+        service.uploadBase64(
+                USER_ID, 1, "license.png",
+                validBase64, futureDate, null);
+
+        ArgumentCaptor<PutObjectRequest> put =
+                ArgumentCaptor.forClass(PutObjectRequest.class);
+
+        ArgumentCaptor<DeleteObjectRequest> del =
+                ArgumentCaptor.forClass(DeleteObjectRequest.class);
+
+        InOrder order = inOrder(s3ClientUs, volunteerService);
+
+        order.verify(s3ClientUs)
+                .putObject(put.capture(), any(RequestBody.class));
+
+        String newKey = put.getValue().key();
+
+        order.verify(volunteerService)
+                .replaceGovtIdDocument(
+                        USER_ID, 1,
+                        "s3://test-bucket-us/" + newKey,
+                        "license.png", futureDate);
+
+        order.verify(s3ClientUs).deleteObject(del.capture());
+
+        assertEquals("users/SID-001/identity/slot1",
+                del.getValue().key());
+
+        assertEquals("test-bucket-us", del.getValue().bucket());
+
+        assertNotEquals(newKey, del.getValue().key());
+
+        verify(s3ClientUs).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @Test
+    void s3UploadFailureKeepsOldDocument() throws Exception {
+        when(volunteerService.getGovtIdPath(USER_ID, 1))
+                .thenReturn(US_PATH);
+
+        doThrow(S3Exception.builder().message("S3 upload failed").build())
+                .when(s3ClientUs)
+                .putObject(any(PutObjectRequest.class),
+                        any(RequestBody.class));
+
+        assertThrows(IdentityDocumentException.class,
+                () -> service.uploadBase64(
+                        USER_ID, 1, "license.png",
+                        validBase64, futureDate, null));
+
+                verify(volunteerService, never())
+                .replaceGovtIdDocument(
+                        any(), anyInt(), any(), any(), any());
+
+            verify(s3ClientUs, never())
+                    .deleteObject(any(DeleteObjectRequest.class));
     }
 }
