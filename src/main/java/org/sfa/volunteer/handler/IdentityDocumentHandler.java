@@ -20,6 +20,7 @@ import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.exception.ForbiddenException;
 import org.sfa.volunteer.exception.IdentityDocumentException;
 import org.sfa.volunteer.exception.UserNotFoundException;
+import org.sfa.volunteer.exception.VolunteerException;
 import org.sfa.volunteer.service.IdentityDocumentStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
@@ -185,6 +186,19 @@ public class IdentityDocumentHandler implements
                     SaayamStatusCode.USER_NOT_FOUND,
                     message(SaayamStatusCode.USER_NOT_FOUND,
                             new Object[]{e.getUserId()}));
+
+        } catch (VolunteerException e) {
+            if (e.getMessage() != null
+                    && e.getMessage().contains(SaayamStatusCode.VOLUNTEER_NOT_FOUND.toString())) {
+                return error(response, 404,
+                        SaayamStatusCode.VOLUNTEER_NOT_FOUND,
+                        message(SaayamStatusCode.VOLUNTEER_NOT_FOUND,
+                                new Object[]{e.getUserId()}));
+            }
+            log.error("Identity document request failed", e);
+            return error(response, 500,
+                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
+                    message(SaayamStatusCode.INTERNAL_SERVER_ERROR));
 
         } catch (ResponseStatusException e) {
             int status = e.getStatusCode().value();

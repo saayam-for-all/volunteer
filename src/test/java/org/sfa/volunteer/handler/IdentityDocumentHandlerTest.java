@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.exception.IdentityDocumentException;
+import org.sfa.volunteer.exception.VolunteerException;
 import org.sfa.volunteer.service.IdentityDocumentStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
@@ -206,6 +207,17 @@ class IdentityDocumentHandlerTest {
 
         assertEquals(204, result.getStatusCode());
         assertNull(result.getBody());
+    }
+
+    @Test
+    void metadataReturns404WhenUserIsNotAVolunteer() throws Exception {
+        allowOwner();
+        when(volunteerService.getIdentityDocumentMetadata(USER_ID, 1))
+                .thenThrow(VolunteerException.volunteerNotFound(USER_ID));
+
+        APIGatewayProxyResponseEvent result = invoke("POST", BASE + "/metadata", documentRequest());
+
+        assertEquals(404, result.getStatusCode());
     }
 
     // ----------------------------------
