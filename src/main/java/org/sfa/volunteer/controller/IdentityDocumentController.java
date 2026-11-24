@@ -67,7 +67,7 @@ public class IdentityDocumentController {
 
     	Map<String, Object> result = storage.uploadBase64(
             request.userId(), request.documentSlot(), request.documentName(),
-            request.base64(), request.expiresOn(), request.regionHint());
+            request.base64(), request.expiresOn());
 
     	return responseBuilder.buildSuccessResponse(
             SaayamStatusCode.IDENTITY_DOCUMENT_UPLOADED, result);
@@ -79,7 +79,7 @@ public class IdentityDocumentController {
         @Valid @RequestBody GetIdentityDocumentRequest request) {
 
         authorize(authorization, request.userId());
-        Optional<String> url = storage.presignedUrl(request.userId(), request.documentSlot(), null);
+        Optional<String> url = storage.presignedUrl(request.userId(), request.documentSlot());
 
         return url.isEmpty()
                 ? ResponseEntity.noContent().build()

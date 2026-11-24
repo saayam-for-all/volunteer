@@ -135,8 +135,7 @@ class IdentityDocumentHandlerTest {
                   "documentSlot": 1,
                   "documentName": "passport.pdf",
                   "base64": "JVBERi0xLjQ=",
-                  "expiresOn": "%s",
-                  "regionHint": "us-east-1"
+                  "expiresOn": "%s"
                 }
                 """.formatted(expiry);
     }
@@ -233,8 +232,7 @@ class IdentityDocumentHandlerTest {
                 eq(1),
                 eq("passport.pdf"),
                 eq("JVBERi0xLjQ="),
-                any(LocalDate.class),
-                eq("us-east-1")
+                any(LocalDate.class)
         )).thenReturn(Map.of(
                 "message", "Identity document uploaded",
                 "userId", USER_ID
@@ -255,8 +253,7 @@ class IdentityDocumentHandlerTest {
                 eq(1),
                 eq("passport.pdf"),
                 anyString(),
-                any(LocalDate.class),
-                eq("us-east-1")
+                any(LocalDate.class)
         );
     }
 
@@ -269,7 +266,7 @@ class IdentityDocumentHandlerTest {
         allowOwner();
 
         when(storage.presignedUrl(
-                USER_ID, 1, null
+                USER_ID, 1
         )).thenReturn(Optional.of(
                 "https://example.org/presigned-test-url"
         ));
@@ -290,7 +287,7 @@ class IdentityDocumentHandlerTest {
         allowOwner();
 
         when(storage.presignedUrl(
-                USER_ID, 1, null
+                USER_ID, 1
         )).thenReturn(Optional.empty());
 
         APIGatewayProxyResponseEvent result = invoke(
@@ -360,7 +357,7 @@ class IdentityDocumentHandlerTest {
                 "claims",
                 Map.of(
                         "email", "admin@example.org",
-                        "cognito:groups", "admin"
+                        "cognito:groups", "Admins"
                 )
         ));
 
@@ -558,8 +555,7 @@ class IdentityDocumentHandlerTest {
                 eq(1),
                 anyString(),
                 anyString(),
-                any(LocalDate.class),
-                any()
+                any(LocalDate.class)        
         )).thenThrow(new IdentityDocumentException(
                 SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
                 HttpStatus.INTERNAL_SERVER_ERROR,

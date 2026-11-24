@@ -379,6 +379,14 @@ import java.util.stream.Collectors;
     }
 
     @Override
+    public Boolean getIsEu(String userId) { 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        return user.getIsEu();
+    }
+    
+    @Override
     public UserSkillsResponse getUserSkills(String userId) {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("userId is required");

@@ -151,7 +151,7 @@ public class VolunteerServiceImpl implements VolunteerService {
 
        String name = (documentSlot == 1) ? volunteer.getGovtIdName1() : volunteer.getGovtIdName2();
         LocalDate expiry = (documentSlot == 1) ? volunteer.getGovtIdExpiry1() : volunteer.getGovtIdExpiry2();
-        DocumentStatus status = (expiry == null) ? null : DocumentStatus.from(expiry);
+        DocumentStatus status = (expiry == null) ? DocumentStatus.VALID : DocumentStatus.from(expiry);
 
        return new IdentityDocumentMetadata(name, expiry, status);
     }

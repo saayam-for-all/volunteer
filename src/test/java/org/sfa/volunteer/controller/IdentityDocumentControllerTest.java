@@ -63,7 +63,7 @@ class IdentityDocumentControllerTest {
     }
 
     private static String adminToken() {
-        return token("{\"email\":\"admin@example.com\",\"cognito:groups\":[\"admin\"]}");
+        return token("{\"email\":\"admin@example.com\",\"cognito:groups\":[\"Admins\"]}");
     }
 
     private static String slotBody(String userId, int slot) {
@@ -187,7 +187,7 @@ class IdentityDocumentControllerTest {
     @Test
     void uploadReturns200OnSuccess() throws Exception {
         when(userService.isEmailOwnedByUser(OWNER, EMAIL)).thenReturn(true);
-        when(storage.uploadBase64(anyString(), anyInt(), anyString(), anyString(), any(), any()))
+        when(storage.uploadBase64(anyString(), anyInt(), anyString(), anyString(), any()))
                 .thenReturn(java.util.Map.of("message", "Identity document uploaded"));
 
         mockMvc.perform(post(UPLOAD_URL)
@@ -215,7 +215,7 @@ class IdentityDocumentControllerTest {
     @Test
     void fileReturns200WithUrlWhenDocumentPresent() throws Exception {
         when(userService.isEmailOwnedByUser(OWNER, EMAIL)).thenReturn(true);
-        when(storage.presignedUrl(OWNER, 1, null))
+        when(storage.presignedUrl(OWNER, 1))
                 .thenReturn(Optional.of("https://example.s3.amazonaws.com/signed"));
 
         mockMvc.perform(post(FILE_URL)
@@ -230,7 +230,7 @@ class IdentityDocumentControllerTest {
     @Test
     void fileReturns204WhenSlotEmpty() throws Exception {
         when(userService.isEmailOwnedByUser(OWNER, EMAIL)).thenReturn(true);
-        when(storage.presignedUrl(OWNER, 2, null)).thenReturn(Optional.empty());
+        when(storage.presignedUrl(OWNER, 2)).thenReturn(Optional.empty());
 
         mockMvc.perform(post(FILE_URL)
                         .header("Authorization", volunteerToken())

@@ -9,6 +9,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.DynamicUpdate;
+
 import java.time.LocalDate;
 
 import java.time.ZonedDateTime;
@@ -120,6 +121,9 @@ public class User {
     @JsonBackReference
     private UserStatus userStatus;
 
+    @Column(name = "is_eu")
+    private Boolean isEu;
+    
     // user_category_id column was removed from the users table; category is now
     // tracked in a separate mapping table (see saayam-for-all/database wiki).
     // This association is intentionally dropped to keep User loadable/savable

@@ -70,7 +70,7 @@ class VolunteerServiceImplTest {
 
         assertEquals("passport.pdf", metadata.documentName());
         assertNull(metadata.expiresOn());
-        assertNull(metadata.status());
+        assertEquals(DocumentStatus.VALID, metadata.status());
     }
 
     @Test

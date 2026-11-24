@@ -1,10 +1,8 @@
-
 package org.sfa.volunteer.util;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
@@ -24,35 +22,27 @@ class IdentityDocumentAuthorizerTest {
     @Mock
     private UserService users;
 
+    // ---------- owner / non-owner ----------
+
     @Test
     void adminIsAllowedWithoutOwnershipLookup() {
         assertDoesNotThrow(() ->
-                IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                        users, TARGET, EMAIL, "admin"));
-
+                IdentityDocumentAuthorizer.requireOwnerOrAdmin(users, TARGET, EMAIL, "Admins"));
         verifyNoInteractions(users);
     }
 
     @Test
     void ownerIsAllowed() {
-        when(users.isEmailOwnedByUser(TARGET, EMAIL))
-                .thenReturn(true);
-
+        when(users.isEmailOwnedByUser(TARGET, EMAIL)).thenReturn(true);
         assertDoesNotThrow(() ->
-                IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                        users, TARGET, EMAIL, "volunteer"));
-
-        verify(users).isEmailOwnedByUser(TARGET, EMAIL);
+                IdentityDocumentAuthorizer.requireOwnerOrAdmin(users, TARGET, EMAIL, "Volunteers"));
     }
 
     @Test
     void nonOwnerIsForbidden() {
-        when(users.isEmailOwnedByUser(TARGET, EMAIL))
-                .thenReturn(false);
-
+        when(users.isEmailOwnedByUser(TARGET, EMAIL)).thenReturn(false);
         assertThrows(ForbiddenException.class, () ->
-                IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                        users, TARGET, EMAIL, "volunteer"));
+                IdentityDocumentAuthorizer.requireOwnerOrAdmin(users, TARGET, EMAIL, "Volunteers"));
     }
 
     @ParameterizedTest
@@ -60,27 +50,37 @@ class IdentityDocumentAuthorizerTest {
     @ValueSource(strings = {"  "})
     void blankEmailIsForbiddenWithoutLookup(String email) {
         assertThrows(ForbiddenException.class, () ->
-                IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                        users, TARGET, email, "volunteer"));
-
+                IdentityDocumentAuthorizer.requireOwnerOrAdmin(users, TARGET, email, "Volunteers"));
         verifyNoInteractions(users);
     }
 
+    // ---------- admin group matching ----------
+
     @ParameterizedTest
-    @CsvSource(delimiter = '|', value = {
-            "admin | true",
-            "volunteer,admin | true",
-            "Admin | true",
-            "volunteer | false"
+    @ValueSource(strings = {
+            "Admins", "admins", "ADMINS",
+            "SuperAdmins", "superadmins",
+            "Super Admins",
+            "Beneficiaries,Admins",
+            "[Beneficiaries, Admins]",
+            "[SuperAdmins]"
     })
-    void parsesGroups(String groups, boolean expected) {
-        assertEquals(expected,
-                IdentityDocumentAuthorizer.isAdmin(groups));
+    void recognisesRealAdminGroups(String groups) {
+        assertTrue(IdentityDocumentAuthorizer.isAdmin(groups));
     }
 
-    @Test
-    void nullOrEmptyGroupsAreNotAdmin() {
-        assertFalse(IdentityDocumentAuthorizer.isAdmin(null));
-        assertFalse(IdentityDocumentAuthorizer.isAdmin(""));
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {
+            "admin",                 // the old guess; not a real Cognito group
+            "Beneficiaries",
+            "Volunteers",
+            "Stewards",
+            "admin-notifications",   // contains "admin" but is not an admin group
+            "request-admin-viewers",
+            "[Beneficiaries, us-east-1_hzvIMnDNi_Google]"
+    })
+    void rejectsEverythingElse(String groups) {
+        assertFalse(IdentityDocumentAuthorizer.isAdmin(groups));
     }
 }

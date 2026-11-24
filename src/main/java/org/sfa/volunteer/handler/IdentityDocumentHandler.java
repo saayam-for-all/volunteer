@@ -278,9 +278,7 @@ public class IdentityDocumentHandler implements
                         request.documentSlot(),
                         request.documentName(),
                         request.base64(),
-                        request.expiresOn(),
-                        request.regionHint()
-                );
+                        request.expiresOn());
 
         return success(response, 200,
                 responseBuilder.buildSuccessResponse(
@@ -303,9 +301,7 @@ public class IdentityDocumentHandler implements
         Optional<String> url =
                 storage.presignedUrl(
                         request.userId(),
-                        request.documentSlot(),
-                        null
-                );
+                        request.documentSlot());
 
         if (url.isEmpty()) {
             return response.withStatusCode(204);
