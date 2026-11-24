@@ -344,9 +344,7 @@ class IdentityDocumentHandlerTest {
     }
 
     @Test
-    void adminCanAccessWithoutOwnershipLookup()
-            throws Exception {
-
+    void adminCanReadAnotherUsersMetadata() throws Exception {
         APIGatewayProxyRequestEvent event = request(
                 "POST",
                 BASE + "/metadata",
@@ -361,20 +359,14 @@ class IdentityDocumentHandlerTest {
                 )
         ));
 
-        when(volunteerService.getIdentityDocumentMetadata(
-                USER_ID, 1
-        )).thenReturn(null);
-
         APIGatewayProxyResponseEvent result =
                 handler.handleRequest(event, null);
 
         assertEquals(204, result.getStatusCode());
 
-        verifyNoInteractions(userService);
-        verify(volunteerService)
-                .getIdentityDocumentMetadata(USER_ID, 1);
+        verify(volunteerService).getIdentityDocumentMetadata(USER_ID, 1);
+        verify(userService, never()).isEmailOwnedByUser(anyString(), anyString());
     }
-
     // ----------------------------------
     // VALIDATION TESTS
     // ----------------------------------

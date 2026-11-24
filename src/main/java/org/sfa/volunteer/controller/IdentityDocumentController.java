@@ -6,7 +6,6 @@ import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.request.GetIdentityDocumentRequest;
 import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.dto.request.UploadIdentityDocumentRequest;
-import org.sfa.volunteer.exception.ForbiddenException;
 import org.sfa.volunteer.service.IdentityDocumentStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
@@ -48,7 +47,7 @@ public class IdentityDocumentController {
             @RequestHeader("Authorization") String authorization,
             @Valid @RequestBody GetIdentityDocumentRequest request) throws Exception {
 
-        authorize(authorization, request.userId());
+        authorizeRead(authorization, request.userId());
 
         IdentityDocumentMetadata metadata =
                 volunteerService.getIdentityDocumentMetadata(request.userId(), request.documentSlot());
@@ -63,14 +62,14 @@ public class IdentityDocumentController {
         @RequestHeader("Authorization") String authorization,
         @Valid @RequestBody UploadIdentityDocumentRequest request) {
 
-    	authorize(authorization, request.userId());
+                authorizeWrite(authorization, request.userId());
 
-    	Map<String, Object> result = storage.uploadBase64(
-            request.userId(), request.documentSlot(), request.documentName(),
-            request.base64(), request.expiresOn());
+                Map<String, Object> result = storage.uploadBase64(
+                request.userId(), request.documentSlot(), request.documentName(),
+                request.base64(), request.expiresOn());
 
-    	return responseBuilder.buildSuccessResponse(
-            SaayamStatusCode.IDENTITY_DOCUMENT_UPLOADED, result);
+                return responseBuilder.buildSuccessResponse(
+                SaayamStatusCode.IDENTITY_DOCUMENT_UPLOADED, result);
     }
     
    @PostMapping("/identity-document/file")
@@ -78,7 +77,7 @@ public class IdentityDocumentController {
         @RequestHeader("Authorization") String authorization,
         @Valid @RequestBody GetIdentityDocumentRequest request) {
 
-        authorize(authorization, request.userId());
+        authorizeRead(authorization, request.userId());
         Optional<String> url = storage.presignedUrl(request.userId(), request.documentSlot());
 
         return url.isEmpty()
@@ -87,14 +86,24 @@ public class IdentityDocumentController {
                         SaayamStatusCode.SUCCESS, Map.of("url", url.get())));
     }
 
-    private void authorize(String authorization, String targetUserId) {
-        JwtClaims claims = JwtClaims.parse(authorization);
+    private void authorizeRead(String authorization, String targetUserId) {
+    JwtClaims claims = JwtClaims.parse(authorization);
 
-        IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                userService,
-                targetUserId,
-                claims.email(),
-                claims.groups()
+    IdentityDocumentAuthorizer.requireReadAccess(
+            userService,
+            targetUserId,
+            claims.email(),
+            claims.groups()
         );
     }
+
+        private void authorizeWrite(String authorization, String targetUserId) {
+                JwtClaims claims = JwtClaims.parse(authorization);
+
+                IdentityDocumentAuthorizer.requireWriteAccess(
+                userService,
+                targetUserId,
+                claims.email()
+                );
+        }
 }

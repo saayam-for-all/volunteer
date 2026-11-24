@@ -242,7 +242,7 @@ public class IdentityDocumentHandler implements
                 parseAndValidate(body,
                         GetIdentityDocumentRequest.class);
 
-        authorize(request.userId(), caller);
+        authorizeRead(request.userId(), caller);
 
         IdentityDocumentMetadata result =
                 volunteerService.getIdentityDocumentMetadata(
@@ -270,7 +270,7 @@ public class IdentityDocumentHandler implements
                 parseAndValidate(body,
                         UploadIdentityDocumentRequest.class);
 
-        authorize(request.userId(), caller);
+        authorizeWrite(request.userId(), caller);
 
         Map<String, Object> result =
                 storage.uploadBase64(
@@ -296,7 +296,7 @@ public class IdentityDocumentHandler implements
                 parseAndValidate(body,
                         GetIdentityDocumentRequest.class);
 
-        authorize(request.userId(), caller);
+        authorizeRead(request.userId(), caller);
 
         Optional<String> url =
                 storage.presignedUrl(
@@ -314,14 +314,22 @@ public class IdentityDocumentHandler implements
                 ));
     }
 
-    private void authorize(String userId, Caller caller) {
-        IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                userService,
-                userId,
-                caller.email(),
-                caller.groups()
-        );
-    }
+        private void authorizeRead(String userId, Caller caller) {
+                IdentityDocumentAuthorizer.requireReadAccess(
+                        userService,
+                        userId,
+                        caller.email(),
+                        caller.groups()
+                );
+        }
+
+        private void authorizeWrite(String userId, Caller caller) {
+                IdentityDocumentAuthorizer.requireWriteAccess(
+                        userService,
+                        userId,
+                        caller.email()
+                );
+        }
 
     /*
      * Only uses claims supplied by an API Gateway authorizer.
