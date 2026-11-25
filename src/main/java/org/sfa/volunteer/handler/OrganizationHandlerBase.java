@@ -21,7 +21,8 @@ import org.sfa.volunteer.service.OrganizationService;
 import org.sfa.volunteer.util.Cors;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
-import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
 
@@ -183,7 +184,19 @@ public abstract class OrganizationHandlerBase
         if (ctx == null) {
             synchronized (OrganizationHandlerBase.class) {
                 if (springContext == null) {
-                    springContext = SpringApplication.run(VolunteerApplication.class);
+                        var application = new SpringApplicationBuilder(VolunteerApplication.class)
+                            .web(WebApplicationType.NONE)
+                            .properties(
+                                    "spring.main.web-application-type=none",
+                                    "spring.autoconfigure.exclude=org.springframework.cloud.function.serverless.web.ServerlessAutoConfiguration"
+                            )
+                            .build();
+                    // The servlet initializer logs the process environment and is unnecessary here.
+                    application.setInitializers(application.getInitializers().stream()
+                            .filter(initializer -> !(initializer instanceof
+                                    com.amazonaws.serverless.proxy.spring.AwsSpringWebRuntimeInitializer))
+                            .toList());
+                    springContext = application.run();
                 }
                 ctx = springContext;
             }
