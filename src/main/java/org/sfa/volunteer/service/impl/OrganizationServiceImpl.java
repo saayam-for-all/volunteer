@@ -15,6 +15,7 @@ import org.sfa.volunteer.dto.response.OrganizationResponse;
 import org.sfa.volunteer.dto.response.OrganizationDetailsResponse;
 import org.sfa.volunteer.model.Organization;
 import org.sfa.volunteer.model.UserOrgMap;
+import org.sfa.volunteer.model.UserOrgMapId;
 import org.sfa.volunteer.repository.OrgSkillRepository;
 import org.sfa.volunteer.repository.OrganizationRepository;
 import org.sfa.volunteer.repository.UserOrgMapRepository;
@@ -120,25 +121,33 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .stateId(org.getStateId())
                 .build();
     }
+
     @Override
     @Transactional
     public void linkOrganization(String userId, String orgId) {
-       Organization organization = organizationRepository.findById(orgId)
-        .orElseThrow(() -> new OrganizationNotFoundException(orgId));
+        Organization organization = organizationRepository.findById(orgId)
+                .orElseThrow(() -> new OrganizationNotFoundException(orgId));
 
-    UserOrgMap userOrgMap = UserOrgMap.builder()
-            .userId(userId)
-            .orgId(organization.getOrgId())
-            .userRole(DEFAULT_USER_ROLE)
-            .build();
+        // Already a member: keep their existing role (e.g. ADMIN) rather than
+        // overwriting it with the default.
+        if (userOrgMapRepository.existsById(new UserOrgMapId(userId, orgId))) {
+            return;
+        }
 
-    userOrgMapRepository.save(userOrgMap);
-   }
-   @Override
-   @Transactional
-   public OrganizationDetailsResponse updateOrganization(String orgId, UpdateOrganizationRequest request) {
-    Organization organization = organizationRepository.findById(orgId)
-            .orElseThrow(() -> new OrganizationNotFoundException(orgId));
+        UserOrgMap userOrgMap = UserOrgMap.builder()
+                .userId(userId)
+                .orgId(organization.getOrgId())
+                .userRole(DEFAULT_USER_ROLE)
+                .build();
+
+        userOrgMapRepository.save(userOrgMap);
+    }
+
+    @Override
+    @Transactional
+    public OrganizationDetailsResponse updateOrganization(String orgId, UpdateOrganizationRequest request) {
+        Organization organization = organizationRepository.findById(orgId)
+                .orElseThrow(() -> new OrganizationNotFoundException(orgId));
 
     organization.setOrgName(request.orgName());
     organization.setOrgType(request.orgType() == null ? null
