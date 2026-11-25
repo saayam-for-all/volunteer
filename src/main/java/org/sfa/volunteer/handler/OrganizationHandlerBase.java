@@ -25,7 +25,9 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
-
+import org.springframework.context.ApplicationContext;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
@@ -40,11 +42,11 @@ public abstract class OrganizationHandlerBase
     protected static final String ORG_ID_PARAM = "orgId";
     protected static final String USER_ID_PARAM = "userId";
     protected static final Object[] NO_ARGS = new Object[0];
-
+    private static final String INVALID_BODY_MESSAGE = "Invalid request body";
+    private static final String INVALID_REFERENCE_MESSAGE = "One or more values are invalid or refer to records that don't exist";
     private static final String OPTIONS_METHOD = "OPTIONS";
     private static final String OPTIONS_SUFFIX = ",OPTIONS";
     private static final String BODY_REQUIRED_MESSAGE = "Request body is required";
-    private static final String INVALID_BODY_MESSAGE = "Invalid request body";
     private static final String REQUIRED_SUFFIX = " is required";
     private static final String VIOLATION_SEPARATOR = "; ";
     private static final String PROPERTY_SEPARATOR = " ";
@@ -105,6 +107,12 @@ public abstract class OrganizationHandlerBase
         } catch (JsonProcessingException e) {
             log.warn("Invalid organization request body: {}", e.getOriginalMessage());
             return error(response, HttpStatus.BAD_REQUEST, SaayamStatusCode.BAD_REQUEST, INVALID_BODY_MESSAGE);
+        } catch (DataIntegrityViolationException e) {
+            // A foreign key or check constraint rejected the data: unknown stateId,
+            // categoryId or userId, or a value the database doesn't allow.
+            log.warn("Organization request rejected by a database constraint");
+            return error(response, HttpStatus.BAD_REQUEST, SaayamStatusCode.BAD_REQUEST,
+                    INVALID_REFERENCE_MESSAGE);
         } catch (Exception e) {
             log.error("Organization request failed", e);
             String msg = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
