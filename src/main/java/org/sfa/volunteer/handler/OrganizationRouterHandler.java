@@ -43,8 +43,11 @@ public class OrganizationRouterHandler
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent event, Context context) {
+        // Map.of rejects null keys even in get(), so check before looking up.
+        // A null resource means the API Gateway method isn't using Lambda proxy integration.
+        String resource = event == null ? null : event.getResource();
         RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> target =
-                event == null ? null : routes.get(event.getResource());
+                resource == null ? null : routes.get(resource);
         if (target == null) {
             return new APIGatewayProxyResponseEvent()
                 .withStatusCode(404)
