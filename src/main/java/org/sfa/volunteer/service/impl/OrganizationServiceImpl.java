@@ -19,6 +19,7 @@ import org.sfa.volunteer.repository.OrgSkillRepository;
 import org.sfa.volunteer.repository.OrganizationRepository;
 import org.sfa.volunteer.repository.UserOrgMapRepository;
 import org.sfa.volunteer.service.OrganizationService;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -79,6 +80,7 @@ public class OrganizationServiceImpl implements OrganizationService {
             .build();
     }
     @Override
+    @Transactional
     public OrganizationResponse createOrganization(CreateOrganizationRequest request) {
         Organization organization = Organization.builder()
                 .orgName(request.orgName())
@@ -119,6 +121,7 @@ public class OrganizationServiceImpl implements OrganizationService {
                 .build();
     }
     @Override
+    @Transactional
     public void linkOrganization(String userId, String orgId) {
        Organization organization = organizationRepository.findById(orgId)
         .orElseThrow(() -> new OrganizationNotFoundException(orgId));
@@ -132,6 +135,7 @@ public class OrganizationServiceImpl implements OrganizationService {
     userOrgMapRepository.save(userOrgMap);
    }
    @Override
+   @Transactional
    public OrganizationDetailsResponse updateOrganization(String orgId, UpdateOrganizationRequest request) {
     Organization organization = organizationRepository.findById(orgId)
             .orElseThrow(() -> new OrganizationNotFoundException(orgId));
