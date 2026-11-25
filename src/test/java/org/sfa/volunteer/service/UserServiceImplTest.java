@@ -21,14 +21,12 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
-
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -191,5 +189,48 @@ class UserServiceImplTest {
                 .lastName("Name")
                 .profilePicturePath(profilePicturePath)
                 .build();
+    }
+
+    @Test
+    void getIsEuReturnsTrueForEuUser() {
+        User user = new User();
+        user.setIsEu(true);
+
+        when(userRepository.findById("SID-001"))
+                .thenReturn(Optional.of(user));
+
+        assertEquals(Boolean.TRUE, userService.getIsEu("SID-001"));
+    }
+
+    @Test
+    void getIsEuReturnsFalseForNonEuUser() {
+        User user = new User();
+        user.setIsEu(false);
+
+        when(userRepository.findById("SID-001"))
+                .thenReturn(Optional.of(user));
+
+        assertEquals(Boolean.FALSE, userService.getIsEu("SID-001"));
+    }
+
+    @Test
+    void getIsEuReturnsNullWhenRegionIsUnknown() {
+        User user = new User();
+        user.setIsEu(null);
+
+        when(userRepository.findById("SID-001"))
+                .thenReturn(Optional.of(user));
+
+        assertNull(userService.getIsEu("SID-001"));
+    }
+
+    @Test
+    void getIsEuThrowsExceptionWhenUserNotFound() {
+        when(userRepository.findById("SID-001"))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                UserNotFoundException.class,
+                () -> userService.getIsEu("SID-001"));
     }
 }

@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -63,7 +64,7 @@ class IdentityDocumentControllerTest {
     }
 
     private static String adminToken() {
-        return token("{\"email\":\"admin@example.com\",\"cognito:groups\":[\"admin\"]}");
+        return token("{\"email\":\"admin@example.com\",\"cognito:groups\":[\"Admins\"]}");
     }
 
     private static String slotBody(String userId, int slot) {
@@ -124,21 +125,16 @@ class IdentityDocumentControllerTest {
     }
 
     @Test
-    void adminMayReadAnotherUsersMetadata() throws Exception {
-        LocalDate expiry = LocalDate.now().plusDays(90);
-        when(volunteerService.getIdentityDocumentMetadata(OTHER, 1))
-                .thenReturn(new IdentityDocumentMetadata("passport.pdf", expiry, DocumentStatus.VALID));
-
+    void adminCanReadAnotherUsersMetadata() throws Exception {
         mockMvc.perform(post(METADATA_URL)
                         .header("Authorization", adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(slotBody(OTHER, 1)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.documentName").value("passport.pdf"))
-                .andExpect(jsonPath("$.data.status").value("VALID"));
-        verify(volunteerService).getIdentityDocumentMetadata(OTHER, 1);
-    }
+                .andExpect(status().isNoContent());
 
+        verify(volunteerService).getIdentityDocumentMetadata(OTHER, 1);
+        verify(userService, never()).isEmailOwnedByUser(anyString(), anyString());
+    }
     // ---------- validation ----------
 
     @Test
@@ -185,9 +181,41 @@ class IdentityDocumentControllerTest {
     // ---------- upload ----------
 
     @Test
+    void adminCannotUploadAnotherUsersDocument() throws Exception {
+
+        when(userService.isEmailOwnedByUser(OTHER, "admin@example.com"))
+                .thenReturn(false);
+
+        mockMvc.perform(post(UPLOAD_URL)
+                        .header("Authorization", adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(uploadBody(OTHER)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(storage);
+    }
+
+    @Test
+    void adminCanUploadOwnDocument() throws Exception {
+
+        when(userService.isEmailOwnedByUser(OWNER, "admin@example.com"))
+                .thenReturn(true);
+
+        when(storage.uploadBase64(
+                anyString(), anyInt(), anyString(), anyString(), any()))
+                .thenReturn(java.util.Map.of(
+                        "message", "Identity document uploaded"));
+
+        mockMvc.perform(post(UPLOAD_URL)
+                        .header("Authorization", adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(uploadBody(OWNER)))
+                .andExpect(status().isOk());
+    }
+    @Test
     void uploadReturns200OnSuccess() throws Exception {
         when(userService.isEmailOwnedByUser(OWNER, EMAIL)).thenReturn(true);
-        when(storage.uploadBase64(anyString(), anyInt(), anyString(), anyString(), any(), any()))
+        when(storage.uploadBase64(anyString(), anyInt(), anyString(), anyString(), any()))
                 .thenReturn(java.util.Map.of("message", "Identity document uploaded"));
 
         mockMvc.perform(post(UPLOAD_URL)
@@ -213,24 +241,20 @@ class IdentityDocumentControllerTest {
     // ---------- view file ----------
 
     @Test
-    void fileReturns200WithUrlWhenDocumentPresent() throws Exception {
-        when(userService.isEmailOwnedByUser(OWNER, EMAIL)).thenReturn(true);
-        when(storage.presignedUrl(OWNER, 1, null))
-                .thenReturn(Optional.of("https://example.s3.amazonaws.com/signed"));
-
+    void adminCanViewAnotherUsersFile() throws Exception {
         mockMvc.perform(post(FILE_URL)
-                        .header("Authorization", volunteerToken())
+                        .header("Authorization", adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(slotBody(OWNER, 1)))
-                .andExpect(jsonPath("$.data.url").value("https://example.s3.amazonaws.com/signed"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.url").value("https://example.s3.amazonaws.com/signed"));
+                        .content(slotBody(OTHER, 1)))
+                .andExpect(status().isNoContent());
+
+        verify(userService, never()).isEmailOwnedByUser(anyString(), anyString());
     }
 
     @Test
     void fileReturns204WhenSlotEmpty() throws Exception {
         when(userService.isEmailOwnedByUser(OWNER, EMAIL)).thenReturn(true);
-        when(storage.presignedUrl(OWNER, 2, null)).thenReturn(Optional.empty());
+        when(storage.presignedUrl(OWNER, 2)).thenReturn(Optional.empty());
 
         mockMvc.perform(post(FILE_URL)
                         .header("Authorization", volunteerToken())

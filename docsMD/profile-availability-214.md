@@ -34,7 +34,7 @@ Headers: `Content-Type: application/json`, `Authorization: <Cognito idToken>`.
     "timezone": "America/Chicago",
     "slots": [
       { "id": 1, "frequency": "Weekdays", "startTime": "09:00", "endTime": "17:00" },
-      { "id": 6, "frequency": "Saturday", "startTime": "22:00", "endTime": "02:00" }
+      { "id": 6, "frequency": "Saturday", "startTime": "22:00", "endTime": "23:00" }
     ],
     "lastUpdatedAt": "2026-10-24T01:37:28Z" } }
 ```
@@ -62,15 +62,14 @@ Headers: `Content-Type: application/json`, `Authorization: <Cognito idToken>`.
 |---|---|
 | `userId` | required |
 | `timezone` | must be an IANA zone from `ZoneId.getAvailableZoneIds()`, e.g. `America/Chicago`. `CST`, `+05:30`, `UTC+5`, `GMT-3` and `Z` are rejected. `ZoneId.of()` would accept the fixed offsets, but they never follow daylight saving. |
-| `slots` | required (may be empty), at most 20 entries |
+| `slots` | required for schedule replacement (may be empty), at most 20 entries; omitted for timezone conversion |
 | `slots[i].frequency` | `Everyday`, `Weekdays`, `Weekends`, or `Monday` to `Sunday` |
-| `slots[i].startTime` / `endTime` | strict `HH:mm`, 24-hour (`9:00` and `24:00` are rejected); start ≠ end |
+| `slots[i].startTime` / `endTime` | strict `HH:mm`, 24-hour (`9:00` and `24:00` are rejected); end must be after start on the same local day |
 
-- An end before the start is an overnight slot.
+- An end before or equal to the start is rejected.
 - A day can have several slots, e.g. Monday 10:00–14:00 and Monday 16:00–18:00.
 - **Overlapping slots are rejected** with `slots[i] and slots[j] overlap on <Day>`:
   - This also covers a single day overlapping a grouped frequency (Weekdays 09–17 with Wednesday 12–13).
-  - It also covers an overnight slot running into the next day's slot, including Sunday night into Monday.
   - Slots that only touch (10–14 and 14–16) are allowed.
   - Exact duplicates are dropped, not rejected (see Storage).
 
@@ -90,7 +89,7 @@ Headers: `Content-Type: application/json`, `Authorization: <Cognito idToken>`.
 - **UTC:** `day_of_week`, `start_time` and `end_time` are stored in UTC.
   - Each slot is anchored on its **next occurrence** (counting today) in the user's timezone, and that real UTC instant is stored.
   - So Saturday 22:00 in America/Chicago (CDT) is stored as `Sunday 2026-10-25 03:00`.
-  - An overnight end is stored on the following day.
+  - A valid same-day local slot can cross midnight in UTC.
 - **Daylight saving:** a UTC offset depends on the date, so a weekly slot's UTC time shifts by an hour across a daylight-saving change.
   - Converting back uses the stored instant, so users always read back exactly what they saved.
   - Other readers of this table, such as future volunteer matching, should convert with `users.time_zone` rather than treat the stored UTC times as fixed for every week.
@@ -159,3 +158,41 @@ The following 194-test/24-check results are the original PR author's report, pre
   - `src/services/endpoints.json`
   - `src/services/volunteerServices.js`
 - DB schema: [Changes to the Database, Waiting for Microservice](https://github.com/saayam-for-all/database/wiki/*-Changes-to-the-Database,-Waiting-for-Microservice), section 32.
+
+## Product clarification from BA 51
+
+New slot submissions must end after they start on the same local day. Equal times and overnight
+slots return HTTP 400 naming slots[index].endTime. Existing overnight records can still be read
+and can be replaced with a valid schedule or cleared.
+
+To change the timezone of an existing schedule while preserving its actual times, send PUT to
+the same availability endpoint with userId and timezone, omitting slots.
+
+```json
+{
+  "userId": "<TEST_USER_ID>",
+  "timezone": "America/Chicago"
+}
+```
+
+The backend expands saved weekly slots, anchors each on its next occurrence in the original
+IANA timezone, and converts to the destination timezone using the rules for that occurrence.
+For example, Monday 21:00–23:00 America/New_York becomes Monday 20:00–22:00 America/Chicago.
+Days can change when the entire slot moves to another day.
+
+If conversion crosses midnight, reverses wall-clock times during a clock change, or produces
+overlaps, the backend returns HTTP 400 and retains the saved timezone and schedule.
+Legacy overnight records must be replaced with same-day slots before changing timezone.
+
+When an existing nonempty schedule has a different saved timezone, a PUT containing both a
+new timezone and nonempty slots returns HTTP 400 instructing the caller to convert first.
+This avoids silently interpreting an old schedule in a new timezone. After conversion,
+normal full PUT requests replace the schedule in its saved timezone. An explicit empty
+slots list still clears availability and may set the timezone in the same operation.
+Repeating a timezone-only PUT with the already saved timezone returns the current schedule
+without rewriting it, so retrying a successful conversion is safe.
+
+The UI needs to request timezone conversion separately, display the returned timezone, days
+and hours, and show validation errors without discarding edits. A midnight-crossing conversion
+requires the volunteer to review the schedule. No automatic splitting or 23:59 truncation occurs.
+Vacation persistence remains deferred by issue 214. City IDs are not part of this API contract.

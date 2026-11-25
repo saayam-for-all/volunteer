@@ -41,6 +41,9 @@ public interface UserService {
     java.util.Optional<String> getProfilePicturePath(String userId);
 
     boolean userExists(String userId);
+
+    Boolean getIsEu(String userId);
+
     PersonalInfoResponse getPersonalInfoById(String userId);
 
     PersonalInfoResponse updatePersonalInfo(UpdatePersonalInfoRequest updateRequest);
