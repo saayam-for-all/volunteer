@@ -16,15 +16,15 @@ import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.exception.OrganizationNotFoundException;
-import org.sfa.volunteer.exception.UserOrganizationNotFoundException;
 import org.sfa.volunteer.service.OrganizationService;
 import org.sfa.volunteer.util.Cors;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
-import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
-
+import org.springframework.dao.DataIntegrityViolationException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
@@ -37,13 +37,12 @@ public abstract class OrganizationHandlerBase
         implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
     protected static final String ORG_ID_PARAM = "orgId";
-    protected static final String USER_ID_PARAM = "userId";
     protected static final Object[] NO_ARGS = new Object[0];
-
+    private static final String INVALID_BODY_MESSAGE = "Invalid request body";
+    private static final String INVALID_REFERENCE_MESSAGE = "One or more values are invalid or refer to records that don't exist";
     private static final String OPTIONS_METHOD = "OPTIONS";
     private static final String OPTIONS_SUFFIX = ",OPTIONS";
     private static final String BODY_REQUIRED_MESSAGE = "Request body is required";
-    private static final String INVALID_BODY_MESSAGE = "Invalid request body";
     private static final String REQUIRED_SUFFIX = " is required";
     private static final String VIOLATION_SEPARATOR = "; ";
     private static final String PROPERTY_SEPARATOR = " ";
@@ -95,15 +94,17 @@ public abstract class OrganizationHandlerBase
             String msg = messageSourceUtil.getMessage(
                     SaayamStatusCode.ORGANIZATION_NOT_FOUND.getCode(), new Object[]{ e.getOrgId() });
             return error(response, HttpStatus.NOT_FOUND, SaayamStatusCode.ORGANIZATION_NOT_FOUND, msg);
-        } catch (UserOrganizationNotFoundException e) {
-            String msg = messageSourceUtil.getMessage(
-                    SaayamStatusCode.ORGANIZATION_NOT_FOUND.getCode(), new Object[]{ e.getUserId() });
-            return error(response, HttpStatus.NOT_FOUND, SaayamStatusCode.ORGANIZATION_NOT_FOUND, msg);
         } catch (IllegalArgumentException e) {
             return error(response, HttpStatus.BAD_REQUEST, SaayamStatusCode.BAD_REQUEST, e.getMessage());
         } catch (JsonProcessingException e) {
             log.warn("Invalid organization request body: {}", e.getOriginalMessage());
             return error(response, HttpStatus.BAD_REQUEST, SaayamStatusCode.BAD_REQUEST, INVALID_BODY_MESSAGE);
+        } catch (DataIntegrityViolationException e) {
+            // A foreign key or check constraint rejected the data: unknown stateId,
+            // categoryId or userId, or a value the database doesn't allow.
+            log.warn("Organization request rejected by a database constraint");
+            return error(response, HttpStatus.BAD_REQUEST, SaayamStatusCode.BAD_REQUEST,
+                    INVALID_REFERENCE_MESSAGE);
         } catch (Exception e) {
             log.error("Organization request failed", e);
             String msg = messageSourceUtil.getMessage(SaayamStatusCode.INTERNAL_SERVER_ERROR.getCode(), null);
@@ -183,7 +184,19 @@ public abstract class OrganizationHandlerBase
         if (ctx == null) {
             synchronized (OrganizationHandlerBase.class) {
                 if (springContext == null) {
-                    springContext = SpringApplication.run(VolunteerApplication.class);
+                        var application = new SpringApplicationBuilder(VolunteerApplication.class)
+                            .web(WebApplicationType.NONE)
+                            .properties(
+                                    "spring.main.web-application-type=none",
+                                    "spring.autoconfigure.exclude=org.springframework.cloud.function.serverless.web.ServerlessAutoConfiguration"
+                            )
+                            .build();
+                    // The servlet initializer logs the process environment and is unnecessary here.
+                    application.setInitializers(application.getInitializers().stream()
+                            .filter(initializer -> !(initializer instanceof
+                                    com.amazonaws.serverless.proxy.spring.AwsSpringWebRuntimeInitializer))
+                            .toList());
+                    springContext = application.run();
                 }
                 ctx = springContext;
             }

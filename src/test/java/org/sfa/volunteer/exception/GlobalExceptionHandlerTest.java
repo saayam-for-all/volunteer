@@ -68,7 +68,6 @@ class GlobalExceptionHandlerTest {
                 Arguments.of(new UserStatusNotFoundException(1), SaayamStatusCode.INVALID_USER_STATUS),
                 Arguments.of(new UserCategoryNotFoundException(1), SaayamStatusCode.INVALID_USER_CATEGORY),
                 Arguments.of(new UserNotFoundException("user-1"), SaayamStatusCode.USER_NOT_FOUND),
-                Arguments.of(new UserOrganizationNotFoundException("user-1"), SaayamStatusCode.ORGANIZATION_NOT_FOUND),
                 Arguments.of(new CountryNotFoundException("unknown-country"), SaayamStatusCode.COUNTRY_NOT_FOUND),
                 Arguments.of(new VolunteerException("VOLUNTEER_NOT_FOUND", "user-1"), SaayamStatusCode.VOLUNTEER_NOT_FOUND),
                 Arguments.of(new VolunteerException("VOLUNTEER_EXISTS", "user-1"), SaayamStatusCode.VOLUNTEER_EXISTS),

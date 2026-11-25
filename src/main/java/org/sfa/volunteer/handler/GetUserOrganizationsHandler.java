@@ -6,23 +6,25 @@ import org.sfa.volunteer.service.OrganizationService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.http.HttpMethod;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.sfa.volunteer.dto.request.UserOrganizationsRequest;
 
-/** GET /organizations/users/{userId} */
+/** POST /organizations/user  body: { "userId": "..." } */
 public class GetUserOrganizationsHandler extends OrganizationHandlerBase {
 
     public GetUserOrganizationsHandler() {
-        super(HttpMethod.GET.name());
+        super(HttpMethod.POST.name());
     }
 
     GetUserOrganizationsHandler(OrganizationService organizationService, ResponseBuilder responseBuilder,
                                 MessageSourceUtil messageSourceUtil) {
-        super(HttpMethod.GET.name(), organizationService, responseBuilder, messageSourceUtil);
+        super(HttpMethod.POST.name(), organizationService, responseBuilder, messageSourceUtil);
     }
 
     @Override
-    protected Result handle(APIGatewayProxyRequestEvent event) {
-        String userId = requirePathParam(event, USER_ID_PARAM);
-        return ok(SaayamStatusCode.SUCCESS, new Object[]{ userId },
-                organizationService.getOrganizationsByUserId(userId));
+    protected Result handle(APIGatewayProxyRequestEvent event) throws JsonProcessingException {
+        UserOrganizationsRequest request = readBody(event, UserOrganizationsRequest.class);
+        return ok(SaayamStatusCode.SUCCESS, new Object[]{ request.userId() },
+                organizationService.getOrganizationsByUserId(request.userId()));
     }
 }

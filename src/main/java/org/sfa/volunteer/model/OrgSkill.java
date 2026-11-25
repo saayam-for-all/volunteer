@@ -24,6 +24,6 @@ public class OrgSkill {
     @Column(name = "cat_id")
     private String catId;
 
-    @Column(name = "assigned_at")
+    @Column(name = "assigned_at", insertable = false, updatable = false)
     private ZonedDateTime assignedAt;
 }
