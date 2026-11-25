@@ -4,6 +4,7 @@ import org.sfa.volunteer.dto.request.CreateUserRequest;
 import org.sfa.volunteer.dto.request.UpdatePersonalInfoRequest;
 import org.sfa.volunteer.dto.request.UpdateAvailabilityRequest;
 import org.sfa.volunteer.dto.request.UpdateUserProfileRequest;
+import org.sfa.volunteer.dto.request.UpdateProfilePageRequest;
 import org.sfa.volunteer.dto.request.UserPreferenceRequest;
 import org.sfa.volunteer.dto.response.UserPreferenceResponse;
 import org.sfa.volunteer.dto.response.*;
@@ -56,4 +57,8 @@ public interface UserService {
     AvailabilityResponse getAvailability(String userId);
 
     AvailabilityResponse updateAvailability(UpdateAvailabilityRequest request);
+
+    // Profile Page
+    ProfilePageResponse getProfilePage(String userId);
+    ProfilePageResponse updateProfilePage(String userId, UpdateProfilePageRequest request);
 }
