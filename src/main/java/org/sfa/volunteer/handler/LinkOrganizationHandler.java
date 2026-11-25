@@ -6,8 +6,10 @@ import org.sfa.volunteer.service.OrganizationService;
 import org.sfa.volunteer.util.MessageSourceUtil;
 import org.sfa.volunteer.util.ResponseBuilder;
 import org.springframework.http.HttpMethod;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.sfa.volunteer.dto.request.LinkOrganizationRequest;
 
-/** POST /organizations/{orgId}/users/{userId} */
+/** POST /organizations/link  body: { "userId": "...", "orgId": "..." } */
 public class LinkOrganizationHandler extends OrganizationHandlerBase {
 
     public LinkOrganizationHandler() {
@@ -20,10 +22,9 @@ public class LinkOrganizationHandler extends OrganizationHandlerBase {
     }
 
     @Override
-    protected Result handle(APIGatewayProxyRequestEvent event) {
-        String orgId = requirePathParam(event, ORG_ID_PARAM);
-        String userId = requirePathParam(event, USER_ID_PARAM);
-        organizationService.linkOrganization(userId, orgId);
-        return ok(SaayamStatusCode.SUCCESS, new Object[]{ orgId }, null);
+    protected Result handle(APIGatewayProxyRequestEvent event) throws JsonProcessingException {
+        LinkOrganizationRequest request = readBody(event, LinkOrganizationRequest.class);
+        organizationService.linkOrganization(request.userId(), request.orgId());
+        return ok(SaayamStatusCode.SUCCESS, new Object[]{ request.orgId() }, null);
     }
 }

@@ -117,10 +117,10 @@ class OrganizationHandlersTest {
                 eq(500), eq(SaayamStatusCode.INTERNAL_SERVER_ERROR), any());
     }
 
-    @Test
+        @Test
     void link_returns200_andPassesUserIdFirst() {
         APIGatewayProxyResponseEvent response = link().handleRequest(
-                event(POST).withPathParameters(Map.of(ORG_ID_PARAM, ORG_ID, USER_ID_PARAM, USER_ID)), null);
+                event(POST).withBody("{\"userId\":\"" + USER_ID + "\",\"orgId\":\"" + ORG_ID + "\"}"), null);
 
         assertThat(response.getStatusCode()).isEqualTo(200);
         verify(organizationService).linkOrganization(USER_ID, ORG_ID);
@@ -132,7 +132,7 @@ class OrganizationHandlersTest {
                 .when(organizationService).linkOrganization(USER_ID, ORG_ID);
 
         APIGatewayProxyResponseEvent response = link().handleRequest(
-                event(POST).withPathParameters(Map.of(ORG_ID_PARAM, ORG_ID, USER_ID_PARAM, USER_ID)), null);
+                event(POST).withBody("{\"userId\":\"" + USER_ID + "\",\"orgId\":\"" + ORG_ID + "\"}"), null);
 
         assertThat(response.getStatusCode()).isEqualTo(404);
         verify(responseBuilder).buildErrorResponse(
@@ -142,7 +142,7 @@ class OrganizationHandlersTest {
     @Test
     void link_missingUserId_returns400() {
         APIGatewayProxyResponseEvent response = link().handleRequest(
-                event(POST).withPathParameters(Map.of(ORG_ID_PARAM, ORG_ID)), null);
+                event(POST).withBody("{\"orgId\":\"" + ORG_ID + "\"}"), null);
 
         assertThat(response.getStatusCode()).isEqualTo(400);
         verify(responseBuilder).buildErrorResponse(
@@ -156,11 +156,22 @@ class OrganizationHandlersTest {
         when(organizationService.getOrganizationsByUserId(USER_ID)).thenReturn(organizations);
 
         APIGatewayProxyResponseEvent response = userOrganizations().handleRequest(
-                event(GET).withPathParameters(Map.of(USER_ID_PARAM, USER_ID)), null);
+                event(POST).withBody("{\"userId\":\"" + USER_ID + "\"}"), null);
 
         assertThat(response.getStatusCode()).isEqualTo(200);
         verify(responseBuilder).buildSuccessResponse(
                 eq(SaayamStatusCode.SUCCESS), any(Object[].class), eq(organizations));
+    }
+
+    @Test
+    void userOrganizations_missingUserId_returns400() {
+        APIGatewayProxyResponseEvent response = userOrganizations().handleRequest(
+                event(POST).withBody("{}"), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(400);
+        verify(responseBuilder).buildErrorResponse(
+                eq(400), eq(SaayamStatusCode.BAD_REQUEST), eq("userId is required"));
+        verifyNoInteractions(organizationService);
     }
 
     @Test
