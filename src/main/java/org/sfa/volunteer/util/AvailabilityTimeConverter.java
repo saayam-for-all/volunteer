@@ -50,6 +50,27 @@ public final class AvailabilityTimeConverter {
         return new UtcSlot(startUtc.getDayOfWeek(), startUtc, endUtc);
     }
 
+    /**
+     * Re-anchor the saved weekly hours on their next occurrence in the source zone, then preserve
+     * that instant in the destination zone. Historical stored offsets must not override current DST.
+     */
+    public static UtcSlot changeTimezone(LocalSlot slot, ZoneId source, ZoneId destination, LocalDate today) {
+        if (!slot.end().isAfter(slot.start())) {
+            throw new IllegalArgumentException(
+                    "slots.endTime: saved overnight availability must be replaced with same-day slots");
+        }
+        UtcSlot utc = toUtc(slot.day(), slot.start(), slot.end(), source, today);
+        ZonedDateTime start = utc.start().atOffset(ZoneOffset.UTC).atZoneSameInstant(destination);
+        ZonedDateTime end = utc.end().atOffset(ZoneOffset.UTC).atZoneSameInstant(destination);
+        if (!start.toLocalDate().equals(end.toLocalDate())
+                || !end.toLocalTime().isAfter(start.toLocalTime())) {
+            throw new IllegalArgumentException(
+                    "timezone: converted availability crosses midnight or reverses clock times; "
+                            + "review the schedule before changing timezone");
+        }
+        return utc;
+    }
+
     // atZone silently moves nonexistent wall-clock times forward during a DST gap.
     private static void requireExistingTime(LocalDateTime local, ZoneId zone, String field) {
         if (zone.getRules().getValidOffsets(local).isEmpty()) {

@@ -198,4 +198,61 @@ class AvailabilityTimeConverterTest {
     void collapsesEmptySetToNothing() {
         assertThat(AvailabilityTimeConverter.collapse(EnumSet.noneOf(DayOfWeek.class))).isEmpty();
     }
+
+    @Test
+    void changingZonePreservesInstantInWinterAndSummer() {
+        ZoneId source = ZoneId.of("America/New_York");
+        ZoneId target = ZoneId.of("America/Chicago");
+        for (LocalDate date : java.util.List.of(LocalDate.of(2026, 1, 5), LocalDate.of(2026, 7, 6))) {
+            var slot = new AvailabilityTimeConverter.LocalSlot(
+                    DayOfWeek.MONDAY, LocalTime.of(21, 0), LocalTime.of(23, 0));
+            var converted = AvailabilityTimeConverter.changeTimezone(slot, source, target, date);
+            var local = AvailabilityTimeConverter.toLocal(converted.start(), converted.end(), target);
+            assertThat(local.day()).isEqualTo(DayOfWeek.MONDAY);
+            assertThat(local.start()).isEqualTo(LocalTime.of(20, 0));
+            assertThat(local.end()).isEqualTo(LocalTime.of(22, 0));
+        }
+    }
+
+    @Test
+    void changingZoneRecalculatesOffsetsForDifferentDstTransitionDates() {
+        var slot = new AvailabilityTimeConverter.LocalSlot(
+                DayOfWeek.MONDAY, LocalTime.of(12, 0), LocalTime.of(13, 0));
+        ZoneId source = ZoneId.of("America/New_York");
+        ZoneId target = ZoneId.of("Europe/London");
+        var winter = AvailabilityTimeConverter.changeTimezone(slot, source, target, LocalDate.of(2026, 1, 5));
+        var transitionWeek = AvailabilityTimeConverter.changeTimezone(slot, source, target, LocalDate.of(2026, 3, 9));
+        assertThat(AvailabilityTimeConverter.toLocal(winter.start(), winter.end(), target).start())
+                .isEqualTo(LocalTime.of(17, 0));
+        assertThat(AvailabilityTimeConverter.toLocal(transitionWeek.start(), transitionWeek.end(), target).start())
+                .isEqualTo(LocalTime.of(16, 0));
+    }
+
+    @Test
+    void changingZoneMayMoveEntireSlotToAnotherDay() {
+        var slot = new AvailabilityTimeConverter.LocalSlot(
+                DayOfWeek.SUNDAY, LocalTime.of(20, 0), LocalTime.of(22, 0));
+        var utc = AvailabilityTimeConverter.changeTimezone(slot, ZoneId.of("America/New_York"),
+                ZoneId.of("Europe/London"), LocalDate.of(2026, 1, 4));
+        var local = AvailabilityTimeConverter.toLocal(utc.start(), utc.end(), ZoneId.of("Europe/London"));
+        assertThat(local.day()).isEqualTo(DayOfWeek.MONDAY);
+        assertThat(local.start()).isEqualTo(LocalTime.of(1, 0));
+        assertThat(local.end()).isEqualTo(LocalTime.of(3, 0));
+    }
+
+    @Test
+    void changingZoneRejectsMidnightCrossingAndLegacyOvernightSlots() {
+        ZoneId source = ZoneId.of("America/New_York");
+        ZoneId target = ZoneId.of("Europe/London");
+        var crossing = new AvailabilityTimeConverter.LocalSlot(
+                DayOfWeek.MONDAY, LocalTime.of(18, 0), LocalTime.of(20, 0));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                AvailabilityTimeConverter.changeTimezone(crossing, source, target, LocalDate.of(2026, 1, 5)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("crosses midnight");
+        var legacy = new AvailabilityTimeConverter.LocalSlot(
+                DayOfWeek.MONDAY, LocalTime.of(22, 0), LocalTime.of(2, 0));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                AvailabilityTimeConverter.changeTimezone(legacy, source, target, LocalDate.of(2026, 1, 5)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("saved overnight");
+    }
 }
