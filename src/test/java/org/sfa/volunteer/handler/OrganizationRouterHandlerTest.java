@@ -36,9 +36,11 @@ class OrganizationRouterHandlerTest {
 
     @Test
     void unknownResourceReturns404() {
-        assertThat(router.handleRequest(
-                new APIGatewayProxyRequestEvent().withResource("/nope"), null)
-                .getStatusCode()).isEqualTo(404);
+        APIGatewayProxyResponseEvent response = router.handleRequest(
+                new APIGatewayProxyRequestEvent().withResource("/nope"), null);
+
+        assertThat(response.getStatusCode()).isEqualTo(404);
+        assertThat(response.getHeaders()).containsKey("Access-Control-Allow-Origin");
     }
 
     @Test

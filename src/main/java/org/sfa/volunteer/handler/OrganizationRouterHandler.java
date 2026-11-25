@@ -5,7 +5,9 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 
+import org.sfa.volunteer.util.Cors;
 import java.util.Map;
+
 
 /**
  * Single Lambda entry point for the organization API. API Gateway routes every
@@ -44,7 +46,10 @@ public class OrganizationRouterHandler
         RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> target =
                 event == null ? null : routes.get(event.getResource());
         if (target == null) {
-            return new APIGatewayProxyResponseEvent().withStatusCode(404).withBody(NOT_FOUND_BODY);
+            return new APIGatewayProxyResponseEvent()
+                .withStatusCode(404)
+                .withHeaders(Cors.headers("OPTIONS"))
+                .withBody(NOT_FOUND_BODY);
         }
         return target.handleRequest(event, context);
     }
