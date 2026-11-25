@@ -497,9 +497,13 @@ class OnboardingAvailabilityPostgresTest {
     }
 
     @Test
-    void profileOvernightDataIsReadTruthfullyButCannotBeResavedUnderOnboardingRules() {
-        var profile = profiles.updateAvailability(new UpdateAvailabilityRequest("SID-T2", "America/Chicago",
-                List.of(new AvailabilitySlotRequest("Monday", "22:00", "02:00")), null, null, null));
+    void historicalOvernightDataIsReadTruthfullyButCannotBeResavedUnderOnboardingRules() {
+        profiles.updateAvailability(new UpdateAvailabilityRequest("SID-T2", "America/Chicago",
+                List.of(new AvailabilitySlotRequest("Monday", "22:00", "23:00")), null, null, null));
+        jdbc.update("""
+                UPDATE user_availability SET end_time = start_time + INTERVAL '4 hours' WHERE user_id = 'SID-T2'
+                """);
+        var profile = profiles.getAvailability("SID-T2");
         var before = onboarding.getOnboardingAvailability("SID-T2");
         assertThat(before.availability()).extracting(OnboardingAvailabilitySlotResponse::dayOfWeek,
                 OnboardingAvailabilitySlotResponse::startTime, OnboardingAvailabilitySlotResponse::endTime)
@@ -564,7 +568,7 @@ class OnboardingAvailabilityPostgresTest {
             var profileWrite = executor.submit(() -> {
                 Thread.currentThread().setName("ba33-profile-writer");
                 return profiles.updateAvailability(new UpdateAvailabilityRequest("SID-T2", "America/Chicago",
-                        List.of(new AvailabilitySlotRequest("Monday", "09:00", "12:00")), null, null, null));
+                        null, null, null, null));
             });
             assertThat(profileLocked.await(10, TimeUnit.SECONDS)).isTrue();
             var onboardingWrite = executor.submit(() -> {

@@ -119,16 +119,16 @@ class ProfileAvailabilityPostgresTest {
     }
 
     @Test
-    void groupedOvernightAndDeduplicatedSchedulesCanBeReplacedAndCleared() {
+    void groupedAndDeduplicatedSchedulesCanBeReplacedAndCleared() {
         var saved = users.updateAvailability(new UpdateAvailabilityRequest("SID-T1", "America/Chicago", List.of(
                 new AvailabilitySlotRequest("Weekdays", "09:00", "17:00"),
                 new AvailabilitySlotRequest("Monday", "09:00", "17:00"),
-                new AvailabilitySlotRequest("Saturday", "22:00", "02:00")), true, "2026-12-20", "2026-12-31"));
+                new AvailabilitySlotRequest("Saturday", "22:00", "23:00")), true, "2026-12-20", "2026-12-31"));
         assertThat(users.getAvailability("SID-T1")).isEqualTo(saved);
         assertThat(saved.getSlots()).extracting(AvailabilitySlotResponse::getFrequency,
                         AvailabilitySlotResponse::getStartTime, AvailabilitySlotResponse::getEndTime)
-                .containsExactly(tuple("Weekdays", "09:00", "17:00"), tuple("Saturday", "22:00", "02:00"));
-        users.updateAvailability(new UpdateAvailabilityRequest("SID-T1", "Asia/Kolkata",
+                .containsExactly(tuple("Weekdays", "09:00", "17:00"), tuple("Saturday", "22:00", "23:00"));
+        users.updateAvailability(new UpdateAvailabilityRequest("SID-T1", "America/Chicago",
                 List.of(new AvailabilitySlotRequest("Everyday", "08:00", "10:00")), null, null, null));
         assertThat(users.getAvailability("SID-T1").getSlots()).extracting(AvailabilitySlotResponse::getFrequency,
                         AvailabilitySlotResponse::getStartTime, AvailabilitySlotResponse::getEndTime)
@@ -171,7 +171,11 @@ class ProfileAvailabilityPostgresTest {
             var reading = executor.submit(() -> users.getAvailability("SID-T1"));
             assertThat(accountRead.await(10, TimeUnit.SECONDS)).isTrue();
             var replacement = users.updateAvailability(new UpdateAvailabilityRequest("SID-T1", "Asia/Kolkata",
-                    List.of(new AvailabilitySlotRequest("Tuesday", "10:00", "11:00")), null, null, null));
+                    null, null, null, null));
+            assertThat(replacement.getTimezone()).isEqualTo("Asia/Kolkata");
+            assertThat(replacement.getSlots()).extracting(AvailabilitySlotResponse::getFrequency,
+                            AvailabilitySlotResponse::getStartTime, AvailabilitySlotResponse::getEndTime)
+                    .containsExactly(tuple("Monday", "14:30", "22:30"));
             replacementCommitted.countDown();
             assertThat(reading.get(10, TimeUnit.SECONDS)).isEqualTo(before);
             assertThat(users.getAvailability("SID-T1")).isEqualTo(replacement);

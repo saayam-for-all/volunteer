@@ -1,4 +1,3 @@
-
 package org.sfa.volunteer.handler;
 
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
@@ -15,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.exception.IdentityDocumentException;
+import org.sfa.volunteer.exception.VolunteerException;
 import org.sfa.volunteer.service.IdentityDocumentStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.*;
 class IdentityDocumentHandlerTest {
 
     private static final String BASE =
-            "/0.0.1/volunteers/identity-document";
+            "/identity-document";
 
     private static final String USER_ID = "SID-001";
     private static final String EMAIL = "owner@example.org";
@@ -96,6 +96,7 @@ class IdentityDocumentHandlerTest {
                 new APIGatewayProxyRequestEvent()
                         .withHttpMethod(method)
                         .withPath(path)
+                        .withResource(path)
                         .withBody(body);
 
         APIGatewayProxyRequestEvent.ProxyRequestContext context =
@@ -134,8 +135,7 @@ class IdentityDocumentHandlerTest {
                   "documentSlot": 1,
                   "documentName": "passport.pdf",
                   "base64": "JVBERi0xLjQ=",
-                  "expiresOn": "%s",
-                  "regionHint": "us-east-1"
+                  "expiresOn": "%s"
                 }
                 """.formatted(expiry);
     }
@@ -208,6 +208,17 @@ class IdentityDocumentHandlerTest {
         assertNull(result.getBody());
     }
 
+    @Test
+    void metadataReturns404WhenUserIsNotAVolunteer() throws Exception {
+        allowOwner();
+        when(volunteerService.getIdentityDocumentMetadata(USER_ID, 1))
+                .thenThrow(VolunteerException.volunteerNotFound(USER_ID));
+
+        APIGatewayProxyResponseEvent result = invoke("POST", BASE + "/metadata", documentRequest());
+
+        assertEquals(404, result.getStatusCode());
+    }
+
     // ----------------------------------
     // UPLOAD TEST
     // ----------------------------------
@@ -221,8 +232,7 @@ class IdentityDocumentHandlerTest {
                 eq(1),
                 eq("passport.pdf"),
                 eq("JVBERi0xLjQ="),
-                any(LocalDate.class),
-                eq("us-east-1")
+                any(LocalDate.class)
         )).thenReturn(Map.of(
                 "message", "Identity document uploaded",
                 "userId", USER_ID
@@ -243,8 +253,7 @@ class IdentityDocumentHandlerTest {
                 eq(1),
                 eq("passport.pdf"),
                 anyString(),
-                any(LocalDate.class),
-                eq("us-east-1")
+                any(LocalDate.class)
         );
     }
 
@@ -257,7 +266,7 @@ class IdentityDocumentHandlerTest {
         allowOwner();
 
         when(storage.presignedUrl(
-                USER_ID, 1, null
+                USER_ID, 1
         )).thenReturn(Optional.of(
                 "https://example.org/presigned-test-url"
         ));
@@ -278,7 +287,7 @@ class IdentityDocumentHandlerTest {
         allowOwner();
 
         when(storage.presignedUrl(
-                USER_ID, 1, null
+                USER_ID, 1
         )).thenReturn(Optional.empty());
 
         APIGatewayProxyResponseEvent result = invoke(
@@ -335,9 +344,7 @@ class IdentityDocumentHandlerTest {
     }
 
     @Test
-    void adminCanAccessWithoutOwnershipLookup()
-            throws Exception {
-
+    void adminCanReadAnotherUsersMetadata() throws Exception {
         APIGatewayProxyRequestEvent event = request(
                 "POST",
                 BASE + "/metadata",
@@ -348,24 +355,18 @@ class IdentityDocumentHandlerTest {
                 "claims",
                 Map.of(
                         "email", "admin@example.org",
-                        "cognito:groups", "admin"
+                        "cognito:groups", "Admins"
                 )
         ));
-
-        when(volunteerService.getIdentityDocumentMetadata(
-                USER_ID, 1
-        )).thenReturn(null);
 
         APIGatewayProxyResponseEvent result =
                 handler.handleRequest(event, null);
 
         assertEquals(204, result.getStatusCode());
 
-        verifyNoInteractions(userService);
-        verify(volunteerService)
-                .getIdentityDocumentMetadata(USER_ID, 1);
+        verify(volunteerService).getIdentityDocumentMetadata(USER_ID, 1);
+        verify(userService, never()).isEmailOwnedByUser(anyString(), anyString());
     }
-
     // ----------------------------------
     // VALIDATION TESTS
     // ----------------------------------
@@ -546,8 +547,7 @@ class IdentityDocumentHandlerTest {
                 eq(1),
                 anyString(),
                 anyString(),
-                any(LocalDate.class),
-                any()
+                any(LocalDate.class)        
         )).thenThrow(new IdentityDocumentException(
                 SaayamStatusCode.DOCUMENT_STORAGE_ERROR,
                 HttpStatus.INTERNAL_SERVER_ERROR,

@@ -14,19 +14,25 @@ class DocumentStatusTest {
     @Test
     void returnsValid_whenExpiryIsWellInTheFuture() {
         assertEquals(DocumentStatus.VALID,
-                DocumentStatus.from(TODAY.plusDays(90), TODAY));
+                DocumentStatus.from(TODAY.plusMonths(4), TODAY));
     }
 
     @Test
     void returnsValid_whenExpiryIsJustOutsideThreshold() {
         assertEquals(DocumentStatus.VALID,
-                DocumentStatus.from(TODAY.plusDays(31), TODAY));
+                DocumentStatus.from(TODAY.plusMonths(3).plusDays(1), TODAY));
     }
 
     @Test
     void returnsExpiringSoon_atThresholdBoundary() {
         assertEquals(DocumentStatus.EXPIRING_SOON,
-                DocumentStatus.from(TODAY.plusDays(30), TODAY));
+                DocumentStatus.from(TODAY.plusMonths(3), TODAY));
+    }
+
+    @Test
+    void returnsExpiringSoon_whenExpiryIsTwoMonthsAway() {
+        assertEquals(DocumentStatus.EXPIRING_SOON,
+                DocumentStatus.from(TODAY.plusMonths(2), TODAY));
     }
 
     @Test

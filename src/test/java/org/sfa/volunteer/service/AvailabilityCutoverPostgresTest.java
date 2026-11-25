@@ -323,8 +323,7 @@ class AvailabilityCutoverPostgresTest {
     void reviewRequiresEligibleStoredIntervalsEvenAfterStepFourWasSaved() {
         saveOnboarding();
         var review = VolunteerRequest.builder().userId(USER).step(5).build();
-        profiles.updateAvailability(new UpdateAvailabilityRequest(USER, "Asia/Kolkata",
-                List.of(new AvailabilitySlotRequest("Monday", "22:00", "06:00")), null, null, null));
+        jdbc.update("UPDATE user_availability SET end_time = start_time + INTERVAL '21 hours' WHERE user_id = ?", USER);
         assertThatThrownBy(() -> volunteers.updateVolunteerCompletion(review))
                 .isInstanceOfSatisfying(OnboardingAvailabilityException.class, failure ->
                         assertThat(failure.getErrorCode()).isEqualTo("STEP_FOUR_REQUIRED"));

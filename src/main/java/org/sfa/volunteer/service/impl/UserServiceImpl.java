@@ -400,6 +400,14 @@ import org.springframework.util.StringUtils;
     }
 
     @Override
+    public Boolean getIsEu(String userId) { 
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        return user.getIsEu();
+    }
+    
+    @Override
     public UserSkillsResponse getUserSkills(String userId) {
         if (userId == null || userId.isBlank()) {
             throw new IllegalArgumentException("userId is required");
@@ -462,23 +470,65 @@ import org.springframework.util.StringUtils;
             throw new IllegalArgumentException("userId is required");
         }
         ZoneId zone = parseTimezone(request.getTimezone());
-        List<LocalSlot> localSlots = parseSlots(request.getSlots());
+        List<LocalSlot> localSlots = request.getSlots() == null ? null : parseSlots(request.getSlots());
 
-        userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        var account = userRepository.lockAvailabilityAccountById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+        boolean timezoneChanged = !zone.getId().equals(account.getTimeZone());
+        List<UtcSlot> utcSlots;
+        if (localSlots == null) {
+            var existing = readAvailabilityRows(userId);
+            if (!timezoneChanged) {
+                return toAvailabilityResponse(userId, zone.getId(), existing);
+            }
+            utcSlots = changeAvailabilityTimezone(existing, parseTimezone(account.getTimeZone()), zone);
+        } else {
+            if (!localSlots.isEmpty() && timezoneChanged
+                    && !userAvailabilityRepository.findByUser_IdOrderByIdAsc(userId).isEmpty()) {
+                throw new IllegalArgumentException(
+                        "timezone: omit slots to convert saved availability before editing its times");
+            }
+            utcSlots = toUtcSlots(localSlots, zone, LocalDate.now(availabilityClock.withZone(zone)));
+        }
+
+        // Validate conversion completely before changing either the timezone or the saved slots.
         userRepository.updateAvailabilityTimezone(userId, zone.getId());
-        LocalDate anchorDate = LocalDate.now(availabilityClock.withZone(zone));
-        return toAvailabilityResponse(userId, zone.getId(), replaceAvailabilityRows(userId, zone, localSlots, anchorDate));
+        return toAvailabilityResponse(userId, zone.getId(), saveAvailabilityRows(userId, utcSlots));
+    }
+
+    private List<UtcSlot> changeAvailabilityTimezone(
+            List<VolunteerUserAvailability> existing, ZoneId source, ZoneId destination) {
+        LocalDate anchorDate = LocalDate.now(availabilityClock.withZone(source));
+        List<UtcSlot> utcSlots = new ArrayList<>();
+        Map<LocalSlot, Integer> converted = new LinkedHashMap<>();
+        for (var row : existing) {
+            LocalSlot local = AvailabilityTimeConverter.toLocal(row.getStartTime(), row.getEndTime(), source);
+            UtcSlot utc = AvailabilityTimeConverter.changeTimezone(local, source, destination, anchorDate);
+            converted.putIfAbsent(AvailabilityTimeConverter.toLocal(utc.start(), utc.end(), destination), utcSlots.size());
+            utcSlots.add(utc);
+        }
+        rejectOverlaps(converted);
+        return utcSlots;
     }
 
     @Override
     public List<VolunteerUserAvailability> replaceAvailabilityRows(String userId, ZoneId zone,
             List<LocalSlot> localSlots, LocalDate anchorDate) {
         userRepository.lockAvailabilityAccountById(userId).orElseThrow(() -> new UserNotFoundException(userId));
+        return saveAvailabilityRows(userId, toUtcSlots(localSlots, zone, anchorDate));
+    }
+
+    private static List<UtcSlot> toUtcSlots(List<LocalSlot> localSlots, ZoneId zone, LocalDate anchorDate) {
+        return localSlots.stream()
+                .map(slot -> AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, anchorDate))
+                .toList();
+    }
+
+    private List<VolunteerUserAvailability> saveAvailabilityRows(String userId, List<UtcSlot> utcSlots) {
         User user = entityManager.getReference(User.class, userId);
         LocalDateTime now = LocalDateTime.ofInstant(availabilityClock.instant(), ZoneOffset.UTC);
         List<VolunteerUserAvailability> rows = new ArrayList<>();
-        for (LocalSlot slot : localSlots) {
-            UtcSlot utc = AvailabilityTimeConverter.toUtc(slot.day(), slot.start(), slot.end(), zone, anchorDate);
+        for (UtcSlot utc : utcSlots) {
             rows.add(VolunteerUserAvailability.builder().user(user).dayOfWeek(dayName(utc.day()))
                     .startTime(utc.start()).endTime(utc.end()).lastUpdatedAt(now).build());
         }
@@ -525,8 +575,8 @@ import org.springframework.util.StringUtils;
             }
             LocalTime start = parseTime(slot.getStartTime(), field + ".startTime");
             LocalTime end = parseTime(slot.getEndTime(), field + ".endTime");
-            if (start.equals(end)) {
-                throw new IllegalArgumentException(field + ": startTime and endTime must differ");
+            if (!end.isAfter(start)) {
+                throw new IllegalArgumentException(field + ".endTime must be after startTime on the same day");
             }
             int index = i;
             frequency.getDays().forEach(day -> localSlots.putIfAbsent(new LocalSlot(day, start, end), index));

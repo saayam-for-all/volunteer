@@ -20,6 +20,7 @@ import org.sfa.volunteer.dto.response.IdentityDocumentMetadata;
 import org.sfa.volunteer.exception.ForbiddenException;
 import org.sfa.volunteer.exception.IdentityDocumentException;
 import org.sfa.volunteer.exception.UserNotFoundException;
+import org.sfa.volunteer.exception.VolunteerException;
 import org.sfa.volunteer.service.IdentityDocumentStorageService;
 import org.sfa.volunteer.service.UserService;
 import org.sfa.volunteer.service.VolunteerService;
@@ -47,11 +48,11 @@ public class IdentityDocumentHandler implements
     private static final String ALLOWED_METHODS = "POST,OPTIONS";
 
     private static final String BASE_PATH =
-            "/0.0.1/volunteers/identity-document";
+            "/identity-document";
 
     // Conservative JSON body limit, not a guarantee that
     // Lambda will accept the full API Gateway event payload.
-    private static final int MAX_BODY_BYTES = 5_000_000;
+    private static final int MAX_BODY_BYTES = 3_000_000;
 
     private static final ObjectMapper MAPPER = new ObjectMapper()
             .registerModule(new JavaTimeModule())
@@ -124,7 +125,7 @@ public class IdentityDocumentHandler implements
         }
 
         try {
-            String path = event.getPath();
+            String path = event.getResource();
 
             if (path == null || !Set.of(
                     BASE_PATH + "/metadata",
@@ -186,6 +187,19 @@ public class IdentityDocumentHandler implements
                     message(SaayamStatusCode.USER_NOT_FOUND,
                             new Object[]{e.getUserId()}));
 
+        } catch (VolunteerException e) {
+            if (e.getMessage() != null
+                    && e.getMessage().contains(SaayamStatusCode.VOLUNTEER_NOT_FOUND.toString())) {
+                return error(response, 404,
+                        SaayamStatusCode.VOLUNTEER_NOT_FOUND,
+                        message(SaayamStatusCode.VOLUNTEER_NOT_FOUND,
+                                new Object[]{e.getUserId()}));
+            }
+            log.error("Identity document request failed", e);
+            return error(response, 500,
+                    SaayamStatusCode.INTERNAL_SERVER_ERROR,
+                    message(SaayamStatusCode.INTERNAL_SERVER_ERROR));
+
         } catch (ResponseStatusException e) {
             int status = e.getStatusCode().value();
             SaayamStatusCode code =
@@ -228,7 +242,7 @@ public class IdentityDocumentHandler implements
                 parseAndValidate(body,
                         GetIdentityDocumentRequest.class);
 
-        authorize(request.userId(), caller);
+        authorizeRead(request.userId(), caller);
 
         IdentityDocumentMetadata result =
                 volunteerService.getIdentityDocumentMetadata(
@@ -256,7 +270,7 @@ public class IdentityDocumentHandler implements
                 parseAndValidate(body,
                         UploadIdentityDocumentRequest.class);
 
-        authorize(request.userId(), caller);
+        authorizeWrite(request.userId(), caller);
 
         Map<String, Object> result =
                 storage.uploadBase64(
@@ -264,9 +278,7 @@ public class IdentityDocumentHandler implements
                         request.documentSlot(),
                         request.documentName(),
                         request.base64(),
-                        request.expiresOn(),
-                        request.regionHint()
-                );
+                        request.expiresOn());
 
         return success(response, 200,
                 responseBuilder.buildSuccessResponse(
@@ -284,14 +296,12 @@ public class IdentityDocumentHandler implements
                 parseAndValidate(body,
                         GetIdentityDocumentRequest.class);
 
-        authorize(request.userId(), caller);
+        authorizeRead(request.userId(), caller);
 
         Optional<String> url =
                 storage.presignedUrl(
                         request.userId(),
-                        request.documentSlot(),
-                        null
-                );
+                        request.documentSlot());
 
         if (url.isEmpty()) {
             return response.withStatusCode(204);
@@ -304,14 +314,22 @@ public class IdentityDocumentHandler implements
                 ));
     }
 
-    private void authorize(String userId, Caller caller) {
-        IdentityDocumentAuthorizer.requireOwnerOrAdmin(
-                userService,
-                userId,
-                caller.email(),
-                caller.groups()
-        );
-    }
+        private void authorizeRead(String userId, Caller caller) {
+                IdentityDocumentAuthorizer.requireReadAccess(
+                        userService,
+                        userId,
+                        caller.email(),
+                        caller.groups()
+                );
+        }
+
+        private void authorizeWrite(String userId, Caller caller) {
+                IdentityDocumentAuthorizer.requireWriteAccess(
+                        userService,
+                        userId,
+                        caller.email()
+                );
+        }
 
     /*
      * Only uses claims supplied by an API Gateway authorizer.

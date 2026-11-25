@@ -203,7 +203,7 @@ class UserServiceImplAvailabilityTest {
         saveAllAssignsIds();
         UpdateAvailabilityRequest request = update("America/Chicago", List.of(
                 slot("Weekdays", "09:00", "17:00"),
-                slot("Saturday", "22:00", "02:00")));
+                slot("Saturday", "22:00", "23:00")));
         // ignored for now: no vacation columns in user_availability
         request.setVacationMode(true);
         request.setVacationStartDate("2026-12-20");
@@ -236,7 +236,7 @@ class UserServiceImplAvailabilityTest {
                         AvailabilitySlotResponse::getStartTime, AvailabilitySlotResponse::getEndTime)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("Weekdays", "09:00", "17:00"),
-                        org.assertj.core.groups.Tuple.tuple("Saturday", "22:00", "02:00"));
+                        org.assertj.core.groups.Tuple.tuple("Saturday", "22:00", "23:00"));
     }
 
     @Test
@@ -335,7 +335,7 @@ class UserServiceImplAvailabilityTest {
                 slot("Monday", "22:00", "02:00"),
                 slot("Tuesday", "01:00", "03:00")))))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("slots[0] and slots[1] overlap on Monday");
+                .hasMessage("slots[0].endTime must be after startTime on the same day");
     }
 
     @Test
@@ -344,7 +344,7 @@ class UserServiceImplAvailabilityTest {
                 slot("Monday", "00:30", "02:00"),
                 slot("Sunday", "23:00", "01:00")))))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("slots[0] and slots[1] overlap on Monday");
+                .hasMessage("slots[1].endTime must be after startTime on the same day");
     }
 
     @Test
@@ -405,10 +405,13 @@ class UserServiceImplAvailabilityTest {
     }
 
     @Test
-    void updateRejectsMissingSlots() {
-        assertThatThrownBy(() -> userService.updateAvailability(update("UTC", null)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("slots is required");
+    void timezoneOnlyRetryIsIdempotent() {
+        stubAccount("UTC");
+        AvailabilityResponse response = userService.updateAvailability(update("UTC", null));
+        assertThat(response.getTimezone()).isEqualTo("UTC");
+        assertThat(response.getSlots()).isEmpty();
+        verify(userRepository, never()).updateAvailabilityTimezone(any(), any());
+        verify(userAvailabilityRepository, never()).deleteByUser_Id(any());
     }
 
     @Test
@@ -451,7 +454,7 @@ class UserServiceImplAvailabilityTest {
     void updateRejectsEqualStartAndEnd() {
         assertThatThrownBy(() -> userService.updateAvailability(update("UTC", List.of(slot("Monday", "09:00", "09:00")))))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("slots[0]: startTime and endTime must differ");
+                .hasMessage("slots[0].endTime must be after startTime on the same day");
         verifyNoInteractions(userAvailabilityRepository);
     }
 
