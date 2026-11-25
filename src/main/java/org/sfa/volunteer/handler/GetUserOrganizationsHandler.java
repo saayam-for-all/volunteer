@@ -9,7 +9,7 @@ import org.springframework.http.HttpMethod;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.sfa.volunteer.dto.request.UserOrganizationsRequest;
 
-/** GET /organizations/users/{userId} */
+/** POST /organizations/user  body: { "userId": "..." } */
 public class GetUserOrganizationsHandler extends OrganizationHandlerBase {
 
     public GetUserOrganizationsHandler() {

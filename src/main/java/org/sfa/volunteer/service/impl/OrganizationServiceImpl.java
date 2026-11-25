@@ -7,7 +7,6 @@ import org.sfa.volunteer.exception.OrganizationNotFoundException;
 import org.sfa.volunteer.model.OrgSkill;
 import org.sfa.volunteer.model.OrgType;
 import org.sfa.volunteer.model.OrgSize;
-import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.springframework.stereotype.Service;
 import org.sfa.volunteer.dto.request.CreateOrganizationRequest;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;

@@ -16,7 +16,6 @@ import org.sfa.volunteer.VolunteerApplication;
 import org.sfa.volunteer.dto.common.SaayamResponse;
 import org.sfa.volunteer.dto.common.SaayamStatusCode;
 import org.sfa.volunteer.exception.OrganizationNotFoundException;
-import org.sfa.volunteer.exception.UserOrganizationNotFoundException;
 import org.sfa.volunteer.service.OrganizationService;
 import org.sfa.volunteer.util.Cors;
 import org.sfa.volunteer.util.MessageSourceUtil;
@@ -25,9 +24,7 @@ import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
-import org.springframework.context.ApplicationContext;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
@@ -40,7 +37,6 @@ public abstract class OrganizationHandlerBase
         implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
     protected static final String ORG_ID_PARAM = "orgId";
-    protected static final String USER_ID_PARAM = "userId";
     protected static final Object[] NO_ARGS = new Object[0];
     private static final String INVALID_BODY_MESSAGE = "Invalid request body";
     private static final String INVALID_REFERENCE_MESSAGE = "One or more values are invalid or refer to records that don't exist";
@@ -97,10 +93,6 @@ public abstract class OrganizationHandlerBase
         } catch (OrganizationNotFoundException e) {
             String msg = messageSourceUtil.getMessage(
                     SaayamStatusCode.ORGANIZATION_NOT_FOUND.getCode(), new Object[]{ e.getOrgId() });
-            return error(response, HttpStatus.NOT_FOUND, SaayamStatusCode.ORGANIZATION_NOT_FOUND, msg);
-        } catch (UserOrganizationNotFoundException e) {
-            String msg = messageSourceUtil.getMessage(
-                    SaayamStatusCode.ORGANIZATION_NOT_FOUND.getCode(), new Object[]{ e.getUserId() });
             return error(response, HttpStatus.NOT_FOUND, SaayamStatusCode.ORGANIZATION_NOT_FOUND, msg);
         } catch (IllegalArgumentException e) {
             return error(response, HttpStatus.BAD_REQUEST, SaayamStatusCode.BAD_REQUEST, e.getMessage());
