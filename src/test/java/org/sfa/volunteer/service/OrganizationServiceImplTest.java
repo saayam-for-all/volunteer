@@ -5,10 +5,12 @@ import static org.mockito.ArgumentMatchers.anyList;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.sfa.volunteer.model.UserOrgMap;
+import org.sfa.volunteer.model.UserOrgMapId;
 import org.sfa.volunteer.dto.request.UpdateOrganizationRequest;
 import org.sfa.volunteer.dto.response.OrganizationDetailsResponse;
 import org.sfa.volunteer.exception.OrganizationNotFoundException;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import org.sfa.volunteer.dto.request.CreateOrganizationRequest;
 import static org.mockito.ArgumentMatchers.any;
 import org.sfa.volunteer.model.Organization;
@@ -139,6 +141,17 @@ class OrganizationServiceImplTest {
 
         assertThrows(OrganizationNotFoundException.class,
                 () -> organizationService.linkOrganization("SID-00-000-000-001", "NOPE"));
+    }
+
+   @Test
+    void linkOrganization_existingMembership_isLeftUnchanged() {
+        when(organizationRepository.findById("ORG-1"))
+                .thenReturn(Optional.of(Organization.builder().orgId("ORG-1").build()));
+        when(userOrgMapRepository.existsById(new UserOrgMapId("USER-1", "ORG-1"))).thenReturn(true);
+
+        organizationService.linkOrganization("USER-1", "ORG-1");
+
+        verify(userOrgMapRepository, never()).save(any());
     }
 
     @Test
