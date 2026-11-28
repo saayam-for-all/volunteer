@@ -55,9 +55,14 @@ class AvailabilityFlowIntegrationTest {
 
     @BeforeEach void setup() {
         jdbc.execute("DROP TABLE IF EXISTS user_availability");
+        jdbc.execute("DROP TABLE IF EXISTS volunteer_details");
         jdbc.execute("DROP TABLE IF EXISTS user_additional_details");
         jdbc.execute("DROP TABLE IF EXISTS users");
         new ResourceDatabasePopulator(new ClassPathResource("availability214-schema.sql")).execute(dataSource);
+        jdbc.execute("""
+                CREATE TABLE volunteer_details (user_id varchar(255) PRIMARY KEY REFERENCES users(user_id),
+                    availability_days json, availability_times json)
+                """);
         jdbc.update("INSERT INTO users(user_id, full_name, primary_email_address, time_zone, language_1) VALUES (?, ?, ?, ?, ?)",
                 "u1", "Local Test", "owner@example.org", "UTC", 123L);
         jdbc.update("INSERT INTO users(user_id, full_name, primary_email_address, time_zone) VALUES (?, ?, ?, ?)",
